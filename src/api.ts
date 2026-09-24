@@ -6,7 +6,6 @@ export class SessionEndedError extends Error {
   override name = 'SessionEndedError'
 }
 
-// TODO: phase 4 measures the big transfer lists and revisits ky's default 10 s timeout.
 export const http = ky.create({ prefix: `${urlBase}/api/v0`, retry: 0 })
 
 export const api = http.extend({

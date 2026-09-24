@@ -14,7 +14,7 @@ are relative to `../slskd/src/slskd`, and line numbers drift over time.
   and isn't for the UI.
 - **There is no transfers hub**, and there's no ETag, `If-None-Match` or `since` param anywhere. The
   transfer list endpoints have no pagination, and their only filter is `includeRemoved`.
-  `GET /transfers/downloads` returns every non-removed download every time (3.5 MiB on a heavily
+  `GET /transfers/downloads` returns every non-removed download every time, uncompressed (3.5 MiB on a heavily
   loaded instance). Stock polls it at 1 Hz per tab while the Downloads/Uploads page is mounted
   (`web/src/components/Transfers/Transfers.jsx:36`). Under load, stock saturates the main thread,
   starves the SignalR keepalive and shows "Lost connection". Avoiding that is the main reason this
@@ -30,34 +30,89 @@ are relative to `../slskd/src/slskd`, and line numbers drift over time.
 
 ## Transfers
 
-- The list shape is `[{ username, directories: [{ directory, fileCount, files: Transfer[] }] }]`,
-  grouped by user and then by remote directory, in no particular order. A `Transfer` has `id, batchId?,
-  username, direction, filename (full remote path), size, state, requestedAt, enqueuedAt?, startedAt?,
-  endedAt?, bytesTransferred, averageSpeed, placeInQueue?, exception?, attempts, nextAttemptAt?,
-  removed`, plus the computed `bytesRemaining, percentComplete, elapsedTime?, remainingTime?`.
-- `state` is a flags enum serialised like `"Completed, Succeeded"` or `"Queued, Locally"`. Terminal
-  states are `Completed, Succeeded|Cancelled|TimedOut|Errored|Rejected|Aborted`. `Completed`
-  means "this attempt ended". It doesn't mean success, and **it isn't guaranteed final**:
-  - Download auto-retry (default 3 attempts, 5 s backoff capped at 60 s) writes
-    `Completed, Errored`. Milliseconds later it writes `Queued, Locally` **under the same id**, with
-    `attempts` incremented and `startedAt/endedAt/bytesTransferred/averageSpeed/exception/placeInQueue`
-    reset. Cancellation, rejection, duplicate transfers and size mismatches are not retried.
+Paths below are relative to `Transfers/` unless they start with another directory.
+
+### Records
+
+- The list shape is `[{ username, directories: [{ directory, fileCount, files: Transfer[] }] }]`. A
+  `Transfer` has `id, batchId?, username, direction, filename (full remote path), size, state, requestedAt,
+  enqueuedAt?, startedAt?, endedAt?, bytesTransferred, averageSpeed, placeInQueue?, exception?, attempts,
+  nextAttemptAt?, removed`, plus the computed `bytesRemaining, percentComplete, elapsedTime?, remainingTime?`
+  (`Types/Transfer.cs`).
+  - Sizes are bytes, `averageSpeed` is bytes per second, and `percentComplete` runs from 0 to 100.
+  - `elapsedTime` and `remainingTime` are .NET TimeSpans (`"00:00:03.6311109"`). `elapsedTime` is measured
+    against the server's clock, so a running transfer's record changes on every poll.
+  - **`requestedAt` and `enqueuedAt` are UTC but serialised without the `Z`**, while `startedAt` and
+    `endedAt` have it. Only the latter two have a `SpecifyKind(Utc)` converter (`TransfersDbContext.cs`).
+  - `attempts` is 0 until a download's first attempt starts, and always 0 for uploads.
+- `state` is a flags enum serialised like `"Completed, Succeeded"` or `"Queued, Locally"`. The states actually
+  written are `Queued, Locally`, `Requested`, `Queued, Remotely` (downloads only), `Initializing`,
+  `InProgress` and `Completed, Succeeded|Cancelled|TimedOut|Errored|Rejected|Aborted`. Bare `Queued` and
+  `Completed` never occur. `Completed` means "this attempt ended". It doesn't mean success, and
+  **it isn't guaranteed final**:
+  - Download auto-retry (3 attempts in total by default) retries every failure except cancellation, rejection,
+    duplicate transfers and size mismatches, so `Completed, Errored`, `TimedOut` and `Aborted` can all flip
+    back to `Queued, Locally` **under the same id**, with `attempts` incremented. The wait before an attempt is
+    `floor((2^n − 1) / 2) × 5 s` plus up to 5 s of jitter: 0–5 s before the second, 5–10 s before the third
+    (`Common/Compute.cs`, `Common/Retry.cs`).
+  - While it waits, the record keeps the failed attempt's `startedAt`, `endedAt`, `exception`,
+    `bytesTransferred` and `averageSpeed`. They're overwritten by the next attempt's first state change.
+    `placeInQueue` is already cleared.
+  - Cancelling during that wait ends as `Completed, Errored`, not `Cancelled`.
   - A failure before Soulseek reports any state flips the state
-    `Completed, Errored` → `Queued, Locally` → `Completed, Errored` within milliseconds. Examples are
-    enqueueing while disconnected or cancelling during a retry backoff. This affects downloads and uploads.
+    `Completed, Errored` → `Queued, Locally` → `Completed, Errored` within milliseconds, for example when
+    enqueueing while disconnected. This affects downloads and uploads.
   - If moving the file after a download fails, the state stays `Completed, Succeeded` but the record gains an `exception`.
   - Small race windows can bump `bytesTransferred`/`averageSpeed` after `Completed`, or un-remove a record.
   - These fields never change: `id, batchId, username, direction, filename, size, requestedAt`.
     `nextAttemptAt` is declared but never set.
-- Removal is a soft delete (`removed: true`), and lists exclude removed records unless `?includeRemoved=true`.
-  Re-enqueueing a file marks the old record removed and creates a **new id**. Clear-completed and retention
-  pruning also remove records. `DELETE …?remove=true` only removes transfers that are already `Completed`;
-  on an active transfer it just cancels.
-- At startup, unfinished transfers become `Completed, Errored`. After login they're re-enqueued under
-  new ids and the old records are removed.
-- Batches: `POST /transfers/downloads/batches` returns `{batch, failures}` with 201 (all enqueued),
-  207 (partial) or 200 (none enqueued). It returns 409 for a duplicate id and 429 while another enqueue
-  is running. The per-user `POST /transfers/downloads/{username}` is `[Obsolete]`.
+- Removal is a soft delete (`removed: true`). Re-enqueueing a file marks its old record removed and creates a
+  **new id**. Clear-completed and retention pruning also remove records.
+- At startup, unfinished transfers become `Completed, Errored` ("Application shut down"). On the first
+  Soulseek login after that, the unfinished *downloads* are re-enqueued under new ids, without their batch (so
+  a batch destination is lost), and the old records are removed. If the peer is offline the old record just
+  stays errored. Observed: pressing Connect on the dev instance restarted 34 such downloads.
+- Uploads have no enqueue, retry or position endpoint, and never have the `Remotely` flag. A peer's
+  re-request supersedes the old record like a download re-enqueue does.
+- Retention (`retention.transfers.{upload,download}.{succeeded,errored,cancelled,failed}`, YAML only) is in
+  **minutes** and off by default. It soft-removes records at startup and then every 5 minutes.
+
+### Endpoints
+
+Everything is under `/transfers`, needs `application/json` for bodies, and returns 403 in relay agent mode.
+Error bodies are JSON strings. Encode the username segment with `encodeURIComponent`.
+
+- `GET downloads` / `GET uploads` return every non-removed record, read from SQLite on **every** call with
+  no cache and no `ORDER BY` (in practice insertion order). The query visits every record of that direction
+  ever written, removed ones included. The only parameter is `includeRemoved`. There's no pagination, no
+  ETag or `If-None-Match`, and **no response compression**. `GET .../{username}` returns one user's object
+  (not an array) and 404 if there are none.
+- `DELETE .../{username}/{id}?remove=bool` always returns 204 for a well-formed id, even an unknown one.
+  - The cancel is asynchronous.
+  - `remove=true` only removes a record that's already `Completed`. On an active transfer it just cancels,
+    and removing the resulting `Completed, Cancelled` record takes a second DELETE.
+  - A stuck download with nothing to cancel is set to `Completed, Cancelled` in the same call; uploads have no
+    such fallback.
+- `DELETE downloads/all/completed` (and `uploads/...`) removes every `Completed` record, succeeded and failed
+  alike. There's no succeeded-only or failed-only variant and no bulk cancel.
+- **`GET downloads/{username}/{id}/position` is a Soulseek action**: it asks the peer. It returns a bare
+  integer and stores it as `placeInQueue`, which the next state change clears. Every Soulseek failure is a
+  500; observed: `"The wait timed out after 5000 milliseconds"` when the peer didn't answer.
+- `POST downloads/batches` takes `{id?, searchId?, username, files: [{filename, size}], options?: {destination?}}`.
+  - It returns `{batch, failures: [{filename, message}]}` with 201 (all enqueued), 207 (partial) or 200 (none).
+    Failures include `"Skipped: Already in progress"` when the file's current record isn't `Completed`.
+  - It returns 400 for invalid bodies and duplicate filenames, 404 when the user is offline or blacklisted,
+    409 for a duplicate batch id, and 500 when not logged in to Soulseek or the peer can't be reached.
+  - `options` may be omitted, but `"options": null` is a 500. `externalId` is accepted and dropped.
+  - It returns once the records are inserted as `Queued, Locally`, without waiting for the peer's queue.
+  - **At most two enqueues run at once**, across the batch and the obsolete per-user POST. A third gets 429
+    straight away with nothing done. Observed: a retry's POST got 429 twice while two other enqueues held the
+    slots for about 2 s each, then succeeded on the next resend.
+- `GET downloads/batches/{id}` returns `{id, searchId?, username, direction, createdAt, options, transfers}`,
+  including removed transfers. There's no endpoint that lists batches.
+- **There's no retry endpoint.** Retrying means enqueueing the same `username` + `filename` + `size` again.
+  Stock's retry uses the obsolete `POST downloads/{username}` one file at a time, so it loses the batch and
+  its destination, and runs into the 429.
 
 ## Auth
 
@@ -218,6 +273,13 @@ Paths are relative to `../slskd/src/web/src`.
   disconnected. There are no count badges; the footer shows transfer counts from the metrics hub.
 - Theme: localStorage `slskd-theme` (`dark`/`light`), falling back to `prefers-color-scheme`. It never sets
   `document.title`.
+- Transfers (`components/Transfers/`): one card per user, then one table per remote directory, all expanded,
+  unsorted except by file name within a directory, with no filtering or virtualisation. Selection is per user
+  card, with a select-all per directory. Per-file actions are a click on the state (retry when failed, queue
+  position when queued), and bulk Retry/Cancel/Remove act on the selection or on "all errored/queued/succeeded"
+  from the header. Nothing asks for confirmation. Retry sends one obsolete per-user POST per file in parallel,
+  so most get 429 beyond two files. Uploads show a Retry for failed selections that would download the file
+  from the peer instead.
 
 ## Config
 
@@ -276,6 +338,14 @@ in headless Chromium).
   everything a plain string.
 - `validateSearch` takes Standard Schema validators (Zod 4, Valibot, ArkType) directly. `@tanstack/zod-adapter`
   is only for Zod 3.
+  - `<Link search>` and `navigate` are typed from the schema's *input*, so a param is only optional for them if
+    it's optional in the input. With Valibot that's `v.optional(v.fallback(schema, d), d)`; `v.fallback` alone
+    leaves it required. ArkType has no fallback for invalid values, so `?show=bogus` renders the error page.
+  - The router writes validated defaults into the URL (a Link to `/downloads` lands on `/downloads?show=all…`)
+    unless the route has `search: { middlewares: [stripSearchParams(defaults)] }`, which also drops invalid
+    values on load. The middleware has to be written inline in `createRoute` for its type to be inferred.
+  - The validator also runs on its own output, so a transform would be applied twice; keep outputs valid
+    inputs (sort values stay strings like `size.desc`).
 - `head` + `<HeadContent />` sets `document.title` in a client-only SPA. The title goes in
   `meta: [{ title }]`, and the deepest match wins.
 - A redirect thrown from `beforeLoad` replaces the history entry.
@@ -301,3 +371,44 @@ Checked against the `@radix-ui/themes` 3.3.0 package source.
 - The root `Theme` provides a `Tooltip.Provider` with a 200 ms delay.
 - next-themes 0.4.6, which the Radix docs recommend, is mostly unmaintained. Its anti-flash script does nothing
   when rendered client-side only (React 19 doesn't run rendered `<script>`s) and logs a warning in dev.
+
+## TanStack Table
+
+Checked against `@tanstack/react-table`/`table-core` 9.2.4 (stable since August 2026) from the package source
+and its bundled docs (`skills/`).
+
+- `useTable({ features, columns, data, ... })` replaces `useReactTable`. Every feature and row model is
+  registered in `tableFeatures({...})` (row models are "slots" next to their feature), otherwise its state and
+  methods don't exist.
+- Row models memoise on their inputs by identity: the core model on `data`, sorted on `[sorting, input]`,
+  expanded on `[expanded, input]`. **Any new `data` array rebuilds every `Row` object**; there's no reuse by
+  `getRowId`, which only keeps id-keyed state (selection, expansion) stable. So memoise row components on
+  `row.original`, not `row`. Measured (Node, 20k rows, one row changed): about 9 ms with no sorting, 25 ms
+  sorting numbers, 41–91 ms sorting strings with the built-in `text`/`alphanumeric` functions.
+- One table takes one `data` array; two arrays mean two tables (or a concatenation that rebuilds on either).
+- `getSubRows` gives parent rows with their own `original`; sorting sorts each level by the column's accessor.
+- **The expanded row model returns its input unexpanded while the `expanded` state is empty**, and
+  `getIsRowExpanded` isn't one of its memo inputs. "Expanded by default" therefore needs every id spelled out
+  in the state (observed: groups showed as expanded with no children). Expansion auto-resets whenever the core
+  model changes unless `autoResetExpanded: false`.
+- `row.getToggleSelectedHandler(opts)(event)` reads `event.target.checked` and, for Shift, `event.shiftKey`
+  (`isRowRangeSelectionEvent`). A Shift event selects the inclusive range from the table's last handled row in
+  display order, and `selectChildren` (default true) includes collapsed children. `toggleAllRowsSelected` only
+  adds or deletes the table's own row ids and leaves any other ids in the state alone.
+  `getIsSomeRowsSelected()` means "at least one", including when all are.
+- `useTable` returns a new table object whenever its options object changes, which in practice is every render.
+
+## TanStack Virtual
+
+Checked against `@tanstack/react-virtual` 3.14.13 / `virtual-core` 3.17.11.
+
+- With fixed row heights, give exact sizes in `estimateSize` and don't use `measureElement`. Measurements are
+  recomputed when `count` or `getItemKey`'s identity changes, not when `estimateSize` changes.
+- `rangeExtractor` can force extra indexes into the rendered range, which is how a sticky header is kept
+  rendered after it scrolls past (render it `position: sticky` instead of absolutely positioned).
+
+## filesize
+
+Checked against `filesize` 11.0.24. `{ base: 2, standard: 'iec', round: 1 }` gives `"3.2 MiB"` and rolls over at
+unit boundaries (`1048575` → `"1 MiB"`). `output: 'exponent'` returns the unit exponent, and `exponent` forces
+one, which is how `"3.2 / 10.5 MiB"` is built.

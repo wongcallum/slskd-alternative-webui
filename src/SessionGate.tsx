@@ -1,7 +1,8 @@
-import { Button, Card, Flex, Heading, Spinner, Text } from '@radix-ui/themes'
-import { type ReactNode, useEffect, useState } from 'react'
+import { Button, Card, Flex, Heading, Text } from '@radix-ui/themes'
+import type { ReactNode } from 'react'
 import { describeError } from './api'
 import { Login } from './Login'
+import { DelayedSpinner } from './pages'
 import { useSession } from './session'
 
 export function SessionGate({ children }: { children: ReactNode }) {
@@ -20,14 +21,9 @@ export function SessionGate({ children }: { children: ReactNode }) {
 }
 
 function Checking() {
-  const [visible, setVisible] = useState(false)
-  useEffect(() => {
-    const timer = setTimeout(() => setVisible(true), 300)
-    return () => clearTimeout(timer)
-  }, [])
   return (
     <Flex align="center" justify="center" minHeight="100vh">
-      {visible && <Spinner size="3" />}
+      <DelayedSpinner />
     </Flex>
   )
 }

@@ -6,7 +6,8 @@ import { applicationHub, type HubStatus, metricsHub, useHub } from './hubs'
 import { unfinishedDownloads } from './metrics'
 import { logout, useSession } from './session'
 import { connect, disconnect, type Soulseek, useSoulseek } from './soulseek'
-import { useResource } from './store'
+import { useResource, useStale, useWatchedResource } from './store'
+import { pollInterval, transfers } from './transfers'
 
 export function Shell() {
   const session = useSession()
@@ -59,14 +60,23 @@ function NavTab({ to, children }: { to: '/searches' | '/downloads' | '/uploads' 
   )
 }
 
+// While the Downloads page polls the list, the badge shows its exact count instead of the metrics estimate.
 function DownloadsBadge() {
-  const { data } = useResource(unfinishedDownloads)
+  const metrics = useResource(unfinishedDownloads)
   const hub = useHub(metricsHub)
-  if (!data?.count) return null
+  const list = useWatchedResource(transfers.download)
+  const listStale = useStale(transfers.download, pollInterval)
+  const exact =
+    transfers.download.isRunning() && list.data !== undefined && !listStale
+      ? list.data.transferring + list.data.queued
+      : undefined
+  const count = exact ?? metrics.data?.count
+  if (!count) return null
+  const unfinished = `${count} download${count === 1 ? '' : 's'} unfinished`
   return (
-    <Tooltip content={`About ${data.count} downloads unfinished`}>
-      <Badge ml="2" radius="full" color={hub.state === 'connected' ? undefined : 'gray'}>
-        {data.count}
+    <Tooltip content={exact === undefined ? `About ${unfinished}` : unfinished}>
+      <Badge ml="2" radius="full" color={exact !== undefined || hub.state === 'connected' ? undefined : 'gray'}>
+        {count}
       </Badge>
     </Tooltip>
   )

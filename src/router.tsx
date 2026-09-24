@@ -5,10 +5,12 @@ import {
   HeadContent,
   redirect,
   stringifySearchWith,
+  stripSearchParams,
 } from '@tanstack/react-router'
 import { NotFound, Placeholder, RouteError } from './pages'
 import { SessionGate } from './SessionGate'
 import { Shell } from './Shell'
+import { TransfersPage, type TransfersSearch, transfersSearch, transfersSearchDefaults } from './Transfers'
 
 const title = (name: string) => ({ meta: [{ title: `${name} · slskd` }] })
 
@@ -50,16 +52,40 @@ const downloadsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'downloads',
   head: () => title('Downloads'),
-  // TODO: phase 4 replaces this placeholder with the downloads grid.
-  component: () => <Placeholder title="Downloads" />,
+  validateSearch: transfersSearch,
+  search: { middlewares: [stripSearchParams(transfersSearchDefaults)] },
+  component: function Downloads() {
+    const navigate = downloadsRoute.useNavigate()
+    return (
+      <TransfersPage
+        direction="download"
+        search={downloadsRoute.useSearch()}
+        onSearchChange={(patch: Partial<TransfersSearch>) =>
+          navigate({ search: (previous) => ({ ...previous, ...patch }), replace: true })
+        }
+      />
+    )
+  },
 })
 
 const uploadsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'uploads',
   head: () => title('Uploads'),
-  // TODO: phase 4 replaces this placeholder with the uploads grid.
-  component: () => <Placeholder title="Uploads" />,
+  validateSearch: transfersSearch,
+  search: { middlewares: [stripSearchParams(transfersSearchDefaults)] },
+  component: function Uploads() {
+    const navigate = uploadsRoute.useNavigate()
+    return (
+      <TransfersPage
+        direction="upload"
+        search={uploadsRoute.useSearch()}
+        onSearchChange={(patch: Partial<TransfersSearch>) =>
+          navigate({ search: (previous) => ({ ...previous, ...patch }), replace: true })
+        }
+      />
+    )
+  },
 })
 
 const browseRoute = createRoute({
