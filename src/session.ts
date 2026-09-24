@@ -13,11 +13,16 @@ const tokenKey = 'slskd-alt-token'
 
 let session: Session = { status: 'checking' }
 const listeners = new Set<() => void>()
+const endListeners = new Set<() => void>()
 let run = 0
 let retryTimer: ReturnType<typeof setTimeout> | undefined
 
+const inApp = ({ status }: Session) => status === 'open' || status === 'authenticated'
+
 function set(next: Session) {
+  const ended = inApp(session) && !inApp(next)
   session = next
+  if (ended) for (const listener of endListeners) listener()
   for (const listener of listeners) listener()
 }
 
@@ -37,6 +42,10 @@ function subscribe(listener: () => void) {
 export const getSession = () => session
 
 export const useSession = () => useSyncExternalStore(subscribe, getSession)
+
+export function onSessionEnd(listener: () => void) {
+  endListeners.add(listener)
+}
 
 function removeToken(token: string) {
   if (localStorage.getItem(tokenKey) === token) localStorage.removeItem(tokenKey)

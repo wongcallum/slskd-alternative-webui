@@ -1,6 +1,16 @@
-import { Box, Button, Callout, Heading, Link, Text } from '@radix-ui/themes'
+import { Box, Button, Callout, Heading, Link, Spinner, Text } from '@radix-ui/themes'
 import { type ErrorComponentProps, Link as RouterLink } from '@tanstack/react-router'
+import { useEffect, useState } from 'react'
 import { describeError } from './api'
+
+export function DelayedSpinner() {
+  const [visible, setVisible] = useState(false)
+  useEffect(() => {
+    const timer = setTimeout(() => setVisible(true), 300)
+    return () => clearTimeout(timer)
+  }, [])
+  return visible && <Spinner size="3" />
+}
 
 export function Placeholder({ title }: { title: string }) {
   return (

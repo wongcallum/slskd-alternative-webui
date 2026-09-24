@@ -5,7 +5,8 @@ stock slskd. `../slskd` is read-only. We reimplement the stock UI's functionalit
 Verified behaviour of slskd and the libraries we rely on is in [facts.md](facts.md).
 
 Stack (fixed): React, strict TypeScript, Vite, Radix Themes, ky, `@microsoft/signalr`, TanStack Table v9,
-TanStack Virtual v3, TanStack Router. Each dependency is added in the phase that first uses it.
+TanStack Virtual v3, TanStack Router. Smaller helpers: Valibot (search params), `filesize`, `p-map` and Radix
+Icons. Each dependency is added in the phase that first uses it.
 
 ## Dev setup
 
@@ -62,10 +63,19 @@ structural sharing deep-allocates over the whole payload every tick) or assume t
   is the data plus the last error. `updatedAt` is read separately, and `useFreshness` re-renders on its own
   1 s clock only where freshness is shown, so identical pushes and polls cost nothing.
 - There's one poll loop per resource, reference-counted by subscribers. A hidden tab skips ticks and polls
-  as soon as it's visible again.
-- The poll interval is floored at a multiple of the last tick's measured cost, so we can't out-poll
-  the main thread the way stock does (phase 4).
+  as soon as it's visible again. The next tick is only scheduled once the last one finishes, so network time
+  paces the loop by itself.
+- **The poll interval is floored at 10× the last tick's main-thread cost**: each tick times its synchronous work
+  (`JSON.parse` of `response.text()` plus the merge) and waits `max(interval, 10 × cost)`. That caps it at
+  about 10% of the main thread, where stock out-polls it. Freshness thresholds use the effective interval.
+- The work stays on the main thread; a one-off check at 20k rows didn't justify more. If it ever does, a worker
+  fetches, parses and diffs, and posts only the changes.
+- List polls have no timeout: uncompressed, a heavy list takes about 10 s over a 3 Mbit/s link. Unmounting
+  aborts them. Other requests keep ky's 10 s.
 - A failed tick keeps the last good data and never blanks the screen.
+- A stopped resource keeps its snapshot, so coming back to a page shows the last data with its age at once.
+  Every resource snapshot and module-level atom is cleared when the session ends.
+- `refresh()` polls at once; actions call it when they settle. `watch` reads a resource without starting it.
 - Hub pushes (application `STATE`, search metadata, metrics) feed the same store. The hubs use
   `@microsoft/signalr`.
 - Soulseek server state is one resource: `STATE` while the application hub is connected, otherwise
@@ -75,18 +85,19 @@ structural sharing deep-allocates over the whole payload every tick) or assume t
 ### Array identity
 
 **Array identity is load-bearing.** TanStack Table's core row model memoises on the identity of the `data`
-array, and a fresh array means a full rebuild (~114 ms at 20k rows). So we **split transfers on
-mutability**: active rows and terminal (`Completed, *`) rows live in separate arrays. Each poll is
-merged into the existing arrays rather than replacing them.
+array, and a fresh array rebuilds every row (9–91 ms at 20k rows depending on the sort, see the facts). So we
+**split transfers on mutability**: active rows and terminal (`Completed, *`) rows live in separate arrays.
+Each poll is merged into the existing arrays rather than replacing them.
 
 Correction to the original premise: a terminal transfer *almost* never changes, but it can (auto-retry
 reuses the id, failures flip states, and a failed move adds an `exception`; see the facts). So the merge
-doesn't assume immutability. It compares each incoming row with the existing one on the fields that can
-still change (`state, attempts, exception, endedAt, bytesTransferred, averageSpeed, placeInQueue`)
-and reuses the old object when nothing changed. It returns a new array only when membership changed
-(added, removed or superseded) or a row changed. A row that leaves `Completed` moves back to the active
-array. In practice the terminal array's identity changes rarely, and a poll with no changes returns the
-same arrays.
+doesn't assume immutability. It compares each incoming row with the existing one on every field that can
+still change (`state, attempts, exception, enqueuedAt, startedAt, endedAt, bytesTransferred, averageSpeed,
+placeInQueue`) and reuses the old object when nothing changed. Computed fields aren't mapped, because
+`elapsedTime` changes on every poll. Rows are grouped by folder · user within each array, and a group object is
+reused when its files are, an array when its groups are, and the whole snapshot when both arrays are. A row that
+leaves `Completed` moves back to the active array. In practice the terminal array's identity changes rarely, and
+a poll with no changes returns the same snapshot, so nothing renders.
 
 ### Session
 
@@ -143,8 +154,10 @@ route tree and `basepath` from `window.urlBase`. There are **no route loaders**:
   Remounting `<RouterProvider>` can render a stale page (see the facts).
 - Paths match stock's: `/searches`, `/downloads`, `/uploads` and `/browse`. `/` redirects to `/searches` from
   `beforeLoad`, replacing the history entry.
-- Search params are plain strings (`URLSearchParams` both ways), and routes parse numbers in `validateSearch`.
-  The validation library is picked when the first search param lands.
+- Search params are plain strings (`URLSearchParams` both ways), validated with Valibot:
+  `v.optional(v.fallback(schema, default), default)`, so Links can omit them and invalid values fall back.
+  Routes add `stripSearchParams(defaults)`, which keeps defaults and invalid values out of the URL. Params that
+  change as you type or click replace the history entry.
 - Not-found and crash pages (`defaultErrorComponent`) render inside the shell, so the nav survives.
 - Titles come from `head` + `<HeadContent />`: "Downloads · slskd". Only unmatched paths keep the root
   route's "Page not found · slskd".
@@ -158,8 +171,8 @@ route tree and `basepath` from `window.urlBase`. There are **no route loaders**:
 - The Downloads badge is an **approximate** count of unfinished downloads from the metrics hub
   (`inProgress.files + queued.files`, each clamped at 0). It's hidden at zero, gray while the metrics hub is
   down, and its tooltip says "About N downloads unfinished". slskd's gauges trail the list by a few seconds
-  and by up to a whole batch while it's being enqueued (see the facts), so exact counts belong to the
-  Downloads toolbar.
+  and by up to a whole batch while it's being enqueued (see the facts). While the downloads list is fresh (the
+  Downloads page is open), the badge shows the list's exact count instead and drops "About".
 - The Soulseek indicator shows unknown / connected as the user / connecting / retrying at a time /
   disconnected. Its popover has the server address, the data source and its age, the last poll error, a
   `pendingReconnect` note, and Connect, Retry now + Stop trying, or Disconnect. Connect is only offered while
@@ -168,6 +181,41 @@ route tree and `basepath` from `window.urlBase`. There are **no route loaders**:
   Soulseek popover lists each hub with its retry count. At a glance, the badge grays while the metrics hub is
   down, and the popover's source line reads "hub down, polling" while the application hub is.
 - Log out has no confirmation and is hidden on open instances.
+
+### Transfers
+
+Downloads and Uploads are one page component, parameterised by direction.
+
+- **Layout.** One virtualised scroll: an Active section (anything not `Completed`) above a Finished section.
+  Each has a sticky, collapsible header with its counts, section actions and column headers, and each is its own
+  TanStack table, so the two arrays are never concatenated. One virtualizer maps its indexes onto both tables'
+  row models. Rows have a fixed height.
+- **Groups.** Rows are grouped by folder · user (the list's own grouping), one level deep: groups are parent
+  rows with the files as sub-rows. A folder with both live and finished files appears in both sections, and its
+  status counts the whole folder ("8/12 done · 1 failed"). Active groups start expanded and finished ones
+  collapsed, and toggles are kept in memory.
+- **Columns.** Checkbox, Name, User, Status, Size, Speed (Active only), Requested or Ended, then per-row actions
+  and an ⓘ popover with every field. States are coloured like stock (blue in progress, green succeeded, gray
+  queued, amber once retried, red failed), with the exception on hover. Sizes are IEC (KiB, MiB).
+- **Sorting.** Clicking a header sorts in the column's natural direction first (text A→Z, numbers and times
+  largest or newest first), then reversed, then back to the default order: newest group first, files by name.
+  One column at a time, per section. Groups sort by their aggregate and files within their group; names sort
+  naturally. Sorts re-apply on every poll.
+- **URL.** `q` (the filter: a case-insensitive substring of user + full path), `show` (`all`, `succeeded` or
+  `failed`, Finished only), `activeSort` and `finishedSort` (like `size.desc`).
+- **Selection.** Checkboxes on files and groups, Shift ranges, a select-all per section, and a click on a file
+  row toggles it. It spans both sections and is lost when you leave the page. The toolbar acts on it: Retry N
+  (failed downloads), Cancel N (active) and Remove N (finished).
+- **Section shortcuts.** Cancel all, Retry failed, and Clear finished (`DELETE all/completed`). They act on the
+  whole section, whatever the filter, and they're the only actions that ask for confirmation.
+- **Retry** enqueues one batch per user and old batch, copying the old batch's `searchId` and `destination`,
+  one POST at a time. A 429 is resent every second for up to 30 s, because slskd did nothing. The outcome is
+  reported per user (offline, not logged in, per-file failures).
+- **Queue positions** are looked up per row, or per group one file at a time, and shown with their age.
+- **Running actions** send DELETEs at most 4 at a time, mark their rows pending, show progress on their button,
+  poll as soon as they settle, and leave one dismissable outcome line in the toolbar. They run at module level,
+  so they survive navigation, and ending the session aborts them.
+- **Uploads** have no retry, queue positions or attempts, and no badge.
 
 ### Health
 
@@ -220,9 +268,21 @@ route tree and `basepath` from `window.urlBase`. There are **no route loaders**:
 
    With a real account we checked Connect and Disconnect, and compared the badge with the downloads list over
    a 41-file batch, which is what made the badge approximate.
-4. **Transfers**, downloads first and then uploads. The live store and the grid get built for real here
-   (TanStack Table + Virtual, the mutability split, and cost-floored polling). Enqueue through the batches
-   endpoint. The Downloads toolbar shows exact counts from the list.
+4. **Transfers.** *Done:* the Downloads and Uploads pages (see [Transfers](#transfers)), the live store's cost
+   floor, `refresh` and session-end clearing, the exact badge, and retry through the batches endpoint. We checked
+   these in headless Chromium against `pnpm dev`, and the URL handling against the `--dist` build:
+   - selection counts and gate reasons, Shift ranges and group checkboxes
+   - sorting, the filter and Show in the URL, reloads, invalid params, and the Downloads tab resetting them
+   - a bulk action surviving navigation, the kept snapshot on return, the hidden-tab pause, and the session
+     ending during a bulk action
+   - Cancel all and Clear finished confirming with their counts, and Retry gated while Soulseek is disconnected
+
+   With a real account we checked a batch moving from Active to Finished, the badge matching the toolbar, cancel,
+   retry keeping its batch's destination and search, the 429 resend, and a queue lookup timing out at the peer.
+   At scale (a real instance's 2.5k finished uploads, and once 20k rows of throwaway synthetic data, both on the
+   `--dist` build) idle polls rendered nothing, scrolling while polling stayed around the 50 ms long-task mark at
+   worst, and CPU throttling
+   stretched the poll interval without the freshness going amber. Active rows at scale went untested.
 5. **Search.** Design it as we go. Responses only arrive once a search finishes, while the hub pushes the
    metadata live. Stock's filter syntax (`minbr:`, `isvbr`, include/exclude terms) is worth porting eventually.
 6. **Browse.** A tree pane plus a folder grid, with subfolders listed at the top of the grid, ↵ to go in and
