@@ -25,9 +25,21 @@
               pnpm
               jq
               curl
+              chromium
             ];
             DOTNET_CLI_TELEMETRY_OPTOUT = "1";
             DOTNET_NOLOGO = "1";
+            CHROMIUM = pkgs.lib.getExe pkgs.chromium;
+            # makeFontsConf only includes /etc/fonts/conf.d, which a non-NixOS host may lack, leaving no family aliases.
+            FONTCONFIG_FILE = pkgs.writeText "fonts.conf" ''
+              <?xml version="1.0"?>
+              <!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
+              <fontconfig>
+                <include>${pkgs.fontconfig.out}/etc/fonts/conf.d</include>
+                <dir>${pkgs.dejavu_fonts}</dir>
+                <cachedir prefix="xdg">fontconfig</cachedir>
+              </fontconfig>
+            '';
           };
         }
       );

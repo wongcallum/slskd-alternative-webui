@@ -9,7 +9,12 @@ TanStack Virtual v3, TanStack Router. Each dependency is added in the phase that
 
 ## Dev setup
 
-- `nix develop` (or direnv) provides dotnet-sdk_10, nodejs_24, pnpm, jq and curl.
+- `nix develop` (or direnv) provides dotnet-sdk_10, nodejs_24, pnpm, jq, curl and chromium.
+- Browser checks: write a throwaway script in `.dev/` using `playwright-core` with
+  `chromium.launch({ executablePath: process.env.CHROMIUM })`, save screenshots to `.dev/` and view them. Headless
+  works without a GPU and needs no extra flags. The devShell also sets `$CHROMIUM` and a `FONTCONFIG_FILE` with DejaVu fonts. Without that
+  font config, pages render blank or in a serif font. If `$CHROMIUM` is unset, the shell predates the flake change, so
+  run the script under `nix develop -c`. Never run `playwright install`: its downloaded browsers break on Nix setups.
 - `dev/slskd build | start|restart [--dist] [slskd args...] | stop | log` manages a dev slskd built from
   `../slskd`. Build output, app dir and logs live in `.dev/`, and `../slskd` itself stays untouched. The config
   is `dev/slskd.yml`: `no_connect`, url_base `/slskd`, login `slskd`/`slskd`. Extra args go to slskd, so
