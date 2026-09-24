@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+command -v dotnet >/dev/null || exec nix develop "$root" -c "$0" "$@"
+
+state="$root/.dev"
+dll="$state/artifacts/bin/slskd/debug/slskd.dll"
+pidfile="$state/slskd.pid"
+logfile="$state/slskd.log"
+url="http://localhost:5030"
+
+running() { [[ -f $pidfile ]] && kill -0 "$(<"$pidfile")" 2>/dev/null; }
+
+build() {
+  dotnet build "$root/../slskd/src/slskd/slskd.csproj" --artifacts-path "$state/artifacts"
+}
+
+start() {
+  local args=(--app-dir "$state/app" --config "$root/dev/slskd.yml")
+  if [[ ${1:-} == --dist ]]; then
+    [[ -f $root/dist/index.html ]] || { echo "no build at $root/dist; run pnpm build" >&2; exit 1; }
+    args+=(--content-path "$(realpath --relative-to="$(dirname "$dll")" "$root/dist")")
+  fi
+  if running; then echo "already running (pid $(<"$pidfile"))" >&2; exit 1; fi
+  [[ -f $dll ]] || build
+  mkdir -p "$state/app"
+  setsid nohup dotnet "$dll" "${args[@]}" >"$logfile" 2>&1 </dev/null &
+  echo $! >"$pidfile"
+  for _ in $(seq 120); do
+    if curl -sf -o /dev/null "$url/api/v0/session/enabled"; then
+      echo "slskd up at $url/slskd/ (pid $(<"$pidfile"))"
+      return
+    fi
+    running || { tail -n 20 "$logfile" >&2; echo "slskd exited; see $logfile" >&2; exit 1; }
+    sleep 0.25
+  done
+  echo "slskd not up after 30s; see $logfile" >&2
+  exit 1
+}
+
+stop() {
+  if ! running; then rm -f "$pidfile"; echo "not running"; return; fi
+  local pid
+  pid=$(<"$pidfile")
+  kill "$pid"
+  for _ in $(seq 40); do
+    kill -0 "$pid" 2>/dev/null || break
+    sleep 0.25
+  done
+  kill -9 "$pid" 2>/dev/null || true
+  rm -f "$pidfile"
+  echo "stopped"
+}
+
+case "${1:-}" in
+  build) build ;;
+  start) start "${2:-}" ;;
+  stop) stop ;;
+  restart) stop && start "${2:-}" ;;
+  log) tail -n 100 -F "$logfile" ;;
+  *) echo "usage: dev/slskd build | start [--dist] | stop | restart [--dist] | log" >&2; exit 1 ;;
+esac
