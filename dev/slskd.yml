@@ -1,0 +1,6 @@
+flags: { no_connect: true, no_share_scan: true, no_version_check: true, no_config_watch: true }
+web:
+  port: 5030
+  url_base: /slskd
+  authentication: { username: slskd, password: slskd }
+soulseek: { username: dev, password: dev }

@@ -3,3 +3,5 @@
 - Don't write tests.
 - By default, write no comments. Comments are written when there is behaviour that would surprise a competent reader of the code.
 - Read the docs instead of trusting your training knowledge.
+
+Read docs/plan.md and docs/slskd-facts.md
