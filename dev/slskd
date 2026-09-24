@@ -25,6 +25,7 @@ start() {
   fi
   args+=("$@")
   if running; then echo "already running (pid $(<"$pidfile"))" >&2; exit 1; fi
+  if [[ -f $state/soulseek.env ]]; then set -a; source "$state/soulseek.env"; set +a; fi
   [[ -f $dll ]] || build
   mkdir -p "$state/app"
   setsid nohup dotnet "$dll" "${args[@]}" >"$logfile" 2>&1 </dev/null &
