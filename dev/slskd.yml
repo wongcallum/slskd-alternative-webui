@@ -3,4 +3,3 @@ web:
   port: 5030
   url_base: /slskd
   authentication: { username: slskd, password: slskd }
-soulseek: { username: dev, password: dev }

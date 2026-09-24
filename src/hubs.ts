@@ -6,7 +6,13 @@ import { urlBase } from './urlBase'
 
 export type HubStatus = { state: 'connecting' | 'connected' | 'reconnecting'; attempt: number }
 
-export type Hub = { subscribe: (listener: () => void) => () => void; getStatus: () => HubStatus }
+export type Hub = {
+  subscribe: (listener: () => void) => () => void
+  getStatus: () => HubStatus
+  on: <T>(method: string, handler: (payload: T) => void) => () => void
+}
+
+type Handler = (payload: unknown) => void
 
 const retryDelay = (attempt: number) => [0, 1000, 2000][attempt] ?? 5000
 
@@ -21,9 +27,11 @@ function accessToken() {
   return session.status === 'authenticated' ? session.token : ''
 }
 
-export function createHub(name: string, register: (connection: HubConnection) => void): Hub {
+function createHub(name: string): Hub {
   let status: HubStatus = { state: 'connecting', attempt: 0 }
   const listeners = new Set<() => void>()
+  const handlers = new Map<string, Set<Handler>>()
+  let references = 0
   let connection: HubConnection | undefined
   let startTimer: ReturnType<typeof setTimeout> | undefined
   let stopTimer: ReturnType<typeof setTimeout> | undefined
@@ -44,7 +52,7 @@ export function createHub(name: string, register: (connection: HubConnection) =>
         },
       })
       .build()
-    register(current)
+    for (const [method, set] of handlers) for (const handler of set) current.on(method, handler)
     current.onreconnected(() => setStatus('connected'))
     current.onclose(() => {
       if (connection === current) connect()
@@ -73,42 +81,43 @@ export function createHub(name: string, register: (connection: HubConnection) =>
     void current?.stop()
   }
 
+  function retain() {
+    references++
+    clearTimeout(stopTimer)
+    if (!connection) connect()
+    return () => {
+      if (--references === 0) stopTimer = setTimeout(stop, 2000)
+    }
+  }
+
   return {
     subscribe(listener) {
       listeners.add(listener)
-      clearTimeout(stopTimer)
-      if (!connection) connect()
+      const release = retain()
       return () => {
         listeners.delete(listener)
-        if (listeners.size === 0) stopTimer = setTimeout(stop, 2000)
+        release()
       }
     },
     getStatus: () => status,
+    on(method, typed) {
+      const handler = typed as Handler
+      let set = handlers.get(method)
+      if (!set) handlers.set(method, (set = new Set()))
+      set.add(handler)
+      connection?.on(method, handler)
+      const release = retain()
+      return () => {
+        set.delete(handler)
+        connection?.off(method, handler)
+        release()
+      }
+    },
   }
 }
 
 export const useHub = (hub: Hub) => useSyncExternalStore(hub.subscribe, hub.getStatus)
 
-export type ApplicationState = { server: { state: string } }
+export const applicationHub = createHub('application')
 
-// TODO: phase 3's live store absorbs this STATE snapshot.
-let applicationState: ApplicationState | undefined
-const applicationStateListeners = new Set<() => void>()
-
-export const applicationHub = createHub('application', (connection) => {
-  connection.on('STATE', (state: ApplicationState) => {
-    applicationState = state
-    for (const listener of applicationStateListeners) listener()
-  })
-})
-
-function subscribeApplicationState(listener: () => void) {
-  applicationStateListeners.add(listener)
-  const release = applicationHub.subscribe(listener)
-  return () => {
-    applicationStateListeners.delete(listener)
-    release()
-  }
-}
-
-export const useApplicationState = () => useSyncExternalStore(subscribeApplicationState, () => applicationState)
+export const metricsHub = createHub('metrics')
