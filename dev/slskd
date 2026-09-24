@@ -21,7 +21,9 @@ start() {
   if [[ ${1:-} == --dist ]]; then
     [[ -f $root/dist/index.html ]] || { echo "no build at $root/dist; run pnpm build" >&2; exit 1; }
     args+=(--content-path "$(realpath --relative-to="$(dirname "$dll")" "$root/dist")")
+    shift
   fi
+  args+=("$@")
   if running; then echo "already running (pid $(<"$pidfile"))" >&2; exit 1; fi
   [[ -f $dll ]] || build
   mkdir -p "$state/app"
@@ -53,11 +55,13 @@ stop() {
   echo "stopped"
 }
 
-case "${1:-}" in
+command=${1:-}
+shift || true
+case "$command" in
   build) build ;;
-  start) start "${2:-}" ;;
+  start) start "$@" ;;
   stop) stop ;;
-  restart) stop && start "${2:-}" ;;
+  restart) stop && start "$@" ;;
   log) tail -n 100 -F "$logfile" ;;
-  *) echo "usage: dev/slskd build | start [--dist] | stop | restart [--dist] | log" >&2; exit 1 ;;
+  *) echo "usage: dev/slskd build | start|restart [--dist] [slskd args...] | stop | log" >&2; exit 1 ;;
 esac

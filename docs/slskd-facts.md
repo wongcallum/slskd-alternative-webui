@@ -67,14 +67,32 @@ build-contract items were also confirmed against a running instance. Paths are r
   7-day TTL (which also has 5 minutes of clock skew).
 - Browser logins (`POST /session`) always get the Administrator role, so there's no role-gated UI. The response is
   `{token, tokenType, expires, issued, notBefore, name}`. API keys (`X-API-Key`) also exist but aren't for browsers.
+- `POST /session` returns 401 with an empty body for wrong credentials, and 400 with a JSON string
+  (`"Username and/or Password missing or invalid"`) for missing or blank fields. The comparison is exact
+  and case-sensitive. There's no rate limit, lockout or delay on failures (`SessionController.cs`).
+- `GET /session` is `[Authorize]` (JWT or API key) and returns 200 with an empty body and no side effects,
+  which makes it the cheapest session probe. There's no `DELETE /session` and no revocation: JWTs are
+  stateless, so logout is client-side only.
+- 401 bodies are always empty. A bad or stale token gets `WWW-Authenticate: Bearer error="invalid_token"`.
+  A browser JWT never gets a 403 from role checks, only from explicit `Forbid()` calls (relay agent
+  mode, remote configuration or file management disabled).
 - An instance can have no auth: `web.authentication.disabled: true`, or `--no-auth`. Then
   `GET /session/enabled` returns `false` and every request is Administrator. `POST /session` still
-  validates credentials and returns a JWT that's useless.
+  validates credentials and returns a JWT that's useless. JwtBearer isn't registered in that mode, so a
+  stale or bogus `Bearer` header (or hub `access_token`) is ignored and the request succeeds (`Program.cs:932`).
 - Hub connections authenticate with `Authorization: Bearer` on negotiate and `access_token` on the WebSocket. An
   unauthenticated negotiate gets 401. An open hub connection survives token invalidation, and only the
   next reconnect's negotiate gets 401.
 - Stock UI stores the token under `slskd-token` (sessionStorage, or localStorage with "remember me"), and stores `'n/a'` when
   auth is disabled. Any 401 outside `/session`, `/server` and `/application` clears it and reloads.
+  The `/server` and `/application` exemptions are leftovers: they fixed redirect loops in 2021 (8b1f5d46,
+  70b14335), when stock polled those endpoints before login. Stock no longer calls either.
+
+## Shutdown
+
+- Observed: while a hub WebSocket is connected, SIGTERM makes slskd log "Application is shutting down" and
+  "Client stopped" and then hang instead of exiting. With no hub connected it exits in about 2 s.
+  `dev/slskd stop` kills it after 10 s, so a restart with a connected tab takes about 12 s.
 
 ## Soulseek server connection
 
@@ -122,3 +140,24 @@ build-contract items were also confirmed against a running instance. Paths are r
   can't be verified from slskd's source.
 - Stock caches browse results in IndexedDB (`slskd-browse` / `browse`) and `localStorage['slskd-browse-state']`.
   We share an origin with stock, so use different names.
+
+## SignalR client
+
+Read from the `@microsoft/signalr` 10.0.11 package source (paths are under its `src/`).
+
+- `withAutomaticReconnect()` retries after 0, 2, 10 and 30 s, then gives up and fires `onclose(undefined)`.
+  A failed initial `start()` is never retried (`DefaultReconnectPolicy.ts`, `HubConnection.ts`).
+- A 401 on negotiate is just another failed attempt. It's re-wrapped as a non-exported
+  `FailedToNegotiateWithServerError` with no `statusCode`, so only the message (`Status code '401'`)
+  shows it. The reconnect loop carries on under the retry policy (`HttpConnection.ts`).
+- A custom `IRetryPolicy` is called once when the connection drops and after every failed attempt.
+  `retryReason` is the most recent failure. Returning `null` stops and fires `onclose`.
+- `onreconnecting` fires as soon as the WebSocket closes, which a dying server does.
+  `serverTimeoutInMilliseconds` (30 s) only covers silent drops. So the first probe after a drop hits a
+  slskd that is still shutting down.
+- `accessTokenFactory` runs for every negotiate and every WebSocket connect. Browsers put the token in
+  the `access_token` query param. An empty string sends no token.
+- `stop()` during a pending `start()` rejects it with an `AbortError` and doesn't fire `onclose`.
+  During a reconnect it fires `onclose(undefined)`.
+- If the WebSocket fails, the client falls back to SSE and then long polling, negotiating afresh each
+  time. Observed against slskd: it stays on WebSockets across restarts.
