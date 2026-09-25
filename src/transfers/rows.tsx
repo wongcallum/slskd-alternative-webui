@@ -70,6 +70,7 @@ type FileRowProps = {
   pending: boolean
   lookup?: Lookup
   gate?: string
+  retryGate?: string
   onSelect: (id: string, shiftKey: boolean) => void
 }
 
@@ -82,6 +83,7 @@ export const FileRow = memo(function FileRow({
   pending,
   lookup,
   gate,
+  retryGate,
   onSelect,
 }: FileRowProps) {
   const time = timeOf(section, file)
@@ -94,7 +96,7 @@ export const FileRow = memo(function FileRow({
   const actions = (
     <>
       {direction === 'download' && isRetryable(file.state) && (
-        <GatedIconButton label="Retry" gate={gate} onClick={() => retry([file])}>
+        <GatedIconButton label="Retry" gate={retryGate} onClick={() => retry([file])}>
           <ReloadIcon />
         </GatedIconButton>
       )}

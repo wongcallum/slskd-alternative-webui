@@ -60,8 +60,10 @@ export function TransferList(props: ListProps) {
   const layout = useLayout()
   const twoLines = !useFrom('sm')
   const open = useAtom(openSections[direction])
-  const { pending } = useAtom(actions[direction])
+  const { pending, running } = useAtom(actions[direction])
   const lookupMap = useAtom(lookups)
+  // A second retry would re-enqueue what the first hasn't reached yet, and they'd share one progress count.
+  const retryGate = running.retry === undefined ? gates.soulseek : 'A retry is running'
   const activeRows = activeTable.getRowModel().rows
   const finishedRows = finishedTable.getRowModel().rows
   const activeCount = open.active ? Math.max(activeRows.length, 1) : 0
@@ -173,6 +175,7 @@ export function TransferList(props: ListProps) {
         pending={pending.has(original.id)}
         lookup={lookupMap.get(original.id)}
         gate={gates.soulseek}
+        retryGate={retryGate}
         onSelect={onSelect[section]}
       />
     )
