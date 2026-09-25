@@ -18,6 +18,9 @@ export type Files = { listings: readonly RawListing[]; removed: ReadonlySet<stri
 
 const has = (entry: RawEntry, attribute: string) => entry.attributes.split(', ').includes(attribute)
 
+// slskd on Windows separates paths with '\', and reads either separator back.
+const slashes = (path: string) => path.replaceAll('\\', '/')
+
 const within = (path: string, folder: string) => path === folder || path.startsWith(`${folder}/`)
 
 function removedFrom(removed: ReadonlySet<string>, path: string) {
@@ -46,11 +49,11 @@ function toDirectories(listings: readonly RawListing[], removed: ReadonlySet<str
     }
     add(root.name, listing)
     for (const entry of listing.directories) {
-      const path = `${root.name}/${entry.fullName}`
+      const path = `${root.name}/${slashes(entry.fullName)}`
       if (!removedFrom(removed, path)) add(path, entry)
     }
     for (const entry of listing.files) {
-      const path = `${root.name}/${entry.fullName}`
+      const path = `${root.name}/${slashes(entry.fullName)}`
       if (removedFrom(removed, path)) continue
       // A symlinked file's length is its target's path.
       const link = has(entry, 'ReparsePoint')
@@ -193,9 +196,10 @@ async function touchesShares(targets: Target[], signal: AbortSignal) {
   }
   const directories = { downloads: held.downloads, incomplete: held.incomplete }
   return targets.some((target) => {
-    const path = `${directories[target.root].replace(/\/+$/, '')}/${target.relative}`
-    if (shares.some((share) => share.excluded && within(path, share.localPath))) return false
-    return shares.some((share) => !share.excluded && (within(path, share.localPath) || within(share.localPath, path)))
+    const path = `${slashes(directories[target.root]).replace(/\/+$/, '')}/${target.relative}`
+    const local = (share: Share) => slashes(share.localPath)
+    if (shares.some((share) => share.excluded && within(path, local(share)))) return false
+    return shares.some((share) => !share.excluded && (within(path, local(share)) || within(local(share), path)))
   })
 }
 
