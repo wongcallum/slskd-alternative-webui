@@ -11,32 +11,41 @@ const directions = {
   upload: { to: '/uploads', Icon: ArrowUpIcon, label: 'Upload speed' },
 } as const
 
-function Speed({ direction }: { direction: Direction }) {
+type Speed = { text: string; idle: boolean; summary: string }
+
+function useSpeed(direction: Direction): Speed {
   const { exact, counts, speed } = useTransferFigures(direction)
-  const { to, Icon, label } = directions[direction]
-  const text = speed === undefined ? '–' : formatSpeed(speed)
-  const tooltip =
+  const summary =
     counts === undefined
-      ? label
+      ? directions[direction].label
       : counts.running + counts.queued === 0
         ? `Nothing ${direction}ing or queued`
         : `${exact ? '' : 'About '}${counts.running.toLocaleString()} ${direction}ing and ${counts.queued.toLocaleString()} queued`
+  return { text: speed === undefined ? '–' : formatSpeed(speed), idle: speed === undefined || speed === 0, summary }
+}
+
+function Value({ direction, speed }: { direction: Direction; speed: Speed }) {
+  const { Icon } = directions[direction]
   return (
-    <Tooltip content={tooltip}>
-      <Button asChild variant="ghost" color="gray" style={{ justifyContent: 'start' }}>
-        <Link to={to} aria-label={`${label}: ${text}`}>
-          <Icon />
-          <span
-            style={{
-              // Fits "1023.9 KiB/s", so a changing speed doesn't move the Soulseek indicator.
-              minWidth: '10ch',
-              textAlign: 'start',
-              fontVariantNumeric: 'tabular-nums',
-              color: speed === undefined || speed === 0 ? 'var(--gray-a9)' : undefined,
-            }}
-          >
-            {text}
-          </span>
+    <Flex as="span" align="center" gap="1" style={{ fontVariantNumeric: 'tabular-nums' }}>
+      <Icon />
+      <span style={{ color: speed.idle ? 'var(--gray-a9)' : undefined }}>{speed.text}</span>
+    </Flex>
+  )
+}
+
+export function SpeedValue({ direction }: { direction: Direction }) {
+  return <Value direction={direction} speed={useSpeed(direction)} />
+}
+
+function BarSpeed({ direction }: { direction: Direction }) {
+  const speed = useSpeed(direction)
+  const { to, label } = directions[direction]
+  return (
+    <Tooltip content={speed.summary}>
+      <Button asChild variant="ghost" color="gray">
+        <Link to={to} aria-label={`${label}: ${speed.text}`}>
+          <Value direction={direction} speed={speed} />
         </Link>
       </Button>
     </Tooltip>
@@ -46,8 +55,8 @@ function Speed({ direction }: { direction: Direction }) {
 export function TransferSpeeds() {
   return (
     <Flex align="center" gap="4">
-      <Speed direction="download" />
-      <Speed direction="upload" />
+      <BarSpeed direction="download" />
+      <BarSpeed direction="upload" />
     </Flex>
   )
 }

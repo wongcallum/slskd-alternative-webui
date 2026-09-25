@@ -1,9 +1,15 @@
 import { HamburgerMenuIcon } from '@radix-ui/react-icons'
-import { DropdownMenu, IconButton } from '@radix-ui/themes'
+import { DropdownMenu, Flex, IconButton, Text } from '@radix-ui/themes'
+import { useNavigate } from '@tanstack/react-router'
 
+import { conversations } from '../chat/conversations'
 import { useAtom, useResource } from '../lib/store'
 import { logout, useSession } from '../session/session'
-import { application } from '../system/application'
+import { application, releaseNotes } from '../system/application'
+import { SpeedValue } from '../transfers/TransferSpeeds'
+import { useIsActive } from '../ui/nav'
+import { CornerDot } from '../ui/status'
+import { sections } from './sections'
 import { themeChoice } from './theme'
 
 const themes = [
@@ -15,24 +21,62 @@ const themes = [
 // Picking a theme keeps the menu open, so the others can be compared.
 const keepOpen = (event: Event) => event.preventDefault()
 
-export function AppMenu() {
+type Props = { pages: boolean; speeds: boolean; update: boolean }
+
+export function AppMenu({ pages, speeds, update }: Props) {
   const session = useSession()
   const { data } = useResource(application)
+  const unread = useResource(conversations).data?.unread ?? 0
   const choice = useAtom(themeChoice)
+  const isActive = useIsActive()
+  const navigate = useNavigate()
+  const latest = update && data?.updateAvailable ? data.latest : undefined
+  const dot = pages && unread > 0 ? 'red' : latest === undefined ? undefined : 'amber'
+  const shown = pages ? sections : speeds ? sections.filter((section) => section.direction !== undefined) : []
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger>
-        <IconButton variant="ghost" color="gray" aria-label="Menu">
+        <IconButton variant="ghost" color="gray" aria-label="Menu" style={{ position: 'relative' }}>
           <HamburgerMenuIcon width={18} height={18} />
+          {dot !== undefined && <CornerDot color={dot} />}
         </IconButton>
       </DropdownMenu.Trigger>
       <DropdownMenu.Content align="end">
+        {shown.length > 0 && (
+          <>
+            {/* The page that's open is checked, like the theme. */}
+            <DropdownMenu.RadioGroup
+              value={shown.find(({ to, also }) => isActive(to, also))?.to ?? ''}
+              onValueChange={(to) => void navigate({ to })}
+            >
+              {shown.map(({ to, label, badge, direction }) => (
+                <DropdownMenu.RadioItem key={to} value={to}>
+                  {label}
+                  {pages && badge}
+                  {direction !== undefined && (
+                    <Flex ml="auto" pl="5">
+                      <SpeedValue direction={direction} />
+                    </Flex>
+                  )}
+                </DropdownMenu.RadioItem>
+              ))}
+            </DropdownMenu.RadioGroup>
+            <DropdownMenu.Separator />
+          </>
+        )}
         {data !== undefined && (
           <>
             <DropdownMenu.Label>
               slskd {data.version}
               {data.build !== undefined && ` (${data.build} build)`}
             </DropdownMenu.Label>
+            {latest !== undefined && (
+              <DropdownMenu.Item asChild>
+                <a href={releaseNotes(latest)} target="_blank" rel="noreferrer">
+                  <Text color="amber">{latest} available</Text>
+                </a>
+              </DropdownMenu.Item>
+            )}
             <DropdownMenu.Separator />
           </>
         )}
