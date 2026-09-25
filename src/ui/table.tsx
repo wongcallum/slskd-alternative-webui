@@ -223,13 +223,24 @@ export function Cell({ end, title, children }: { end?: boolean; title?: string; 
 
 type GroupNameProps = { expanded: boolean; name: string; children?: ReactNode }
 
+// A row acts on a click anywhere in it, which the keyboard reaches through this. Its click bubbles up to the row.
+export function RowButton({ expanded, children }: { expanded?: boolean; children: ReactNode }) {
+  return (
+    <button type="button" className="row-button" aria-expanded={expanded}>
+      {children}
+    </button>
+  )
+}
+
 export function GroupName({ expanded, name, children }: GroupNameProps) {
   return (
     <>
-      {expanded ? <ChevronDownIcon style={{ flexShrink: 0 }} /> : <ChevronRightIcon style={{ flexShrink: 0 }} />}
-      <Text size="2" weight="medium" truncate>
-        {name}
-      </Text>
+      <RowButton expanded={expanded}>
+        {expanded ? <ChevronDownIcon style={{ flexShrink: 0 }} /> : <ChevronRightIcon style={{ flexShrink: 0 }} />}
+        <Text size="2" weight="medium" truncate>
+          {name}
+        </Text>
+      </RowButton>
       {children}
     </>
   )
