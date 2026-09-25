@@ -6,7 +6,7 @@ import { type ReactNode, useDeferredValue, useMemo, useState } from 'react'
 import { api, describeError } from '../lib/api'
 import { byName } from '../lib/text'
 import { FilterField, GateTip } from '../ui/controls'
-import { ErrorCallout, Loading } from '../ui/status'
+import { Fetching } from '../ui/status'
 import { ColumnHeader, GridRow, HeaderRow, VirtualTable } from '../ui/table'
 import { joinRoom, useJoinedRooms } from './rooms'
 
@@ -100,9 +100,12 @@ function RoomPicker({ listing, onRetry, onJoined }: { listing: Listing; onRetry:
   })
 
   let list: ReactNode
-  if (listing.status === 'loading') list = <Loading />
-  else if (listing.status === 'failed') {
-    list = <ErrorCallout onRetry={onRetry}>Can't load the room list: {describeError(listing.error)}</ErrorCallout>
+  if (listing.status !== 'ready') {
+    list = (
+      <Fetching error={listing.status === 'failed' ? listing.error : undefined} onRetry={onRetry}>
+        Can't load the room list
+      </Fetching>
+    )
   } else {
     const header = (
       <HeaderRow template={template}>

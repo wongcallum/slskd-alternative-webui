@@ -3,7 +3,7 @@ import type { RowSelectionState } from '@tanstack/react-table'
 import { type ReactNode, useMemo, useState } from 'react'
 import * as v from 'valibot'
 
-import { oneOf, sortOf, textParam } from '../lib/params'
+import { oneOf, type SearchProps, sortOf, textParam } from '../lib/params'
 import { type Resource, useAtom, useResource, useStale } from '../lib/store'
 import { useSoulseekGate } from '../soulseek/soulseek'
 import {
@@ -44,10 +44,8 @@ export type TransfersSearch = v.InferOutput<typeof transfersSearch>
 
 const noGroups: Group[] = []
 
-type Props = {
+type Props = SearchProps<TransfersSearch> & {
   direction: Direction
-  search: TransfersSearch
-  onSearchChange: (patch: Partial<TransfersSearch>) => void
 }
 
 export function TransfersPage({ direction, search, onSearchChange }: Props) {
@@ -128,7 +126,6 @@ export function TransfersPage({ direction, search, onSearchChange }: Props) {
       <TransfersToolbar
         direction={direction}
         resource={resource}
-        error={data === undefined ? undefined : error}
         text={filter.text}
         onTextChange={filter.change}
         selected={selected}
@@ -146,7 +143,6 @@ export function TransfersPage({ direction, search, onSearchChange }: Props) {
 type TransfersToolbarProps = {
   direction: Direction
   resource: Resource<Transfers>
-  error: unknown
   text: string
   onTextChange: (value: string) => void
   selected: Transfer[]
@@ -157,7 +153,6 @@ type TransfersToolbarProps = {
 function TransfersToolbar({
   direction,
   resource,
-  error,
   text,
   onTextChange,
   selected,
@@ -201,7 +196,7 @@ function TransfersToolbar({
       )}
       <ToolbarEnd>
         <OutcomeLine atom={actions[direction]} />
-        <Freshness resource={resource} interval={pollInterval} error={error} />
+        <Freshness resource={resource} interval={pollInterval} />
       </ToolbarEnd>
     </Toolbar>
   )

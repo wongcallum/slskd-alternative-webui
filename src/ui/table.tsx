@@ -77,6 +77,8 @@ export const columnsHeight = 32
 
 export type Layout = 'stacked' | 'medium' | 'wide'
 
+export type Templates = Record<Exclude<Layout, 'stacked'>, string>
+
 export function useLayout(): Layout {
   const md = useFrom('md')
   const lg = useFrom('lg')

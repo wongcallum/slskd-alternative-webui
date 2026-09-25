@@ -2,13 +2,13 @@ import { Flex, Text } from '@radix-ui/themes'
 import { Link as RouterLink } from '@tanstack/react-router'
 import { useMemo } from 'react'
 
-import { describeError } from '../../lib/api'
 import { formatBytes, plural } from '../../lib/format'
+import type { SearchProps } from '../../lib/params'
 import { useAtom, useResource } from '../../lib/store'
 import type { Item } from '../../lib/tree'
 import { useRun } from '../../lib/useRun'
 import { ActionButton, ConfirmButton, OutcomeLine } from '../../ui/controls'
-import { Ago, ErrorCallout, FetchedResource, Loading } from '../../ui/status'
+import { Ago, FetchedResource, Fetching } from '../../ui/status'
 import type { ExtraColumn } from '../../ui/tree/columns'
 import type { FolderLinkProps, Selection, TreeConfig } from '../../ui/tree/FolderPane'
 import { TreeView } from '../../ui/tree/TreeView'
@@ -28,10 +28,7 @@ import {
 } from './files'
 import type { FilesSearch } from './params'
 
-type Props = {
-  search: FilesSearch
-  onSearchChange: (patch: Partial<FilesSearch>) => void
-}
+type Props = SearchProps<FilesSearch>
 
 export function FilesPage({ search, onSearchChange }: Props) {
   const { data, error } = useResource(files)
@@ -47,10 +44,10 @@ export function FilesPage({ search, onSearchChange }: Props) {
           onSearchChange={onSearchChange}
           config={config}
         />
-      ) : error === undefined ? (
-        <Loading />
       ) : (
-        <ErrorCallout onRetry={files.refresh}>Can't list the files: {describeError(error)}</ErrorCallout>
+        <Fetching error={error} onRetry={files.refresh}>
+          Can't list the files
+        </Fetching>
       )}
     </SystemPage>
   )
@@ -135,7 +132,6 @@ function FilesStatus() {
       {options?.remoteFileManagement !== true && (
         <ActionButton
           label="Delete"
-          busy=""
           gate={
             options === undefined
               ? "slskd's options haven't arrived yet"
@@ -160,7 +156,6 @@ function SharedHint() {
       </Text>
       <ActionButton
         label="Rescan"
-        busy="Rescanning"
         loading={run.running}
         gate={known ? undefined : "slskd's state is out of date"}
         onClick={() =>

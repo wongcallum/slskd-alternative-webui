@@ -1,10 +1,11 @@
 import { Cross2Icon } from '@radix-ui/react-icons'
-import { Box, Button, Callout, Flex, IconButton, Spinner, Text } from '@radix-ui/themes'
+import { Box, Button, Callout, Flex, Heading, IconButton, Link, Spinner, Text } from '@radix-ui/themes'
+import { Link as RouterLink } from '@tanstack/react-router'
 import { type ReactNode, useEffect, useState } from 'react'
 
 import { describeError } from '../lib/api'
 import { formatAge, formatTime, useAgo } from '../lib/format'
-import { type Atom, isStale, type Resource, useAtom, useFreshness, useResource } from '../lib/store'
+import { type Atom, isStale, type Resource, useAtom, useFreshness, useResource, useWatchedResource } from '../lib/store'
 import { ActionButton, type Color, Tip } from './controls'
 import { stop } from './table'
 
@@ -58,6 +59,16 @@ export function Polling({ what, error }: { what: string; error: unknown }) {
   )
 }
 
+// For data loaded on demand, which a failure leaves to be asked for again. The children say what failed.
+export function Fetching({ error, onRetry, children }: { error: unknown; onRetry: () => void; children: ReactNode }) {
+  if (error === undefined) return <Loading />
+  return (
+    <ErrorCallout onRetry={onRetry}>
+      {children}: {describeError(error)}
+    </ErrorCallout>
+  )
+}
+
 export function ErrorCallout({ onRetry, children }: { onRetry?: () => void; children: ReactNode }) {
   return (
     <Box p="4">
@@ -69,6 +80,23 @@ export function ErrorCallout({ onRetry, children }: { onRetry?: () => void; chil
           Try again
         </Button>
       )}
+    </Box>
+  )
+}
+
+// The link isn't active on a search's own page, which is under /searches.
+export function Missing({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <Box p="5">
+      <Heading mb="2">{title}</Heading>
+      <Text as="p" color="gray" mb="3">
+        {children}
+      </Text>
+      <Link asChild>
+        <RouterLink to="/searches" activeOptions={{ exact: true }}>
+          Go to Search
+        </RouterLink>
+      </Link>
     </Box>
   )
 }
@@ -86,28 +114,33 @@ export function Ago({ time }: { time: number }) {
   return <span title={formatTime(time)}>{useAgo(time)}</span>
 }
 
+function UpdateFailed({ error }: { error: unknown }) {
+  if (error === undefined) return null
+  return (
+    <Tip content={describeError(error)}>
+      <Text size="1" color="red">
+        Update failed
+      </Text>
+    </Tip>
+  )
+}
+
+// Until the first data arrives, the page says why it's missing.
 export function Freshness({
   resource,
   interval,
-  error,
   live,
 }: {
   resource: Resource<unknown>
   interval: number
-  error: unknown
   live?: boolean
 }) {
+  const { data, error } = useWatchedResource(resource)
   const age = useFreshness(resource)
   const stale = isStale(age, resource.getInterval() ?? interval)
   return (
     <Flex align="center" gap="2">
-      {error !== undefined && (
-        <Tip content={describeError(error)}>
-          <Text size="1" color="red">
-            Update failed
-          </Text>
-        </Tip>
-      )}
+      {data !== undefined && <UpdateFailed error={error} />}
       <Text size="1" color={live || !stale ? 'gray' : 'amber'}>
         {live ? 'Live' : age === undefined ? 'Not loaded yet' : `Updated ${formatAge(age)} ago`}
       </Text>
@@ -176,19 +209,13 @@ export function Fetched({
 }) {
   return (
     <Flex align="center" gap="3">
-      {error !== undefined && (
-        <Tip content={describeError(error)}>
-          <Text size="1" color="red">
-            Update failed
-          </Text>
-        </Tip>
-      )}
+      <UpdateFailed error={error} />
       {fetchedAt !== undefined && (
         <Text size="1" color="gray">
           Updated <Ago time={fetchedAt} />
         </Text>
       )}
-      <ActionButton label={label} busy="Refreshing" loading={loading} gate={gate} onClick={onRefresh} />
+      <ActionButton label={label} loading={loading} gate={gate} onClick={onRefresh} />
     </Flex>
   )
 }

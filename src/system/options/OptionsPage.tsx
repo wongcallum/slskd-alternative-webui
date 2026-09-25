@@ -2,6 +2,7 @@ import { Box, Button, Callout, Flex, SegmentedControl, Text } from '@radix-ui/th
 import { lazy, type ReactNode, Suspense, useEffect, useMemo, useState } from 'react'
 
 import { describeError } from '../../lib/api'
+import type { SearchProps } from '../../lib/params'
 import { useAtom, useResource } from '../../lib/store'
 import { ActionButton, disabledProps, Tip, toolbarStyle } from '../../ui/controls'
 import { Preformatted } from '../../ui/details'
@@ -56,10 +57,7 @@ function sourcesGate(data: Options | undefined, startup: { data?: { debug: boole
   return startup.data.debug ? undefined : "slskd wasn't started with debug on"
 }
 
-type Props = {
-  search: OptionsSearch
-  onSearchChange: (patch: Partial<OptionsSearch>) => void
-}
+type Props = SearchProps<OptionsSearch>
 
 export function OptionsPage({ search, onSearchChange }: Props) {
   const live = useLiveOptions()
@@ -73,16 +71,7 @@ export function OptionsPage({ search, onSearchChange }: Props) {
   if (search.view === 'file') return <FileView control={control} gate={gates.file} known={live.known} />
   if (search.view === 'sources') return <SourcesView control={control} gate={gates.sources} />
   return (
-    <SystemPage
-      status={
-        <Freshness
-          resource={options}
-          interval={optionsPollInterval}
-          error={live.data === undefined ? undefined : live.error}
-          live={live.live}
-        />
-      }
-    >
+    <SystemPage status={<Freshness resource={options} interval={optionsPollInterval} live={live.live} />}>
       <Toolbar control={control} />
       <EffectiveView data={live.data} error={live.error} />
     </SystemPage>
@@ -277,7 +266,7 @@ function FileView({ control, gate, known }: { control: ReactNode; gate?: string;
             {file.location}
           </Text>
         )}
-        <ActionButton label="Save" busy="Saving" loading={file.saving} gate={blocked} onClick={() => void save()} />
+        <ActionButton label="Save" loading={file.saving} gate={blocked} onClick={() => void save()} />
       </Toolbar>
       {content}
     </SystemPage>
@@ -292,7 +281,6 @@ function ConflictCallout({ gate, saving }: { gate?: string; saving: boolean }) {
         <Flex gap="2">
           <ActionButton
             label="Overwrite"
-            busy="Saving"
             loading={saving}
             gate={gate}
             color="amber"

@@ -3,7 +3,7 @@ import type { RowSelectionState } from '@tanstack/react-table'
 import { type ReactNode, useMemo, useState } from 'react'
 import * as v from 'valibot'
 
-import { textParam } from '../lib/params'
+import { type SearchProps, textParam } from '../lib/params'
 import { useAtom } from '../lib/store'
 import {
   ActionButton,
@@ -35,10 +35,7 @@ export type SearchesSearch = v.InferOutput<typeof searchesSearch>
 
 const none: Search[] = []
 
-type Props = {
-  search: SearchesSearch
-  onSearchChange: (patch: Partial<SearchesSearch>) => void
-}
+type Props = SearchProps<SearchesSearch>
 
 export function SearchesPage({ search, onSearchChange }: Props) {
   const { data, error, live, known } = useSearches()
@@ -80,7 +77,7 @@ export function SearchesPage({ search, onSearchChange }: Props) {
         )}
         <ToolbarEnd>
           <OutcomeLine atom={listActions} />
-          <Freshness resource={searches} interval={searchPollInterval} error={error} live={live} />
+          <Freshness resource={searches} interval={searchPollInterval} live={live} />
         </ToolbarEnd>
       </Toolbar>
       {content}

@@ -4,6 +4,7 @@ import { stringify } from 'yaml'
 
 import { describeError } from '../lib/api'
 import { formatFullPreciseTime, plural } from '../lib/format'
+import type { SearchProps } from '../lib/params'
 import { useAtom, useResource } from '../lib/store'
 import { toStringOptions, yamlVersion } from '../lib/yaml'
 import { useFilterText } from '../ui/controls'
@@ -45,10 +46,7 @@ const newestOrder = (records: readonly EventRecord[]) => records.reduce((max, re
 const nearEnd = (element: HTMLElement) =>
   element.scrollHeight - element.scrollTop - element.clientHeight < 20 * rowHeight
 
-type Props = {
-  search: EventsSearch
-  onSearchChange: (patch: Partial<EventsSearch>) => void
-}
+type Props = SearchProps<EventsSearch>
 
 export function EventsPage({ search, onSearchChange }: Props) {
   const { data, error } = useResource(events)
@@ -119,11 +117,7 @@ export function EventsPage({ search, onSearchChange }: Props) {
   }
 
   return (
-    <SystemPage
-      status={
-        <Freshness resource={events} interval={eventsPollInterval} error={data === undefined ? undefined : error} />
-      }
-    >
+    <SystemPage status={<Freshness resource={events} interval={eventsPollInterval} />}>
       <HeldToolbar placeholder="Filter by type, user or text" filter={filter} hold={hold} unseen={unseen}>
         <TypesMenu
           hidden={hidden}

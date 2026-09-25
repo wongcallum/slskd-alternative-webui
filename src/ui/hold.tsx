@@ -15,6 +15,7 @@ import {
   rowHeight,
   StackedRow,
   stackedHeight,
+  type Templates,
   useListLayout,
   VirtualTable,
 } from './table'
@@ -106,7 +107,7 @@ export function HeldRow({
   onClick,
 }: {
   layout: Layout
-  templates: Record<Exclude<Layout, 'stacked'>, string>
+  templates: Templates
   time: number
   selected: boolean
   dimmed?: boolean
@@ -156,7 +157,7 @@ export function HeldList<T>({
   onScroll,
   footer,
 }: {
-  templates: Record<Exclude<Layout, 'stacked'>, string>
+  templates: Templates
   labels: readonly string[]
   records: readonly T[]
   itemKey: (record: T) => Key
