@@ -1309,6 +1309,9 @@ share of 200k files in 15k directories (54 MB of JSON), with `idb` 8.0.3. "Block
   data all at once, least recently used first, so it takes stock's data with ours. `navigator.storage.persist()` is
   decided by engagement in Chrome (it returned `false` headless), prompts in Firefox, and is decided automatically
   in Safari.
+- An upgrade waits until every connection on the older version closes, firing `blocked` meanwhile, so a tab whose build
+  has no `versionchange` handler holds it up for as long as it stays open (observed). `idb`'s `terminated` covers a
+  connection the browser closes on its own.
 - `idb` 8.0.3 (May 2025) is 1.4 KB, with a typed `DBSchema` and manual upgrades. `idb-keyval` allows only one store
   per database. Dexie 4.4.6 is 32.6 KB.
 
