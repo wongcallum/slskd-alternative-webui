@@ -80,6 +80,10 @@ async function acknowledge(username: string, signal: AbortSignal) {
   }
 }
 
+// slskd answers 404 for a conversation that hasn't started, which the browser logs as an error, so it isn't asked again
+// until the conversation is in the list or a message is sent.
+const unstarted = new Set<string>()
+
 const messageResources = createResourceMap((username) => {
   const resource: Resource<ConversationMessages> = createResource((sink) => {
     let first = true
@@ -88,11 +92,15 @@ const messageResources = createResourceMap((username) => {
       sink,
       async (signal, measure) => {
         let text = '[]'
-        try {
-          text = await api.get(`${path(username)}/messages`, { signal }).text()
-        } catch (error) {
-          // Nothing has been sent or received yet.
-          if (!isHTTPError(error) || error.response.status !== 404) throw error
+        const listed = conversations.getSnapshot().data?.list.some((each) => each.username === username) === true
+        if (listed || !unstarted.has(username)) {
+          try {
+            text = await api.get(`${path(username)}/messages`, { signal }).text()
+            unstarted.delete(username)
+          } catch (error) {
+            if (!isHTTPError(error) || error.response.status !== 404) throw error
+            unstarted.add(username)
+          }
         }
         const previous = resource.getSnapshot().data
         const raws = measure(() => JSON.parse(text) as RawPrivateMessage[])
@@ -117,6 +125,7 @@ export const conversationMessages = messageResources.get
 export async function sendMessage(username: string, text: string) {
   const response = await api.post(path(username), { json: text })
   if (response.status === 200) throw new Error(`slskd didn't send it, because ${username} is blacklisted`)
+  unstarted.delete(username)
   conversationMessages(username).refresh()
   conversations.refresh()
 }
