@@ -8,7 +8,20 @@ import {
   MinusIcon,
   PlusIcon,
 } from '@radix-ui/react-icons'
-import { Box, Button, Callout, Checkbox, Flex, Heading, IconButton, Link, Spinner, Text, TextField, Tooltip } from '@radix-ui/themes'
+import {
+  Box,
+  Button,
+  Callout,
+  Checkbox,
+  Flex,
+  Heading,
+  IconButton,
+  Link,
+  Spinner,
+  Text,
+  TextField,
+  Tooltip,
+} from '@radix-ui/themes'
 import {
   createColumnHelper,
   createExpandedRowModel,
@@ -192,7 +205,7 @@ const expansions = createAtom<ReadonlyMap<string, Expansion>>(new Map())
 function initialExpansion(share: Share): Expansion {
   const toggled: ExpandedStateList = {}
   for (const root of share.top.folders) {
-    for (let folder: Folder | undefined = root; folder !== undefined; ) {
+    for (let folder: Folder | undefined = root; folder !== undefined;) {
       toggled[folder.id] = true
       folder = folder.folders.length === 1 ? folder.folders[0] : undefined
     }
@@ -253,7 +266,12 @@ function ShareView({ share, fetchedAt, search, onSearchChange }: ViewProps) {
 
   return (
     <Flex flexGrow="1" minHeight="0">
-      <Flex direction="column" width={`${treeWidth}px`} flexShrink="0" style={{ boxShadow: 'inset -1px 0 0 0 var(--gray-a5)' }}>
+      <Flex
+        direction="column"
+        width={`${treeWidth}px`}
+        flexShrink="0"
+        style={{ boxShadow: 'inset -1px 0 0 0 var(--gray-a5)' }}
+      >
         <Flex align="center" gap="2" px="3" py="2" flexShrink="0" style={toolbarStyle}>
           <TextField.Root
             size="2"
@@ -590,7 +608,12 @@ function FolderPane({ share, folder, unknown, fetchedAt, matches, sort, onSearch
                 </Text>
               ) : (
                 <Link asChild size="2" color="gray" truncate style={{ flexShrink: index === 0 ? 0 : 1 }}>
-                  <RouterLink from="/browse" to="/browse" search={(previous) => ({ ...previous, path: each.path })} replace>
+                  <RouterLink
+                    from="/browse"
+                    to="/browse"
+                    search={(previous) => ({ ...previous, path: each.path })}
+                    replace
+                  >
                     {each.name}
                   </RouterLink>
                 </Link>
@@ -685,7 +708,11 @@ function ItemList({ share, table, filtered, folderOf, onSearchChange }: ListProp
         const column = table.getColumn(id)
         return (
           <div key={id} className="table-cell" data-align={endAligned.has(id) ? 'end' : undefined}>
-            <SortButton label={columnLabels[id]} sorted={column?.getIsSorted()} onClick={column?.getToggleSortingHandler()} />
+            <SortButton
+              label={columnLabels[id]}
+              sorted={column?.getIsSorted()}
+              onClick={column?.getToggleSortingHandler()}
+            />
           </div>
         )
       })}
@@ -695,7 +722,15 @@ function ItemList({ share, table, filtered, folderOf, onSearchChange }: ListProp
   function render(row: PaneRow) {
     const item = row.original
     if (item.kind === 'folder') {
-      return <SubfolderRow folder={item} template={template} selected={row.getIsSelected()} onSelect={onSelect} onOpen={onOpen} />
+      return (
+        <SubfolderRow
+          folder={item}
+          template={template}
+          selected={row.getIsSelected()}
+          onSelect={onSelect}
+          onOpen={onOpen}
+        />
+      )
     }
     return (
       <FileRow
@@ -788,7 +823,16 @@ type FileRowProps = {
   onSelect: (id: string, shiftKey: boolean) => void
 }
 
-const FileRow = memo(function FileRow({ file, template, folder, separator, selected, pending, mark, onSelect }: FileRowProps) {
+const FileRow = memo(function FileRow({
+  file,
+  template,
+  folder,
+  separator,
+  selected,
+  pending,
+  mark,
+  onSelect,
+}: FileRowProps) {
   const id = `file\n${file.id}`
   return (
     <div

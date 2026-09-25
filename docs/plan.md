@@ -94,11 +94,12 @@ array, and a fresh array rebuilds every row (9–91 ms at 20k rows depending on 
 **split transfers on mutability**: active rows and terminal (`Completed, *`) rows live in separate arrays.
 Each poll is merged into the existing arrays rather than replacing them.
 
-Correction to the original premise: a terminal transfer *almost* never changes, but it can (auto-retry
+Correction to the original premise: a terminal transfer _almost_ never changes, but it can (auto-retry
 reuses the id, failures flip states, and a failed move adds an `exception`; see the facts). So the merge
 doesn't assume immutability. It compares each incoming row with the existing one on every field that can
-still change (`state, attempts, exception, enqueuedAt, startedAt, endedAt, bytesTransferred, averageSpeed,
-placeInQueue`) and reuses the old object when nothing changed. Computed fields aren't mapped, because
+still change
+(`state, attempts, exception, enqueuedAt, startedAt, endedAt, bytesTransferred, averageSpeed, placeInQueue`) and
+reuses the old object when nothing changed. Computed fields aren't mapped, because
 `elapsedTime` changes on every poll. Rows are grouped by folder · user within each array, and a group object is
 reused when its files are, an array when its groups are, and the whole snapshot when both arrays are. A row that
 leaves `Completed` moves back to the active array. In practice the terminal array's identity changes rarely, and
@@ -265,6 +266,7 @@ Downloads and Uploads are one page component, parameterised by direction.
   a file that has them: a quality filter keeps an album's cover but hides a folder of attribute-less mp3s. Min
   files counts a folder · user group's shown files that have attributes. A group that lost files to the filter
   reads "10 of 12" in Files, so a partial album never looks whole.
+
 - **URL.** `q`, `sort`, `locked=show`, and the popover's `quality`, `size`, `length`, `files` and `free=only`. Locked
   files are hidden by default, and when shown they're dimmed and can't be selected. The popover's values are saved
   to localStorage whenever they change. A results page opened with none of them in its URL gets the saved values
@@ -372,10 +374,10 @@ path), `q` and `sort`.
 ## Phases
 
 1. **Scaffold with the build contract.** A "hello" page served by real slskd from `dist` at `/slskd/`,
-   and working in Vite dev through the proxy. *Done:* the page shows `window.urlBase` and the result of
+   and working in Vite dev through the proxy. _Done:_ the page shows `window.urlBase` and the result of
    `GET /session/enabled`. We checked HTML injection, the `/static` rewrite, deep links, the dotted-segment 404,
    the REST proxy, and the SignalR handshake plus `STATE`/`OPTIONS` over the proxied WebSocket.
-2. **Login and session.** *Done:* the session gate, login and logout, open instances, tab sync, the
+2. **Login and session.** _Done:_ the session gate, login and logout, open instances, tab sync, the
    token-scoped 401 latch, and the application hub with retry-forever probing. A placeholder page shows
    the session mode, hub state and `server.state`. We checked these in headless Chromium against both
    `pnpm dev` and the `--dist` build:
@@ -388,7 +390,8 @@ path), `q` and `sort`.
 
    Under `--dist`, slskd serves the page itself, so the unreachable check there is a login attempt
    while slskd is down.
-3. **App shell and router.** *Done:* the router, the shell with placeholder pages, the live store's core with
+
+3. **App shell and router.** _Done:_ the router, the shell with placeholder pages, the live store's core with
    its first resources (Soulseek server state and the metrics badge), and Soulseek connect/disconnect. We
    checked these in headless Chromium against both `pnpm dev` and the `--dist` build:
    - tabs, deep links, reloads, titles, the `/` redirect with Back, and not-found pages
@@ -404,7 +407,8 @@ path), `q` and `sort`.
 
    With a real account we checked Connect and Disconnect, and compared the badge with the downloads list over
    a 41-file batch, which is what made the badge approximate.
-4. **Transfers.** *Done:* the Downloads and Uploads pages (see [Transfers](#transfers)), the live store's cost
+
+4. **Transfers.** _Done:_ the Downloads and Uploads pages (see [Transfers](#transfers)), the live store's cost
    floor, `refresh` and session-end clearing, the exact badge, and retry through the batches endpoint. We checked
    these in headless Chromium against `pnpm dev`, and the URL handling against the `--dist` build:
    - selection counts and gate reasons, Shift ranges and group checkboxes
@@ -419,7 +423,8 @@ path), `q` and `sort`.
    `--dist` build) idle polls rendered nothing, scrolling while polling stayed around the 50 ms long-task mark at
    worst, and CPU throttling
    stretched the poll interval without the freshness going amber. Active rows at scale went untested.
-5. **Search.** *Done:* the search box and list, the results page, downloading and Get full folder (see
+
+5. **Search.** _Done:_ the search box and list, the results page, downloading and Get full folder (see
    [Search](#search)), the search hub with its polling fallback, and the REST catch-up for hubs that stayed
    connected. We checked these in headless Chromium against `pnpm dev`, and deep links, reloads and params against
    the `--dist` build:
@@ -453,7 +458,8 @@ path), `q` and `sort`.
      them, and invalid params stripped
 
    Filters combined with Get full folder went untested, because fetching a folder needs Soulseek.
-6. **Browse.** *Done:* the landing page and the share page (see [Browse](#browse)), the IndexedDB cache, and Browse
+
+6. **Browse.** _Done:_ the landing page and the share page (see [Browse](#browse)), the IndexedDB cache, and Browse
    user on search-result and transfer group rows. We checked these in headless Chromium against `pnpm dev`, and URLs,
    reloads and the session against the `--dist` build, on a cache seeded with a real 168k-file share:
    - the tree, breadcrumb and folder navigation, deep links and reloads revealing their folder, and an unknown path
@@ -478,6 +484,7 @@ path), `q` and `sort`.
 
 Later: dashboard, rooms, chat, users, then the config editor. Once the dashboard exists, decide whether `/`
 redirects there instead. After the plan:
+
 - proper responsiveness
 - keyboard handling: ↵ into a folder and ⌫ up in Browse, `/` to focus a filter, `d` to download, `?` for the keys.
   Weigh `@headless-tree` for Browse's tree then, since it brings an ARIA tree with keys.

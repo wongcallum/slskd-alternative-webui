@@ -1,7 +1,13 @@
 import './Table.css'
 import { MagnifyingGlassIcon, StopIcon, TrashIcon } from '@radix-ui/react-icons'
 import { Box, Button, Callout, Checkbox, Flex, Link, Spinner, Text, TextField, Tooltip } from '@radix-ui/themes'
-import { type RowSelectionState, rowSelectionFeature, tableFeatures, type Updater, useTable } from '@tanstack/react-table'
+import {
+  type RowSelectionState,
+  rowSelectionFeature,
+  tableFeatures,
+  type Updater,
+  useTable,
+} from '@tanstack/react-table'
 import { Link as RouterLink, useNavigate } from '@tanstack/react-router'
 import {
   type FormEvent,

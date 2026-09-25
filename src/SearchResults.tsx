@@ -135,7 +135,10 @@ export const resultsSearch = v.object({
   sort: sortOf(columnIds),
   locked: oneOf(['hide', 'show'], 'hide'),
   free: oneOf(['all', 'only'], 'all'),
-  quality: oneOf(qualities.map(([value]) => value), 'any'),
+  quality: oneOf(
+    qualities.map(([value]) => value),
+    'any',
+  ),
   size: decimalParam,
   length: decimalParam,
   files: integerParam,
@@ -529,7 +532,9 @@ function ResultsView({ searchId, results, folders, params, onSearchChange }: Vie
           size="1"
           variant="soft"
           color="gray"
-          onClick={() => expansions.set((current) => new Map(current).set(searchId, { all: !expansion.all, toggled: {} }))}
+          onClick={() =>
+            expansions.set((current) => new Map(current).set(searchId, { all: !expansion.all, toggled: {} }))
+          }
         >
           {expansion.all ? 'Collapse all' : 'Expand all'}
         </Button>
@@ -636,13 +641,7 @@ function FiltersButton({ filters, onChange }: FiltersProps) {
               Free slot only
             </Flex>
           </Text>
-          <Button
-            size="1"
-            variant="soft"
-            color="gray"
-            disabled={active === 0}
-            onClick={() => onChange(noFilters)}
-          >
+          <Button size="1" variant="soft" color="gray" disabled={active === 0} onClick={() => onChange(noFilters)}>
             Clear
           </Button>
         </Flex>
@@ -858,11 +857,7 @@ const FileRow = memo(function FileRow({ searchId, file, selected, pending, mark,
       onClick={(event) => !file.locked && onSelect(file.id, event.shiftKey)}
     >
       <div className="table-cell table-check" onClick={stop}>
-        <Checkbox
-          checked={selected}
-          disabled={file.locked}
-          onClick={(event) => onSelect(file.id, event.shiftKey)}
-        />
+        <Checkbox checked={selected} disabled={file.locked} onClick={(event) => onSelect(file.id, event.shiftKey)} />
       </div>
       <Flex className="table-cell" align="center" gap="2" style={{ paddingLeft: 36 }} title={file.filename}>
         {file.locked && <LockClosedIcon style={{ flexShrink: 0 }} />}

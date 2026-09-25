@@ -347,9 +347,17 @@ export async function fetchFolder(searchId: string, group: ResultGroup) {
       .post(`users/${encodeURIComponent(group.username)}/directory`, { json: { directory: group.directory }, signal })
       .json<RawDirectory[]>()
     const directory = directories.find((each) => each.name === group.directory) ?? directories[0]
-    const present = new Set(entries.get().get(searchId)?.results?.byId.get(group.id)?.files.map((file) => file.id))
+    const present = new Set(
+      entries
+        .get()
+        .get(searchId)
+        ?.results?.byId.get(group.id)
+        ?.files.map((file) => file.id),
+    )
     const files = (directory?.files ?? [])
-      .map((raw) => toFile({ ...raw, filename: `${group.directory}\\${nameOf(raw.filename)}` }, group.peer, false, false))
+      .map((raw) =>
+        toFile({ ...raw, filename: `${group.directory}\\${nameOf(raw.filename)}` }, group.peer, false, false),
+      )
       .filter((file) => !present.has(file.id))
       .sort(byName)
     set({ pending: false, files, at: Date.now() })

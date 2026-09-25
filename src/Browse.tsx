@@ -315,7 +315,11 @@ function LandingRow({ entry }: { entry: Entry }) {
         {status}
       </Flex>
       <Flex className="table-cell" gap="3" align="center" justify="end">
-        <GatedIconButton label={stats === undefined ? 'Browse again' : 'Re-browse'} gate={gate} onClick={() => void browse(username)}>
+        <GatedIconButton
+          label={stats === undefined ? 'Browse again' : 'Re-browse'}
+          gate={gate}
+          onClick={() => void browse(username)}
+        >
           <ReloadIcon />
         </GatedIconButton>
         {cached && (
