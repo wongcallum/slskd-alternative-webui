@@ -90,7 +90,8 @@ export function FolderPane({
     onSortingChange,
     onRowSelectionChange: setRowSelection,
   })
-  const selected = table.getSelectedRowModel().rows.map((row) => row.original)
+  const selectedRows = table.getSelectedRowModel().rows
+  const selected = useMemo(() => selectedRows.map((row) => row.original), [selectedRows])
   const clear = useCallback(() => setRowSelection({}), [])
 
   const trail: Folder[] = []
