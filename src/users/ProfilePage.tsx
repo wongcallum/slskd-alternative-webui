@@ -50,7 +50,9 @@ export function ProfilePage({ username }: { username: string }) {
       <Flex direction="column" align="start" gap="3">
         <Heading size="4">{errors === undefined ? 'Not looked up yet' : 'Nothing found'}</Heading>
         {errors !== undefined && <LookupErrorLine username={username} errors={errors} />}
-        <Text color="gray">Looking up asks the server for {username}'s status, and them for their profile.</Text>
+        <Text color="gray">
+          Looking up asks the Soulseek server for {username}'s status, and {username} for their profile.
+        </Text>
         <ActionButton label={`Look up ${username}`} busy="" gate={gate} onClick={() => void lookUp(username)} />
       </Flex>
     )
@@ -63,7 +65,7 @@ export function ProfilePage({ username }: { username: string }) {
         {record !== undefined && (
           <Flex ml="auto" align="center" gap="3" flexShrink="0">
             <Text size="2" color="gray">
-              updated <Ago time={lookedUpAt(record)} />
+              Updated <Ago time={lookedUpAt(record)} />
             </Text>
             <ActionButton
               label="Look up again"

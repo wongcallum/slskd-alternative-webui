@@ -59,7 +59,7 @@ export const FileRow = memo(function FileRow({
         <Text size="2" truncate>
           {file.name}
         </Text>
-        {!file.matched && <Badge color="gray">not matched</Badge>}
+        {!file.matched && <Badge color="gray">Not matched</Badge>}
         {mark !== undefined && <MarkBadge mark={mark} />}
         {pending && <Spinner size="1" />}
       </Flex>
@@ -166,7 +166,7 @@ export const GroupRow = memo(function GroupRow({
       <div className="table-cell" data-align="end">
         {peer.free ? (
           <Text size="2" color="green">
-            free
+            Free
           </Text>
         ) : (
           <Text size="2" color="gray">

@@ -63,7 +63,7 @@ export function SharePage({ search, onSearchChange }: Props) {
     content = (
       <Flex direction="column" align="start" gap="3" p="5">
         <Heading size="4">Not browsed yet</Heading>
-        <Text color="gray">Browsing fetches {username}'s whole share from them.</Text>
+        <Text color="gray">Browsing fetches {username}'s whole share.</Text>
         <ActionButton label={`Browse ${username}`} busy="Browsing" gate={gate} onClick={() => void browse(username)} />
       </Flex>
     )
@@ -94,11 +94,11 @@ export function SharePage({ search, onSearchChange }: Props) {
           )}
           {ready !== undefined && (
             <Text size="2" color="gray">
-              fetched <Ago time={ready.fetchedAt} />
+              Browsed <Ago time={ready.fetchedAt} />
             </Text>
           )}
           {ready !== undefined && (
-            <ActionButton label="Re-browse" busy="Browsing" gate={gate} onClick={() => void browse(username)} />
+            <ActionButton label="Browse again" busy="Browsing" gate={gate} onClick={() => void browse(username)} />
           )}
         </Flex>
       </Flex>

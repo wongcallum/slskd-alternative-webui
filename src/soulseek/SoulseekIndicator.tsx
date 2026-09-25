@@ -2,17 +2,25 @@ import { Button, DataList, Flex, Popover, Text } from '@radix-ui/themes'
 import { useState } from 'react'
 
 import { describeError } from '../lib/api'
+import { formatAge } from '../lib/format'
 import { applicationHub, type HubStatus, metricsHub, searchHub, useHub, useWatchedHub } from '../lib/hubs'
 import type { Application } from '../system/application'
 import { type Color, disabledProps } from '../ui/controls'
 import { StatusDot } from '../ui/status'
 import { connect, disconnect, reconnect, useSoulseek } from './soulseek'
 
+const hubStates: Record<HubStatus['state'], string> = {
+  stopped: 'Not in use',
+  connecting: 'Connecting',
+  connected: 'Connected',
+  reconnecting: 'Reconnecting',
+}
+
 const describeHub = ({ state, attempt }: HubStatus) =>
-  state === 'stopped' ? 'not in use' : attempt === 0 ? state : `${state} (retry ${attempt})`
+  attempt === 0 ? hubStates[state] : `${hubStates[state]} (retry ${attempt})`
 
 function describeSoulseek(data: Application | undefined, known: boolean): { color: Color; label: string } {
-  if (!data || !known) return { color: 'gray', label: 'Soulseek: unknown' }
+  if (!data || !known) return { color: 'gray', label: 'Soulseek status unknown' }
   if (data.isLoggedIn) return { color: 'green', label: data.username ? `Connected as ${data.username}` : 'Connected' }
   if (data.state.includes('Disconnecting')) return { color: 'amber', label: 'Disconnecting…' }
   if (data.isTransitioning || data.isConnected) return { color: 'amber', label: 'Connecting…' }
@@ -49,8 +57,8 @@ function actionsFor(data: Application | undefined): Action[] {
 }
 
 function describeSource(data: Application | undefined, known: boolean, age: number | undefined) {
-  if (data?.via === 'hub') return known ? 'live via hub' : 'hub down, polling'
-  return age === undefined ? 'not polled yet' : `polled, updated ${Math.round(age / 1000)} s ago`
+  if (data?.via === 'hub') return known ? 'Live from the hub' : 'Polling while the hub is down'
+  return age === undefined ? 'Not polled yet' : `Polled, updated ${formatAge(age)} ago`
 }
 
 export function SoulseekIndicator() {
@@ -95,7 +103,7 @@ function SoulseekPanel({ data, error, known, age }: ReturnType<typeof useSoulsee
       <DataList.Root size="1">
         <DataList.Item>
           <DataList.Label>State</DataList.Label>
-          <DataList.Value>{data?.state ?? 'unknown'}</DataList.Value>
+          <DataList.Value>{data?.state ?? 'Unknown'}</DataList.Value>
         </DataList.Item>
         {data?.address && (
           <DataList.Item>

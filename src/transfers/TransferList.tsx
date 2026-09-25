@@ -256,7 +256,7 @@ function SectionHeader({
                   progress={running.retry}
                   gate={failed.length === 0 ? 'Nothing has failed' : gates.soulseek}
                   title={`Retry ${plural(failed.length, 'download')}?`}
-                  description="Every failed download is enqueued again, including any hidden by the filter. Cancelled ones aren't."
+                  description="Every failed download is enqueued again, including any hidden by the filter, but not cancelled ones."
                   action="Retry"
                   onConfirm={() => retry(failed)}
                 />

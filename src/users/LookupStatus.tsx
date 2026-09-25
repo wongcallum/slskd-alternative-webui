@@ -15,12 +15,12 @@ export function PresenceLabel({ presence }: { presence: Presence }) {
   )
 }
 
-// An offline user's missing profile isn't worth red.
+// An offline user's missing profile shows in gray rather than red.
 export function describeLookupErrors(errors: LookupErrors) {
   const lines: string[] = []
   if (errors.status !== undefined) lines.push(`Couldn't get the status: ${errors.status}`)
   if (errors.info !== undefined) lines.push(`Couldn't get the profile: ${errors.info}`)
-  if (errors.notStored !== undefined) lines.push(`Not stored: ${errors.notStored}`)
+  if (errors.notStored !== undefined) lines.push(`Couldn't store the profile: ${errors.notStored}`)
   const quiet = errors.status === undefined && errors.notStored === undefined && errors.info === 'Appears to be offline'
   return { lines, color: quiet ? 'gray' : 'red' } as const
 }
