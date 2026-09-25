@@ -162,7 +162,12 @@ function Row({
   onClick: (event: { shiftKey: boolean }) => void
 }) {
   const check = selectable ? (
-    <CheckCell selected={selected} disabled={disabled} onToggle={(shiftKey) => onSelect(id, shiftKey)} />
+    <CheckCell
+      label={`Select ${title}`}
+      selected={selected}
+      disabled={disabled}
+      onToggle={(shiftKey) => onSelect(id, shiftKey)}
+    />
   ) : undefined
   const style = group ? { cursor: 'pointer' } : undefined
   const label = (

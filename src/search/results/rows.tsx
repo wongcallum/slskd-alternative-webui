@@ -69,7 +69,12 @@ export const FileRow = memo(function FileRow({
   )
   const length = file.length !== undefined && formatDuration(file.length)
   const check = (
-    <CheckCell selected={selected} disabled={file.locked} onToggle={(shiftKey) => onSelect(file.id, shiftKey)} />
+    <CheckCell
+      label={`Select ${file.name}`}
+      selected={selected}
+      disabled={file.locked}
+      onToggle={(shiftKey) => onSelect(file.id, shiftKey)}
+    />
   )
   const name = (
     <>
@@ -186,6 +191,7 @@ export const GroupRow = memo(function GroupRow({
   const length = group.length > 0 && formatDuration(group.length)
   const check = (
     <CheckCell
+      label={`Select ${group.name}`}
       selected={selected}
       partial={partial}
       disabled={open.length === 0}
