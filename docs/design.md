@@ -106,7 +106,8 @@ and we cache browsed share trees in IndexedDB), show when each result was fetche
 - Invalid search params fall back to their defaults, and defaults and invalid values stay out of the URL. Params
   that filter or sort a view replace the history entry. Opening a folder in Browse pushes one, so Back returns to
   the previous folder.
-- No router devtools, code splitting or scroll restoration.
+- No router devtools, route code splitting or scroll restoration. The YAML editor is the one lazy chunk (see
+  [Options](#options)).
 
 ### Shell
 
@@ -249,6 +250,41 @@ and we cache browsed share trees in IndexedDB), show when each result was fetche
 - Rows have a fixed height and show the message's first line, with a count of the lines after it (usually a stack
   trace). Clicking a row shows the whole record in a pane below the list.
 - Times are in the browser's time zone, to the millisecond, with the date when it isn't today.
+
+### Events
+
+- slskd pushes nothing, filters nothing and prunes nothing (see the facts), so the newest 100 are polled every 10 s
+  and older pages load as the list is scrolled to its end. Nothing loads the whole table.
+- Rows are matched by id, because offset pages overlap. A poll that shares no row with what's held means more than a
+  page arrived in 10 s, so the held rows go rather than hide a gap.
+- The list holds still like Logs', and older pages still arrive at its bottom meanwhile.
+- The filter and the types judge only what's loaded. While either is on, older pages load from a button, so a filter
+  that matches little can't page through the whole table on its own.
+- Test events aren't offered: slskd stores them without their data, sends them to webhooks twice, and can't delete them.
+
+### Options
+
+- Effective is the redacted options as YAML with the file's keys, so a line can be copied into the file and saved:
+  - Keys follow the rule slskd's validator uses (`log_s_q_l`), since `PUT` validates too. Names users chose, under
+    the five maps keyed by name, stay as slskd sends them.
+  - It's written as YAML 1.1, which quotes `on` and the like the way slskd would read them.
+  - Nulls are left out, so it's the same pushed or polled.
+  - `2147483647` is noted as unlimited only on transfer slots and speed limits, where slskd means that. Units aren't
+    noted, since that would take a list of keys to keep up with slskd.
+- File and Sources show secrets in plain text, so they're fetched only when opened. The draft is never persisted: it
+  survives leaving the page, goes when the session ends, and a reload or closing the tab asks first.
+- Save is blocked on what slskd's validator passes but then breaks on (see the facts): duplicate keys, unquoted
+  yes/no/on/off, and a file with no settings. slskd's own validate is asked 500 ms after typing stops, and `yaml` adds
+  the line and column slskd doesn't give.
+- A save reads the file first and won't overwrite a change made since it was read. That's a conflict to resolve
+  (Overwrite or Discard my changes), not a confirmation.
+- A view that becomes unavailable while it's open stays open, read-only, so a draft stays in front of whoever wrote it.
+- Sources needs debug on at startup, which `GET /options/startup` says. It's read again each time the application hub
+  connects, which covers a restart, rather than polled.
+- `PATCH /options` isn't used: its change is lost on restart, and editing the file covers it.
+- CodeMirror is lazy because most installs can't edit their file from here. Effective is coloured by `yaml` itself,
+  which the main chunk has for the dump anyway. The editor has its own search, since the browser's find can't see
+  lines CodeMirror hasn't drawn.
 
 ### Health
 

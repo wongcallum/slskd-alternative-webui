@@ -541,8 +541,10 @@ configuration and the debug view were checked on the dev build with `SLSKD_REMOT
   `"Value cannot be null. (Parameter 's')"`. `GET /options/yaml` is the file's text, unredacted, and
   `GET /options/yaml/location` its path. A missing or unreadable file is a 500 with the message.
 - `POST /options/yaml/validate` is a 200 either way: an empty body with no content type when valid, and a JSON string
-  when not. **It never gives a line or column.** A parse error is one line (`While scanning a plain scalar value,
-found invalid mapping.`), and rule failures are an indented tree under `Invalid configuration:`.
+  when not. **It never gives a line or column.** A parse error is one line, such as
+  `While scanning a plain scalar value, found invalid mapping.`, and rule failures are an indented tree under
+  `Invalid configuration:`. slskd logs each failure as a warning that does carry YamlDotNet's line and column
+  (observed).
 - **The validator and the runtime disagree** (observed). The validator is YamlDotNet with `UnderscoredNamingConvention`
   (`Common/CommonExtensions.cs`), which puts `_` before every capital of the property's name:
   - It wants `log_s_q_l` and `case_sensitive_reg_ex`, and rejects the documented `log_sql` and `case_sensitive_regex`,
@@ -647,6 +649,8 @@ dashboard yet.
 - SPA deep links work, but **only for paths without a file extension**. If the last segment contains a
   dot (`/browse/foo.bar`) the response is 404. Unmatched `/api/*` returns an empty 404. `index.html` is sent
   with `Cache-Control: no-cache`.
+- A dynamic `import()` becomes its own chunk in `static/`, and loads from beside the main chunk, so it follows the url
+  base with nothing rewritten (observed: `/slskd/static/YamlEditor-….js`).
 - A non-root `url_base` is additive: slskd answers at both `/api/...` and `/slskd/api/...`. At root,
   `GET /slskd/api/...` returns the SPA HTML with a 200 (other methods get 404), so a hardcoded path can hide.
 
@@ -1174,6 +1178,10 @@ Checked against the `@radix-ui/themes` 3.3.0 package source.
 - The root `Theme` provides a `Tooltip.Provider` with a 200 ms delay.
 - `DropdownMenu.Trigger` and `Dialog.Trigger` always render with `asChild`, so their child must be one element that
   takes a ref.
+- `SegmentedControl.Item` always passes `disabled: false`, so an item can't be disabled, and its label renders twice
+  like `TabNav.Link`'s. **A `Tooltip` around an item breaks the selection**: the trigger's own `data-state` replaces
+  the item's `on`, so no item looks selected (observed). The tooltip has to go inside.
+- A `DropdownMenu.CheckboxItem` closes the menu when toggled unless its `onSelect` calls `preventDefault()`.
 - next-themes 0.4.6, which the Radix docs recommend, is mostly unmaintained. Its anti-flash script does nothing
   when rendered client-side only (React 19 doesn't run rendered `<script>`s) and logs a warning in dev.
 
@@ -1256,6 +1264,35 @@ Checked against `@headless-tree/core`/`react` 1.7.0 (May 2026). It has no virtua
 on `@tanstack/react-virtual`. It provides the ARIA tree pattern with keys. With proxied instances it rebuilds its flat
 list on every expand or collapse: 36 ms at 17k nodes in Node 24. It declares any React version, but its own docs
 run React 18.
+
+## yaml
+
+Checked against `yaml` 2.9.1.
+
+- `parseDocument` collects every error in `document.errors` without throwing. Each has a `code` and `pos: [start, end]`
+  offsets. `prettyErrors: false` keeps the message to one line, and a `LineCounter` gives 1-based lines and columns.
+  A repeated key is a `DUPLICATE_KEY` error by default.
+- `visit` walks nodes in document order and says whether a scalar is a pair's `'key'` or `'value'`. A parsed scalar's
+  `range` is `[start, valueEnd, nodeEnd]`, and its `type` is `'PLAIN'` when it's unquoted.
+- With `version: '1.1'`, stringify quotes strings that YAML 1.1 would read as something else, such as `"on"` and
+  timestamps. `lineWidth: 0` stops long strings from folding. A comment set on a node's `comment` is written after its
+  value on the same line.
+- Stringify and parse together added about 34 kB gzipped to the main chunk.
+
+## CodeMirror
+
+Checked against `@codemirror/view` 6.43.13, `lang-yaml` 6.1.3, `lint` 6.9.7 and `search` 6.7.2.
+
+- **Only the lines near the viewport are in the DOM**, so the browser's own find can't reach the rest. Observed: 54
+  lines of a 335-line file were rendered, and `window.find` missed the last one. `@codemirror/search` searches the
+  document.
+- CodeMirror leaves Tab to the browser unless it's bound. With `indentWithTab`, Escape then Tab still moves focus out
+  (the Tab example in its docs).
+- `lang-yaml` tags keys `definition(propertyName)`, quoted strings `string` and every unquoted value `content`, so
+  numbers and booleans can't be coloured apart from plain strings.
+- `setDiagnostics` sets lint results from outside the editor, with no `linter` source.
+- `EditorView.theme` takes CSS variables, so the editor can use Radix's tokens.
+- The editor, the YAML mode, lint and search come to about 123 kB gzipped.
 
 ## filesize
 
