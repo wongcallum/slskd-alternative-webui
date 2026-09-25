@@ -1,14 +1,14 @@
 import { Flex, Select, Text } from '@radix-ui/themes'
-import { memo, type ReactNode, type RefObject, type UIEvent, useId, useMemo, useState } from 'react'
+import { memo, type ReactNode, useId, useMemo, useState } from 'react'
 import * as v from 'valibot'
 
 import { formatFullPreciseTime, formatPreciseTime } from '../lib/format'
 import { oneOf, textParam } from '../lib/params'
-import { type Color, FilterField, toolbarStyle, useFilterText } from '../ui/controls'
+import { type Color, useFilterText } from '../ui/controls'
 import { DetailsPane, Preformatted } from '../ui/details'
-import { HoldButton, useHold } from '../ui/hold'
+import { HeldList, HeldToolbar, useHold } from '../ui/hold'
 import { Empty, Freshness, Polling } from '../ui/status'
-import { Cell, ColumnHeader, GridRow, HeaderRow, VirtualTable } from '../ui/table'
+import { Cell, GridRow } from '../ui/table'
 import {
   type Level,
   logMatcher,
@@ -93,12 +93,15 @@ export function LogsPage({ search, onSearchChange }: Props) {
     content = <Empty>{held.length === 0 ? 'No log records yet.' : 'Nothing matches.'}</Empty>
   } else {
     content = (
-      <LogList
+      <HeldList
+        template={template}
+        labels={labels}
         records={shown}
+        itemKey={recordId}
         selected={selected?.id}
-        onSelect={(record) => setSelected(record.id === selected?.id ? undefined : record)}
-        scrollRef={hold.scrollRef}
-        onScroll={hold.onScroll}
+        onSelect={setSelected}
+        renderRow={(record, isSelected, toggle) => <LogRow record={record} selected={isSelected} onSelect={toggle} />}
+        hold={hold}
       />
     )
   }
@@ -114,18 +117,9 @@ export function LogsPage({ search, onSearchChange }: Props) {
         />
       }
     >
-      <Flex align="center" gap="3" px="4" py="2" flexShrink="0" style={toolbarStyle}>
-        <FilterField
-          placeholder="Filter by message or source"
-          value={filter.text}
-          onChange={filter.change}
-          style={{ width: 280 }}
-        />
+      <HeldToolbar placeholder="Filter by message or source" filter={filter} hold={hold} unseen={unseen}>
         <LevelSelect value={search.level} onChange={(level) => onSearchChange({ level })} />
-        <Flex ml="auto" align="center" gap="3" flexShrink="0">
-          <HoldButton held={hold.held} unseen={unseen} onPause={hold.pause} onResume={hold.resume} />
-        </Flex>
-      </Flex>
+      </HeldToolbar>
       {content}
       {selected !== undefined && <RecordDetails record={selected} onClose={() => setSelected(undefined)} />}
     </SystemPage>
@@ -155,39 +149,9 @@ function LevelSelect({ value, onChange }: { value: MinimumLevel; onChange: (leve
 
 const template = '170px 80px 200px minmax(300px, 1fr)'
 
-const minWidth = 900
+const labels = ['Time', 'Level', 'Source', 'Message']
 
 const recordId = (record: LogRecord) => record.id
-
-type LogListProps = {
-  records: LogRecord[]
-  selected?: number
-  onSelect: (record: LogRecord) => void
-  scrollRef: RefObject<HTMLDivElement | null>
-  onScroll: (event: UIEvent<HTMLDivElement>) => void
-}
-
-function LogList({ records, selected, onSelect, scrollRef, onScroll }: LogListProps) {
-  const header = (
-    <HeaderRow template={template}>
-      <ColumnHeader label="Time" />
-      <ColumnHeader label="Level" />
-      <ColumnHeader label="Source" />
-      <ColumnHeader label="Message" />
-    </HeaderRow>
-  )
-  return (
-    <VirtualTable
-      minWidth={minWidth}
-      header={header}
-      items={records}
-      itemKey={recordId}
-      renderItem={(record) => <LogRow record={record} selected={record.id === selected} onSelect={onSelect} />}
-      scrollRef={scrollRef}
-      onScroll={onScroll}
-    />
-  )
-}
 
 function LevelText({ level }: { level: Level }) {
   return (

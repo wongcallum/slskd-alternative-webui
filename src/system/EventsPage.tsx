@@ -8,11 +8,11 @@ import { formatFullPreciseTime, formatPreciseTime, plural } from '../lib/format'
 import { textParam } from '../lib/params'
 import { useAtom, useResource } from '../lib/store'
 import { toStringOptions, yamlVersion } from '../lib/yaml'
-import { FilterField, toolbarStyle, useFilterText } from '../ui/controls'
+import { useFilterText } from '../ui/controls'
 import { DetailsPane } from '../ui/details'
-import { HoldButton, useHold } from '../ui/hold'
+import { HeldList, HeldToolbar, useHold } from '../ui/hold'
 import { Busy, Empty, Freshness, Polling } from '../ui/status'
-import { Cell, ColumnHeader, GridRow, HeaderRow, rowHeight, VirtualTable } from '../ui/table'
+import { Cell, GridRow, rowHeight } from '../ui/table'
 import { YamlView } from '../ui/YamlView'
 import { UserMenu } from '../users/UserMenu'
 import {
@@ -106,10 +106,14 @@ export function EventsPage({ search, onSearchChange }: Props) {
     )
   } else {
     content = (
-      <EventList
+      <HeldList
+        template={template}
+        labels={labels}
         records={shown}
+        itemKey={eventId}
         selected={selected?.id}
-        onSelect={(record) => setSelected(record.id === selected?.id ? undefined : record)}
+        onSelect={setSelected}
+        renderRow={(record, isSelected, toggle) => <EventRow record={record} selected={isSelected} onSelect={toggle} />}
         hold={hold}
         onScroll={(element) => {
           if (automatic && nearEnd(element)) void loadOlder()
@@ -125,13 +129,7 @@ export function EventsPage({ search, onSearchChange }: Props) {
         <Freshness resource={events} interval={eventsPollInterval} error={data === undefined ? undefined : error} />
       }
     >
-      <Flex align="center" gap="3" px="4" py="2" flexShrink="0" wrap="wrap" style={toolbarStyle}>
-        <FilterField
-          placeholder="Filter by type, user or text"
-          value={filter.text}
-          onChange={filter.change}
-          style={{ width: 280 }}
-        />
+      <HeldToolbar placeholder="Filter by type, user or text" filter={filter} hold={hold} unseen={unseen}>
         <TypesMenu
           hidden={hidden}
           records={records}
@@ -144,10 +142,7 @@ export function EventsPage({ search, onSearchChange }: Props) {
               : `${held.length.toLocaleString()} of ${plural(data.total, 'event')} loaded`}
           </Text>
         )}
-        <Flex ml="auto" align="center" gap="3" flexShrink="0">
-          <HoldButton held={hold.held} unseen={unseen} onPause={hold.pause} onResume={hold.resume} />
-        </Flex>
-      </Flex>
+      </HeldToolbar>
       {content}
       {selected !== undefined && <EventDetails record={selected} onClose={() => setSelected(undefined)} />}
     </SystemPage>
@@ -243,44 +238,9 @@ function ListEnd({ data, filtered, replaced }: { data: Events; filtered: boolean
 
 const template = '170px 160px 180px minmax(300px, 1fr)'
 
-const minWidth = 900
+const labels = ['Time', 'Type', 'User', 'Details']
 
 const eventId = (record: EventRecord) => record.id
-
-type EventListProps = {
-  records: readonly EventRecord[]
-  selected?: string
-  onSelect: (record: EventRecord) => void
-  hold: ReturnType<typeof useHold<Marker>>
-  onScroll: (element: HTMLDivElement) => void
-  footer: ReactNode
-}
-
-function EventList({ records, selected, onSelect, hold, onScroll, footer }: EventListProps) {
-  const header = (
-    <HeaderRow template={template}>
-      <ColumnHeader label="Time" />
-      <ColumnHeader label="Type" />
-      <ColumnHeader label="User" />
-      <ColumnHeader label="Details" />
-    </HeaderRow>
-  )
-  return (
-    <VirtualTable
-      minWidth={minWidth}
-      header={header}
-      items={records}
-      itemKey={eventId}
-      renderItem={(record) => <EventRow record={record} selected={record.id === selected} onSelect={onSelect} />}
-      scrollRef={hold.scrollRef}
-      onScroll={(event) => {
-        hold.onScroll(event)
-        onScroll(event.currentTarget)
-      }}
-      footer={footer}
-    />
-  )
-}
 
 type EventRowProps = { record: EventRecord; selected: boolean; onSelect: (record: EventRecord) => void }
 

@@ -8,7 +8,7 @@ import { useAtom, useResource } from '../../lib/store'
 import type { Item } from '../../lib/tree'
 import { useRun } from '../../lib/useRun'
 import { ActionButton, ConfirmButton, OutcomeLine } from '../../ui/controls'
-import { Ago, ErrorCallout, Fetched, Loading } from '../../ui/status'
+import { Ago, ErrorCallout, FetchedResource, Loading } from '../../ui/status'
 import type { ExtraColumn } from '../../ui/tree/columns'
 import type { FolderLinkProps, Selection, TreeConfig } from '../../ui/tree/FolderPane'
 import { TreeView } from '../../ui/tree/TreeView'
@@ -35,20 +35,10 @@ type Props = {
 
 export function FilesPage({ search, onSearchChange }: Props) {
   const { data, error } = useResource(files)
-  const loading = useAtom(filesLoading)
   const deleting = useOptions()?.remoteFileManagement === true
   const config = useMemo(() => filesConfig(deleting), [deleting])
   return (
-    <SystemPage
-      status={
-        <Fetched
-          fetchedAt={data?.fetchedAt}
-          error={data === undefined ? undefined : error}
-          loading={loading}
-          onRefresh={files.refresh}
-        />
-      }
-    >
+    <SystemPage status={<FetchedResource resource={files} loading={filesLoading} />}>
       {data !== undefined ? (
         <TreeView
           tree={data.tree}
