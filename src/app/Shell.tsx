@@ -7,6 +7,7 @@ import { SoulseekIndicator } from '../soulseek/SoulseekIndicator'
 import { SystemLink } from '../system/SystemLink'
 import { UpdateNotice } from '../system/UpdateNotice'
 import { DownloadsBadge } from '../transfers/DownloadsBadge'
+import { TransferSpeeds } from '../transfers/TransferSpeeds'
 import { toolbarStyle } from '../ui/controls'
 import { NavTab, NavTabs } from '../ui/nav'
 
@@ -33,6 +34,7 @@ export function Shell() {
             </NavTab>
           </NavTabs>
           <Flex align="center" gap="4" ml="auto" flexShrink="0">
+            <TransferSpeeds />
             <SoulseekIndicator />
             <UpdateNotice />
             <SystemLink />
