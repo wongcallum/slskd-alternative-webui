@@ -1,4 +1,4 @@
-import { type HubConnection, HubConnectionBuilder } from '@microsoft/signalr'
+import { type HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signalr'
 import { useSyncExternalStore } from 'react'
 
 import { getSession } from '../session/session'
@@ -49,6 +49,9 @@ function createHub(name: string): Hub {
   function connect() {
     const current = new HubConnectionBuilder()
       .withUrl(`${urlBase}/hub/${name}`, { accessTokenFactory: accessToken })
+      // SignalR logs to the console by default, an error for every drop and failed retry. The Soulseek popover shows
+      // each hub's state instead.
+      .configureLogging(LogLevel.None)
       .withAutomaticReconnect({
         nextRetryDelayInMilliseconds: ({ previousRetryCount }) => {
           probe()
