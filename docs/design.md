@@ -41,6 +41,8 @@ structural sharing deep-allocates over the whole payload every tick) or assume t
 - A failed tick keeps the last good data and never blanks the screen.
 - Polls pause while the tab is hidden and tick as soon as it's shown again, except the conversation list (see
   [Chat](#chat)).
+- A resource stops a task after its last subscriber leaves, so moving between two pages that read it, like the search
+  list and a search's results, doesn't fetch it again.
 - A stopped resource keeps its snapshot, so coming back to a page shows the last data with its age at once.
   Every resource snapshot and module-level atom is cleared when the session ends.
 - Hubs send their snapshot (`STATE`, `LIST`) only as they connect, and stay connected for 2 s after their last
