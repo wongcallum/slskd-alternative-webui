@@ -46,6 +46,12 @@ import { NotFound, RouteError } from './pages'
 import { useSearchChange } from './search'
 import { Shell } from './Shell'
 
+const loadYamlPages = () => import('./yamlPages')
+
+// Loaded soon after the app starts rather than on first use, when a browser that failed to load it once never tries
+// again, and slskd may be restarting or have replaced it with a newer build.
+setTimeout(() => void loadYamlPages().catch(() => {}), 3000)
+
 function title(name: string) {
   const unread = unreadCount()
   return { meta: [{ title: `${unread > 0 ? `(${unread}) ` : ''}${name} – slskd` }] }
@@ -230,7 +236,7 @@ const systemOptionsRoute = createRoute({
   head: () => title('Options – System'),
   validateSearch: optionsSearch,
   search: { middlewares: [stripSearchParams(optionsSearchDefaults)] },
-  component: lazyRouteComponent(() => import('./yamlPages'), 'Options'),
+  component: lazyRouteComponent(loadYamlPages, 'Options'),
 })
 
 const systemSharesRoute = createRoute({
@@ -271,7 +277,7 @@ const systemEventsRoute = createRoute({
   head: () => title('Events – System'),
   validateSearch: eventsSearch,
   search: { middlewares: [stripSearchParams(eventsSearchDefaults)] },
-  component: lazyRouteComponent(() => import('./yamlPages'), 'Events'),
+  component: lazyRouteComponent(loadYamlPages, 'Events'),
 })
 
 const systemLogsRoute = createRoute({

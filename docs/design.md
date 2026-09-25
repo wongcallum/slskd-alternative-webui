@@ -109,10 +109,11 @@ and we cache browsed share trees in IndexedDB), show when each result was fetche
 - Invalid search params fall back to their defaults, and defaults and invalid values stay out of the URL. Params
   that filter or sort a view replace the history entry. Opening a folder in Browse pushes one, so Back returns to
   the previous folder.
-- No router devtools or scroll restoration. Two chunks load on demand, and everything else is in the main one:
-  - Options and Events, the only pages that need `yaml`, which would otherwise be a tenth of the main chunk. The router
-    loads it before it leaves the page you're on, so nothing flashes.
-  - The YAML editor (see [Options](#options)).
+- No router devtools or scroll restoration. Two chunks are split from the main one:
+  - Options and Events, the only pages that need `yaml`, which would otherwise be a tenth of the main chunk. It loads 3 s
+    after the app starts rather than on first use, because Chromium never retries a chunk that failed once (see the
+    facts), and by first use slskd may be restarting or have replaced it with a newer build.
+  - The YAML editor (see [Options](#options)), on first use.
 
 ### Shell
 
