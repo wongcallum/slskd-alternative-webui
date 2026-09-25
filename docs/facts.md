@@ -501,6 +501,8 @@ in relay agent mode.
   `{name, fullName, length, attributes, createdAt, modifiedAt}`, and child directories have no `files`, `directories`
   or `length`.
   - **`fullName` is relative to the folder asked for**, and a root's own `name` is its basename.
+  - It's .NET's `FullName` with the folder cut off, so on Windows it's separated by `\` (from the source). The
+    endpoints that take a path read `\` and `/` alike on every platform, so a name containing `\` can't be reached.
   - `attributes` is a flags string (`"Hidden, Directory"`, `"Directory, ReparsePoint"`).
   - Times are UTC. On Linux `createdAt` equals `modifiedAt` (observed).
   - Entries come in filesystem order.
