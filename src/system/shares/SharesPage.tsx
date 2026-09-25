@@ -9,7 +9,17 @@ import { useResource } from '../../lib/store'
 import { useRun } from '../../lib/useRun'
 import { ActionButton, Tip, toolbarStyle } from '../../ui/controls'
 import { Busy, Empty, ErrorCallout, FetchedResource, Freshness, Loading } from '../../ui/status'
-import { Cell, ColumnHeader, GridRow, HeaderRow, rowHeight } from '../../ui/table'
+import {
+  Cell,
+  ColumnHeader,
+  GridRow,
+  HeaderRow,
+  Parts,
+  rowHeight,
+  StackedRow,
+  stackedHeight,
+  useListLayout,
+} from '../../ui/table'
 import { audioColumns } from '../../ui/tree/columns'
 import type { FolderLinkProps, TreeConfig } from '../../ui/tree/FolderPane'
 import { TreeView } from '../../ui/tree/TreeView'
@@ -130,6 +140,7 @@ function ScanBar({ data, known }: { data: Application; known: boolean }) {
 function ShareTable({ onOpen }: { onOpen: (path: string) => void }) {
   const { data, error } = useResource(shareList)
   const options = useOptions()
+  const stacked = useListLayout() === 'stacked'
   if (data === undefined) {
     if (error === undefined) return <Loading />
     return <ErrorCallout onRetry={shareList.refresh}>Can't load the shares: {describeError(error)}</ErrorCallout>
@@ -150,19 +161,22 @@ function ShareTable({ onOpen }: { onOpen: (path: string) => void }) {
           Nothing is shared. Shares are set in slskd's config, as <Code>shares.directories</Code>.
         </Empty>
       ) : (
-        <Box minWidth={`${(hosts ? 140 : 0) + 660}px`}>
-          <HeaderRow template={template}>
-            {hosts && <ColumnHeader label="Host" />}
-            <ColumnHeader label="Local path" />
-            <ColumnHeader label="Shared as" />
-            <ColumnHeader label="Folders" end />
-            <ColumnHeader label="Files" end />
-          </HeaderRow>
+        <Box minWidth={stacked ? undefined : `${(hosts ? 140 : 0) + 660}px`}>
+          {!stacked && (
+            <HeaderRow template={template}>
+              {hosts && <ColumnHeader label="Host" />}
+              <ColumnHeader label="Local path" />
+              <ColumnHeader label="Shared as" />
+              <ColumnHeader label="Folders" end />
+              <ColumnHeader label="Files" end />
+            </HeaderRow>
+          )}
           {data.shares.map((share) => (
             <ShareRow
               key={`${share.host}\n${share.id}`}
               share={share}
               template={template}
+              stacked={stacked}
               hosts={hosts}
               onOpen={onOpen}
             />
@@ -197,29 +211,64 @@ function Count({ value }: { value?: number }) {
 function ShareRow({
   share,
   template,
+  stacked,
   hosts,
   onOpen,
 }: {
   share: Share
   template: string
+  stacked: boolean
   hosts: boolean
   onOpen: (path: string) => void
 }) {
   const { excluded } = share
+  const row = {
+    dimmed: excluded,
+    style: excluded ? undefined : { cursor: 'pointer' },
+    onClick: excluded ? undefined : () => onOpen(share.alias),
+  }
+  const path = (
+    <>
+      {excluded ? <Cross2Icon style={{ flexShrink: 0 }} /> : <ChevronRightIcon style={{ flexShrink: 0 }} />}
+      <Text size="2" weight="medium" truncate>
+        {share.localPath}
+      </Text>
+    </>
+  )
+  if (stacked) {
+    return (
+      <div style={{ height: stackedHeight }}>
+        <StackedRow
+          {...row}
+          title={path}
+          meta={
+            <Parts
+              items={
+                excluded
+                  ? [hosts && share.host, 'Excluded']
+                  : [
+                      hosts && share.host,
+                      `Shared as ${share.alias}`,
+                      <span key="folders">
+                        <Count value={share.folders} /> folders
+                      </span>,
+                      <span key="files">
+                        <Count value={share.files} /> files
+                      </span>,
+                    ]
+              }
+            />
+          }
+        />
+      </div>
+    )
+  }
   return (
     <div style={{ height: rowHeight }}>
-      <GridRow
-        template={template}
-        dimmed={excluded}
-        style={excluded ? undefined : { cursor: 'pointer' }}
-        onClick={excluded ? undefined : () => onOpen(share.alias)}
-      >
+      <GridRow template={template} {...row}>
         {hosts && <Cell>{share.host}</Cell>}
         <Flex className="table-cell" align="center" gap="2" title={share.localPath}>
-          {excluded ? <Cross2Icon style={{ flexShrink: 0 }} /> : <ChevronRightIcon style={{ flexShrink: 0 }} />}
-          <Text size="2" weight="medium" truncate>
-            {share.localPath}
-          </Text>
+          {path}
         </Flex>
         <Cell>{excluded ? 'Excluded' : share.alias}</Cell>
         <Cell end>{!excluded && <Count value={share.folders} />}</Cell>
