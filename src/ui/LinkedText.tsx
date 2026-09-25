@@ -2,7 +2,7 @@ import { Link } from '@radix-ui/themes'
 import Linkify from 'linkify-react'
 import type { Opts } from 'linkifyjs'
 
-// Only explicit web links: bare names like "album.fm" are common in file talk.
+// Only explicit web links, since chat about files is full of names like "album.fm".
 const options: Opts = {
   validate: { url: (value) => /^(https?:\/\/|www\.)/i.test(value), email: false },
   render: ({ attributes, content }) => (

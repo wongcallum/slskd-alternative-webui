@@ -240,7 +240,7 @@ function createTransfers(direction: Direction) {
         const text = await api.get(`transfers/${direction}s`, { signal, timeout: false }).text()
         const now = Date.now()
         const last = resource.getUpdatedAt()
-        // After a gap the freshness display would call stale, this poll only sets a new baseline.
+        // After a gap long enough to count as stale, the poll only sets a new baseline for the speed.
         const elapsed =
           last === undefined || isStale(now - last, resource.getInterval() ?? pollInterval) ? undefined : now - last
         if (elapsed === undefined) rate.reset()
