@@ -1,18 +1,29 @@
 import { useCallback } from 'react'
 
 import { useAtom } from '../../lib/store'
-import { collapsed, ColumnHeader, HeaderRow, rowId, toggleExpanded, useRowToggle, VirtualTable } from '../../ui/table'
+import {
+  collapsed,
+  ColumnHeader,
+  HeaderRow,
+  rowHeight,
+  rowId,
+  toggleExpanded,
+  useLayout,
+  useRowToggle,
+  VirtualTable,
+} from '../../ui/table'
 import { downloadsOf, type FolderFetch } from './results'
 import { FileRow, GroupRow } from './rows'
 import {
-  columnIds,
   columnLabels,
+  columnsOf,
   endAligned,
   expansions,
-  minWidth,
+  minWidths,
   type ResultTable,
+  stackedSize,
   type TableRow,
-  template,
+  templates,
 } from './table'
 
 type Props = {
@@ -25,6 +36,8 @@ type Props = {
 
 export function ResultList({ searchId, table, folders, gate, folderGate }: Props) {
   const { pending, marks } = useAtom(downloadsOf(searchId))
+  const layout = useLayout()
+  const stacked = layout === 'stacked'
   const rows = table.getRowModel().rows
   const onSelect = useRowToggle(table)
   const onToggle = useCallback(
@@ -36,11 +49,16 @@ export function ResultList({ searchId, table, folders, gate, folderGate }: Props
   )
 
   const header = (
-    <HeaderRow template={template} table={table}>
-      {columnIds.map((id) => (
-        <ColumnHeader key={id} label={columnLabels[id]} end={endAligned.has(id)} column={table.getColumn(id)} />
+    <HeaderRow template={stacked ? '' : templates[layout]} table={table} stacked={stacked}>
+      {columnsOf(layout).map((id) => (
+        <ColumnHeader
+          key={id}
+          label={columnLabels[id]}
+          end={!stacked && endAligned.has(id)}
+          column={table.getColumn(id)}
+        />
       ))}
-      <div />
+      {!stacked && <div />}
     </HeaderRow>
   )
 
@@ -51,6 +69,7 @@ export function ResultList({ searchId, table, folders, gate, folderGate }: Props
         <GroupRow
           searchId={searchId}
           group={original}
+          layout={layout}
           expanded={row.getIsExpanded()}
           selected={row.getIsAllSubRowsSelected()}
           partial={row.getIsSomeSelected()}
@@ -66,6 +85,7 @@ export function ResultList({ searchId, table, folders, gate, folderGate }: Props
       <FileRow
         searchId={searchId}
         file={original}
+        layout={layout}
         selected={row.getIsSelected()}
         pending={pending.has(original.id)}
         mark={marks.get(original.id)}
@@ -75,5 +95,14 @@ export function ResultList({ searchId, table, folders, gate, folderGate }: Props
     )
   }
 
-  return <VirtualTable minWidth={minWidth} header={header} items={rows} itemKey={rowId} renderItem={render} />
+  return (
+    <VirtualTable
+      minWidth={minWidths[layout]}
+      header={header}
+      items={rows}
+      itemKey={rowId}
+      rowSize={stacked ? stackedSize : rowHeight}
+      renderItem={render}
+    />
+  )
 }

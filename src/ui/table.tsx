@@ -15,6 +15,7 @@ import {
   useRef,
 } from 'react'
 
+import { useFrom } from '../lib/media'
 import { compareNames } from '../lib/text'
 
 // Clicks on controls inside a row mustn't also select or expand it, and React bubbles clicks out of portals too.
@@ -67,29 +68,43 @@ export function useRowToggle(table: { getRow: (id: string, searchAll?: boolean) 
 
 export const rowHeight = 36
 
+// Stacked rows have a title line and a line or two of details below it, for screens too narrow for columns.
+export const stackedHeight = 56
+
+export const stackedHeight3 = 72
+
 export const columnsHeight = 32
 
-export function GridRow({
-  template,
+// The widest tables stack their rows below md, and drop a column between md and lg.
+export type Layout = 'stacked' | 'medium' | 'wide'
+
+export function useLayout(): Layout {
+  const md = useFrom('md')
+  const lg = useFrom('lg')
+  return !md ? 'stacked' : lg ? 'wide' : 'medium'
+}
+
+type RowProps = {
+  group?: boolean
+  selected?: boolean
+  dimmed?: boolean
+  style?: CSSProperties
+  onClick?: (event: MouseEvent) => void
+}
+
+function Row({
+  className,
   group,
   selected,
   dimmed,
   style,
   onClick,
   children,
-}: {
-  template: string
-  group?: boolean
-  selected?: boolean
-  dimmed?: boolean
-  style?: CSSProperties
-  onClick?: (event: MouseEvent) => void
-  children: ReactNode
-}) {
+}: RowProps & { className: string; children: ReactNode }) {
   return (
     <div
-      className={group ? 'table-row table-group' : 'table-row'}
-      style={{ gridTemplateColumns: template, ...style }}
+      className={group ? `${className} table-group` : className}
+      style={style}
       data-selected={selected || undefined}
       data-dimmed={dimmed || undefined}
       onMouseDown={preventShiftSelection}
@@ -100,6 +115,73 @@ export function GridRow({
   )
 }
 
+export function GridRow({ template, style, ...props }: RowProps & { template: string; children: ReactNode }) {
+  return <Row className="table-row" style={{ gridTemplateColumns: template, ...style }} {...props} />
+}
+
+// The check spans the lines, the title takes the first line whole, and the actions sit at the end of the last.
+export function StackedRow({
+  check,
+  indent,
+  title,
+  meta,
+  more,
+  actions,
+  ...props
+}: RowProps & {
+  check?: ReactNode
+  indent?: boolean
+  title: ReactNode
+  meta: ReactNode
+  more?: ReactNode
+  actions?: ReactNode
+}) {
+  return (
+    <Row
+      className={[
+        'table-row table-stacked',
+        check !== undefined && 'table-stacked-check',
+        more !== undefined && 'table-stacked-3',
+        indent && 'table-stacked-indent',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      {...props}
+    >
+      {check}
+      <Flex className="table-stacked-title" align="center" gap="2">
+        {title}
+      </Flex>
+      <div className="table-stacked-meta" data-area={more === undefined ? 'last' : 'middle'}>
+        {meta}
+      </div>
+      {more !== undefined && (
+        <div className="table-stacked-meta" data-area="last">
+          {more}
+        </div>
+      )}
+      {actions !== undefined && (
+        <Flex className="table-stacked-actions" gap="3" align="center" justify="end" onClick={stop}>
+          {actions}
+        </Flex>
+      )}
+    </Row>
+  )
+}
+
+// A stacked row's details, separated by dots. When they don't fit, the last one gives way first.
+export function Parts({ items }: { items: ReactNode[] }) {
+  return items
+    .filter((part) => part !== undefined && part !== null && part !== false && part !== '')
+    .map((part, index) => (
+      // oxlint-disable-next-line react/no-array-index-key -- a row's parts don't reorder
+      <span key={index} className="table-part">
+        {part}
+      </span>
+    ))
+}
+
+// The whole cell toggles, which makes a finger-sized target of a 16px box.
 export function CheckCell({
   selected,
   partial,
@@ -112,12 +194,14 @@ export function CheckCell({
   onToggle: (shiftKey: boolean) => void
 }) {
   return (
-    <div className="table-cell table-check" onClick={stop}>
-      <Checkbox
-        checked={selected ? true : partial ? 'indeterminate' : false}
-        disabled={disabled}
-        onClick={(event) => onToggle(event.shiftKey)}
-      />
+    <div
+      className="table-cell table-check"
+      onClick={(event) => {
+        stop(event)
+        if (!disabled) onToggle(event.shiftKey)
+      }}
+    >
+      <Checkbox checked={selected ? true : partial ? 'indeterminate' : false} disabled={disabled} />
     </div>
   )
 }
@@ -132,24 +216,24 @@ export function Cell({ end, title, children }: { end?: boolean; title?: string; 
   )
 }
 
-export function GroupNameCell({
-  expanded,
-  name,
-  title,
-  children,
-}: {
-  expanded: boolean
-  name: string
-  title: string
-  children?: ReactNode
-}) {
+type GroupNameProps = { expanded: boolean; name: string; children?: ReactNode }
+
+export function GroupName({ expanded, name, children }: GroupNameProps) {
   return (
-    <Flex className="table-cell" align="center" gap="2" title={title}>
+    <>
       {expanded ? <ChevronDownIcon style={{ flexShrink: 0 }} /> : <ChevronRightIcon style={{ flexShrink: 0 }} />}
       <Text size="2" weight="medium" truncate>
         {name}
       </Text>
       {children}
+    </>
+  )
+}
+
+export function GroupNameCell({ title, ...props }: GroupNameProps & { title: string }) {
+  return (
+    <Flex className="table-cell" align="center" gap="2" title={title}>
+      <GroupName {...props} />
     </Flex>
   )
 }
@@ -168,9 +252,26 @@ type SelectAll = {
   toggleAllRowsSelected: () => void
 }
 
-export function HeaderRow({ template, table, children }: { template: string; table?: SelectAll; children: ReactNode }) {
+// Stacked, the columns become a strip of the labels to sort by.
+export function HeaderRow({
+  template,
+  table,
+  stacked,
+  children,
+}: {
+  template: string
+  table?: SelectAll
+  stacked?: boolean
+  children: ReactNode
+}) {
   return (
-    <div className="table-row table-columns" style={{ gridTemplateColumns: template, height: columnsHeight }}>
+    <div
+      className="table-row table-columns"
+      style={{
+        gridTemplateColumns: stacked ? `${table === undefined ? '' : '40px '}minmax(0, 1fr)` : template,
+        height: columnsHeight,
+      }}
+    >
       {table !== undefined && (
         <CheckCell
           selected={table.getIsAllRowsSelected()}
@@ -179,7 +280,7 @@ export function HeaderRow({ template, table, children }: { template: string; tab
           onToggle={() => table.toggleAllRowsSelected()}
         />
       )}
-      {children}
+      {stacked ? <div className="table-sorts">{children}</div> : children}
     </div>
   )
 }
@@ -223,7 +324,8 @@ export const virtualRowStyle = (size: number, start: number): CSSProperties => (
 
 // Rows have a fixed height, and the column header sticks to the top while scrolling with the rows sideways.
 // A new reveal key scrolls its row into view once the row exists, which may be a render or two later.
-// itemKey has to keep its identity, because a new one makes the virtualizer measure every row again.
+// itemKey and rowSize have to keep their identity, because a new one makes the virtualizer measure every row again,
+// which is also how a new row size takes effect.
 export function VirtualTable<T>({
   minWidth,
   header,
@@ -243,7 +345,7 @@ export function VirtualTable<T>({
   items: readonly T[]
   itemKey: (item: T) => Key
   renderItem: (item: T) => ReactNode
-  rowSize?: number
+  rowSize?: number | ((item: T) => number)
   reveal?: { key: unknown; index: number }
   role?: string
   label?: string
@@ -259,12 +361,17 @@ export function VirtualTable<T>({
       const item = items[index]
       return item === undefined ? index : itemKey(item)
     },
-    [items, itemKey],
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- a new size has to remeasure
+    [items, itemKey, rowSize],
   )
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => rowSize,
+    estimateSize: (index) => {
+      const item = items[index]
+      if (typeof rowSize === 'number') return rowSize
+      return item === undefined ? rowHeight : rowSize(item)
+    },
     getItemKey,
     overscan: 10,
     scrollMargin: headHeight,
