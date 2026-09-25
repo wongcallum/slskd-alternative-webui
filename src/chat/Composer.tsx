@@ -50,6 +50,7 @@ export function Composer({ draftKey, placeholder, send }: Props) {
     <Box px="4" py="3" flexShrink="0" style={{ boxShadow: 'inset 0 1px 0 0 var(--gray-a5)' }}>
       <TextField.Root
         size="2"
+        autoFocus
         placeholder={placeholder}
         value={text}
         onChange={(event) => setText(event.target.value)}

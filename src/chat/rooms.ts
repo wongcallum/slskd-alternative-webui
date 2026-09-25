@@ -2,7 +2,7 @@ import { isHTTPError } from 'ky'
 import { useMemo } from 'react'
 
 import { api } from '../lib/api'
-import { createAtom, createResource, poll, type Resource, useAtom, useResource } from '../lib/store'
+import { createAtom, createResource, createResourceMap, poll, type Resource, useAtom, useResource } from '../lib/store'
 import { createStoredAtom } from '../lib/stored'
 import { compareExactly } from '../lib/text'
 import { application } from '../system/application'
@@ -108,20 +108,8 @@ function toMessages(room: string, raws: RawRoomMessage[], previous?: readonly Me
   return { messages: reused }
 }
 
-function keyed<T>(create: (room: string) => Resource<T>) {
-  const resources = new Map<string, Resource<T>>()
-  return {
-    get: (room: string) => {
-      let resource = resources.get(room)
-      if (resource === undefined) resources.set(room, (resource = create(room)))
-      return resource
-    },
-    forget: (room: string) => resources.delete(room),
-  }
-}
-
 // Every joined room is polled while the chat page is open, to show which have news, and the open one more often.
-const messageResources = keyed((room) => {
+const messageResources = createResourceMap((room) => {
   const resource: Resource<RoomMessages> = createResource((sink) =>
     poll(
       sink,
@@ -149,7 +137,7 @@ function toUser(raw: RawRoomUser): RoomUser {
 
 const byUsername = (a: RoomUser, b: RoomUser) => compareExactly(a.username, b.username)
 
-const userResources = keyed((room) =>
+const userResources = createResourceMap((room) =>
   createResource<RoomUsers>((sink) => {
     let last: { text: string; data: RoomUsers } | undefined
     return poll(

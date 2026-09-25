@@ -90,6 +90,19 @@ export function createResource<T extends object>(start: (sink: Sink<T>) => Sourc
   }
 }
 
+// One resource per key, such as a room, made when it's first asked for.
+export function createResourceMap<T>(create: (key: string) => Resource<T>) {
+  const resources = new Map<string, Resource<T>>()
+  return {
+    get: (key: string) => {
+      let resource = resources.get(key)
+      if (resource === undefined) resources.set(key, (resource = create(key)))
+      return resource
+    },
+    forget: (key: string) => resources.delete(key),
+  }
+}
+
 export type Measure = <R>(work: () => R) => R
 
 // Main-thread work per tick is capped at 1/costFactor of the time between ticks.
