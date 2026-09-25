@@ -1,6 +1,17 @@
 .user-name-button {
   all: unset;
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
   cursor: pointer;
+}
+
+.user-name-button:focus-visible {
+  border-radius: var(--radius-1);
+  outline: 2px solid var(--focus-8);
 }
 
 @media (hover: hover) {

@@ -254,7 +254,7 @@ function Direction({
               {history.succeeded.toLocaleString()} succeeded ({formatBytes(history.bytes)})
             </Text>
             {history.failed > 0 && (
-              <Tip content={reasons.join('\n')}>
+              <Tip content={`The most common reasons, cancellations included:\n${reasons.join('\n')}`}>
                 <Text size="2" color="red">
                   {history.failed.toLocaleString()} failed
                 </Text>

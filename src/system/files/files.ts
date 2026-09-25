@@ -18,6 +18,9 @@ export type Files = { listings: readonly RawListing[]; removed: ReadonlySet<stri
 
 const has = (entry: RawEntry, attribute: string) => entry.attributes.split(', ').includes(attribute)
 
+// slskd on Windows separates paths with '\', and reads either separator back.
+const slashes = (path: string) => path.replaceAll('\\', '/')
+
 const within = (path: string, folder: string) => path === folder || path.startsWith(`${folder}/`)
 
 function removedFrom(removed: ReadonlySet<string>, path: string) {
@@ -46,11 +49,11 @@ function toDirectories(listings: readonly RawListing[], removed: ReadonlySet<str
     }
     add(root.name, listing)
     for (const entry of listing.directories) {
-      const path = `${root.name}/${entry.fullName}`
+      const path = `${root.name}/${slashes(entry.fullName)}`
       if (!removedFrom(removed, path)) add(path, entry)
     }
     for (const entry of listing.files) {
-      const path = `${root.name}/${entry.fullName}`
+      const path = `${root.name}/${slashes(entry.fullName)}`
       if (removedFrom(removed, path)) continue
       // A symlinked file's length is its target's path.
       const link = has(entry, 'ReparsePoint')
@@ -165,10 +168,16 @@ export type Target = {
 // Paths are "Downloads/…", so the first segment names the root. Anything inside a selected folder goes with it.
 export function targetsOf(items: readonly Item[]): Target[] {
   const targets: Target[] = []
-  const paths = items.map((item) => (item.kind === 'folder' ? item.path : item.filename))
-  items.forEach((item, index) => {
-    const path = paths[index] ?? ''
-    if (paths.some((other, at) => at !== index && items[at]?.kind === 'folder' && path.startsWith(`${other}/`))) return
+  const folders = new Set(items.flatMap((item) => (item.kind === 'folder' ? [item.path] : [])))
+  const inSelectedFolder = (path: string) => {
+    for (let at = path.lastIndexOf('/'); at > 0; at = path.lastIndexOf('/', at - 1)) {
+      if (folders.has(path.slice(0, at))) return true
+    }
+    return false
+  }
+  items.forEach((item) => {
+    const path = item.kind === 'folder' ? item.path : item.filename
+    if (inSelectedFolder(path)) return
     const cut = path.indexOf('/')
     const root = roots.find(({ name }) => name === path.slice(0, cut))
     if (root === undefined || cut < 0) return
@@ -193,9 +202,10 @@ async function touchesShares(targets: Target[], signal: AbortSignal) {
   }
   const directories = { downloads: held.downloads, incomplete: held.incomplete }
   return targets.some((target) => {
-    const path = `${directories[target.root].replace(/\/+$/, '')}/${target.relative}`
-    if (shares.some((share) => share.excluded && within(path, share.localPath))) return false
-    return shares.some((share) => !share.excluded && (within(path, share.localPath) || within(share.localPath, path)))
+    const path = `${slashes(directories[target.root]).replace(/\/+$/, '')}/${target.relative}`
+    const local = (share: Share) => slashes(share.localPath)
+    if (shares.some((share) => share.excluded && within(path, local(share)))) return false
+    return shares.some((share) => !share.excluded && (within(path, local(share)) || within(local(share), path)))
   })
 }
 

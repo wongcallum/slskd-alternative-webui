@@ -3,6 +3,7 @@ import { DropdownMenu, Flex, IconButton, Text } from '@radix-ui/themes'
 import { useNavigate } from '@tanstack/react-router'
 
 import { conversations } from '../chat/conversations'
+import { plural } from '../lib/format'
 import { useAtom, useResource } from '../lib/store'
 import { logout, useSession } from '../session/session'
 import { application, releaseNotes } from '../system/application'
@@ -36,7 +37,18 @@ export function AppMenu({ pages, speeds, update }: Props) {
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger>
-        <IconButton variant="ghost" color="gray" aria-label="Menu" style={{ position: 'relative' }}>
+        <IconButton
+          variant="ghost"
+          color="gray"
+          aria-label={[
+            'Menu',
+            pages && unread > 0 && plural(unread, 'unread message'),
+            latest !== undefined && 'update available',
+          ]
+            .filter(Boolean)
+            .join(', ')}
+          style={{ position: 'relative' }}
+        >
           <HamburgerMenuIcon width={18} height={18} />
           {dot !== undefined && <CornerDot color={dot} />}
         </IconButton>

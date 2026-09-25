@@ -21,6 +21,8 @@ export type Resource<T> = {
   getInterval: () => number | undefined
   isRunning: () => boolean
   refresh: () => void
+  // For one that will never be used again, which the session's end would otherwise keep until then.
+  dispose: () => void
 }
 
 export function shallowEqual<T extends object>(a: T, b: T) {
@@ -36,6 +38,7 @@ export function createResource<T extends object>(start: (sink: Sink<T>) => Sourc
   const listeners = createListeners()
   let subscribers = 0
   let source: Source | undefined
+  let stopTimer: ReturnType<typeof setTimeout> | undefined
 
   function emit(next: Snapshot<T>) {
     snapshot = next
@@ -62,7 +65,7 @@ export function createResource<T extends object>(start: (sink: Sink<T>) => Sourc
   }
 
   // A source still running when the session ends writes to a dead sink until the app unmounts and stops it.
-  onSessionEnd(() => {
+  const unlisten = onSessionEnd(() => {
     generation++
     updatedAt = undefined
     interval = undefined
@@ -72,13 +75,16 @@ export function createResource<T extends object>(start: (sink: Sink<T>) => Sourc
   return {
     subscribe(listener) {
       const unwatch = listeners.add(listener)
-      if (++subscribers === 1) source = start(createSink())
+      clearTimeout(stopTimer)
+      if (++subscribers === 1) source ??= start(createSink())
       return () => {
         unwatch()
-        if (--subscribers === 0) {
+        if (--subscribers > 0) return
+        // A page that reads it too may be mounting in the same commit, as between the search list and its results.
+        stopTimer = setTimeout(() => {
           source?.stop()
           source = undefined
-        }
+        })
       }
     },
     watch: listeners.add,
@@ -87,6 +93,7 @@ export function createResource<T extends object>(start: (sink: Sink<T>) => Sourc
     getInterval: () => interval,
     isRunning: () => source !== undefined,
     refresh: () => source?.refresh?.(),
+    dispose: unlisten,
   }
 }
 
@@ -99,7 +106,10 @@ export function createResourceMap<T>(create: (key: string) => Resource<T>) {
       if (resource === undefined) resources.set(key, (resource = create(key)))
       return resource
     },
-    forget: (key: string) => resources.delete(key),
+    forget(key: string) {
+      resources.get(key)?.dispose()
+      resources.delete(key)
+    },
   }
 }
 
@@ -108,10 +118,12 @@ export type Measure = <R>(work: () => R) => R
 // Main-thread work per tick is capped at 1/costFactor of the time between ticks.
 const costFactor = 10
 
+// A hidden tab stops polling until it's shown again, unless it's to keep the tab's title current.
 export function poll<T>(
   sink: Sink<T>,
   request: (signal: AbortSignal, measure: Measure) => Promise<T>,
   interval: number | (() => number),
+  { whileHidden = false } = {},
 ): Source {
   const controller = new AbortController()
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -120,9 +132,10 @@ export function poll<T>(
 
   async function tick() {
     timer = undefined
-    if (document.hidden) return
+    if (document.hidden && !whileHidden) return
     inFlight = true
     again = false
+    const started = performance.now()
     let cost = 0
     const measure: Measure = (work) => {
       const start = performance.now()
@@ -140,7 +153,8 @@ export function poll<T>(
     inFlight = false
     if (controller.signal.aborted) return
     const next = Math.max(typeof interval === 'number' ? interval : interval(), costFactor * cost)
-    sink.pace(next)
+    // Updates arrive a request apart as well as an interval, and a slow link's list takes seconds to download.
+    sink.pace(next + performance.now() - started)
     timer = setTimeout(tick, again ? 0 : next)
   }
 

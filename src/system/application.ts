@@ -1,6 +1,6 @@
 import { api } from '../lib/api'
 import { applicationHub, followHub, useLive, type Via } from '../lib/hubs'
-import { createResource, useResource } from '../lib/store'
+import { createAtom, createResource, useResource } from '../lib/store'
 
 // GET /application omits nulls, while the hub keeps them.
 type RawState = {
@@ -162,6 +162,14 @@ export const application = createResource<Application>((sink) => {
       offState()
     },
   }
+})
+
+// slskd forgets our username whenever it's logged out of Soulseek, while chat still names our messages by it.
+export const ownUsername = createAtom<string | undefined>(undefined)
+
+application.watch(() => {
+  const username = application.getSnapshot().data?.username
+  if (username !== undefined && username !== ownUsername.get()) ownUsername.set(username)
 })
 
 export const releaseNotes = (version: string) => `https://github.com/slskd/slskd/releases/tag/${version}`

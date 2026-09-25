@@ -1,9 +1,10 @@
 import './chat.css'
 import { Cross2Icon, PlusIcon } from '@radix-ui/react-icons'
-import { Badge, Flex, IconButton, Text, Tooltip } from '@radix-ui/themes'
+import { Badge, Flex, IconButton, Text, Tooltip, VisuallyHidden } from '@radix-ui/themes'
 import { Outlet, Link as RouterLink, useLocation, useNavigate } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 
+import { describeError } from '../lib/api'
 import { plural } from '../lib/format'
 import { useFrom } from '../lib/media'
 import { useResource } from '../lib/store'
@@ -48,7 +49,8 @@ function useOpenTarget() {
 function Sidebar() {
   const gate = useSoulseekGate()
   const { known, rooms } = useJoinedRooms()
-  const list = useResource(conversations).data?.list
+  const { data, error } = useResource(conversations)
+  const list = data?.list
   const open = useOpenTarget()
   const openUser = open?.kind === 'user' ? open.name : undefined
   // A conversation that hasn't started yet shows while it's open.
@@ -88,6 +90,11 @@ function Sidebar() {
       </Section>
       <Section title="Messages">
         <MessageUserField size="1" style={{ margin: '0 var(--space-3) var(--space-1) var(--space-4)' }} />
+        {list === undefined && error !== undefined && (
+          <Text size="1" color="red" mx="4" my="1">
+            Can't load the conversations: {describeError(error)}
+          </Text>
+        )}
         {shown.map((conversation) => (
           <ConversationItem
             key={conversation.username}
@@ -173,7 +180,9 @@ function RoomItem({ room, open }: { room: string; open: boolean }) {
         </Tooltip>
       ) : (
         <Tooltip content={plural(unread, 'new message')}>
-          <span className="chat-dot" />
+          <span className="chat-dot">
+            <VisuallyHidden>{plural(unread, 'new message')}</VisuallyHidden>
+          </span>
         </Tooltip>
       )
   }

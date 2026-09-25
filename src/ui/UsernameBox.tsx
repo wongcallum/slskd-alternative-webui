@@ -4,27 +4,32 @@ import { useNavigate } from '@tanstack/react-router'
 import { type SubmitEvent, useState } from 'react'
 
 import { useTouch } from '../lib/media'
+import { disabledProps, Tip } from './controls'
 
-// Asking for the user already open acts on them without navigating, which would reset the rest of the URL.
+// Asking for the user already open acts on them without navigating, which would reset the rest of the URL. When that
+// would do nothing, currentGate says why.
 export function UsernameBox({
   current,
   action,
   to,
+  currentGate,
   onAsk,
 }: {
   current?: string
   action: string
   to: '/browse' | '/users'
+  currentGate?: string
   onAsk: (username: string) => void
 }) {
   const navigate = useNavigate()
   const touch = useTouch()
   const [text, setText] = useState(current ?? '')
+  const blocked = current !== undefined && text.trim() === current ? currentGate : undefined
 
   function submit(event: SubmitEvent) {
     event.preventDefault()
     const username = text.trim()
-    if (username === '') return
+    if (username === '' || (username === current && currentGate !== undefined)) return
     onAsk(username)
     if (username !== current) void navigate({ to, search: { user: username } })
   }
@@ -51,9 +56,17 @@ export function UsernameBox({
               </TextField.Slot>
             </TextField.Root>
           </Box>
-          <Button size="2" type="submit">
-            {action}
-          </Button>
+          {blocked === undefined ? (
+            <Button size="2" type="submit">
+              {action}
+            </Button>
+          ) : (
+            <Tip content={blocked}>
+              <Button size="2" type="submit" {...disabledProps(true)}>
+                {action}
+              </Button>
+            </Tip>
+          )}
         </Flex>
       </form>
     </Box>

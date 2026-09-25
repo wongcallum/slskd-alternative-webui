@@ -131,7 +131,7 @@ function RoomPicker({ listing, onRetry, onJoined }: { listing: Listing; onRetry:
     )
   }
 
-  const offerTyped = typed !== '' && available?.some((room) => room.name === typed) !== true
+  const listed = available?.some((room) => room.name === typed) === true
 
   return (
     <Flex direction="column" gap="3">
@@ -141,15 +141,17 @@ function RoomPicker({ listing, onRetry, onJoined }: { listing: Listing; onRetry:
         onChange={setFilter}
         style={{ width: '100%' }}
       />
-      {offerTyped && (
+      {typed !== '' && (
         <Flex align="center" gap="3">
           <Button variant="soft" loading={joining === typed} onClick={() => void join(typed)}>
             <PlusIcon />
             Join “{typed}”
           </Button>
-          <Text size="1" color="gray">
-            Creates it if it doesn't exist
-          </Text>
+          {!listed && (
+            <Text size="1" color="gray">
+              Creates it if it doesn't exist
+            </Text>
+          )}
         </Flex>
       )}
       <Flex direction="column" height="clamp(160px, 50dvh, 400px)">

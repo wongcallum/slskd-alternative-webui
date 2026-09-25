@@ -1,11 +1,9 @@
 import { Badge, Button, DropdownMenu, Flex, Text } from '@radix-ui/themes'
 import { memo, type ReactNode, useEffect, useMemo, useState } from 'react'
-import * as v from 'valibot'
 import { stringify } from 'yaml'
 
 import { describeError } from '../lib/api'
 import { formatFullPreciseTime, plural } from '../lib/format'
-import { textParam } from '../lib/params'
 import { useAtom, useResource } from '../lib/store'
 import { toStringOptions, yamlVersion } from '../lib/yaml'
 import { useFilterText } from '../ui/controls'
@@ -28,13 +26,8 @@ import {
   olderLoad,
   typeLabel,
 } from './events'
+import type { EventsSearch } from './params'
 import { SystemPage } from './SystemPage'
-
-export const eventsSearch = v.object({ q: textParam, hide: textParam })
-
-export const eventsSearchDefaults = { q: '', hide: '' } as const
-
-export type EventsSearch = v.InferOutput<typeof eventsSearch>
 
 const parseHidden = (hide: string) => new Set(hide.split(',').filter((type) => type !== ''))
 

@@ -3,12 +3,14 @@ import { isHTTPError, isNetworkError, isTimeoutError } from 'ky'
 import { type SubmitEvent, useRef, useState } from 'react'
 
 import { describeError } from '../lib/api'
+import { useTouch } from '../lib/media'
 import { login } from './session'
 
 export function Login({ ended }: { ended: boolean }) {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string>()
   const password = useRef<HTMLInputElement>(null)
+  const touch = useTouch()
 
   async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -41,12 +43,20 @@ export function Login({ ended }: { ended: boolean }) {
                 <Callout.Text>Your session ended. Log in again.</Callout.Text>
               </Callout.Root>
             )}
-            <TextField.Root name="username" placeholder="Username" autoComplete="username" autoFocus required />
+            <TextField.Root
+              name="username"
+              placeholder="Username"
+              aria-label="Username"
+              autoComplete="username"
+              autoFocus={!touch}
+              required
+            />
             <TextField.Root
               ref={password}
               name="password"
               type="password"
               placeholder="Password"
+              aria-label="Password"
               autoComplete="current-password"
               required
             />

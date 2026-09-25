@@ -32,12 +32,17 @@ structural sharing deep-allocates over the whole payload every tick) or assume t
   nothing.
 - **The poll interval is floored at 10× the last tick's main-thread cost** (parse plus merge). That keeps it to
   about 10% of the main thread, where stock polls at 1 Hz whatever the cost. Freshness thresholds use the
-  effective interval.
+  effective interval, which counts the request's own time too, so a list that takes seconds to download isn't stale
+  every cycle.
 - The work stays on the main thread; a one-off check at 20k rows didn't justify more. If it ever does, a worker
   fetches, parses and diffs, and posts only the changes.
 - List polls have no timeout: uncompressed, a heavy list takes about 10 s over a 3 Mbit/s link. Other requests
   keep ky's 10 s.
 - A failed tick keeps the last good data and never blanks the screen.
+- Polls pause while the tab is hidden and tick as soon as it's shown again, except the conversation list (see
+  [Chat](#chat)).
+- A resource stops a task after its last subscriber leaves, so moving between two pages that read it, like the search
+  list and a search's results, doesn't fetch it again.
 - A stopped resource keeps its snapshot, so coming back to a page shows the last data with its age at once.
   Every resource snapshot and module-level atom is cleared when the session ends.
 - Hubs send their snapshot (`STATE`, `LIST`) only as they connect, and stay connected for 2 s after their last
@@ -107,8 +112,11 @@ and we cache browsed share trees in IndexedDB), show when each result was fetche
 - Invalid search params fall back to their defaults, and defaults and invalid values stay out of the URL. Params
   that filter or sort a view replace the history entry. Opening a folder in Browse pushes one, so Back returns to
   the previous folder.
-- No router devtools, route code splitting or scroll restoration. The YAML editor is the one lazy chunk (see
-  [Options](#options)).
+- No router devtools or scroll restoration. Two chunks are split from the main one:
+  - Options and Events, the only pages that need `yaml`, which would otherwise be a tenth of the main chunk. It loads
+    3 s after the app starts rather than on first use, because Chromium never retries a chunk that failed once (see
+    the facts), and by first use slskd may be restarting or have replaced it with a newer build.
+  - The YAML editor (see [Options](#options)), on first use.
 
 ### Shell
 
@@ -149,7 +157,8 @@ and we cache browsed share trees in IndexedDB), show when each result was fetche
   hook the rest, since row heights and markup change too.
 - Rows keep a fixed height per breakpoint. Below a table's breakpoint they stack into a title line and a line of
   details ending in the row's actions: below md for transfers and results, which have eight columns, and below sm for
-  the rest. The column header becomes a strip of sort labels. Between md and lg the widest tables drop a column rather
+  the rest. Folders of transfers and results take a third line, and a long username gives way along with the last
+  detail. The column header becomes a strip of sort labels. Between md and lg the widest tables drop a column rather
   than scroll sideways.
 - Below sm there's room for one pane:
   - Browse, Shares and Files show the folder, whose path leads up, and a Folders toggle swaps the tree in.
@@ -245,7 +254,8 @@ and we cache browsed share trees in IndexedDB), show when each result was fetche
     unread marks. The open room's users every 30 s, since they only change as people join and leave, and a busy
     room's list is hundreds of KB.
   - The conversation list every 10 s wherever the app is open, for the unread count on the Chat tab and at the start
-    of the page title. The open conversation every 2 s.
+    of the page title. It keeps polling in a hidden tab, where the title is what shows. The open conversation every
+    2 s.
 - `STATE.rooms` lists a room being joined before slskd can answer for it, and keeps a left room for a few seconds
   (see the facts). So a room this tab is joining shows once the join returns, and a room it leaves goes at once.
 - slskd has no read state for rooms, so the newest message time seen in each room is kept in localStorage, in slskd's
@@ -304,7 +314,8 @@ and we cache browsed share trees in IndexedDB), show when each result was fetche
 - Rows have a fixed height and show the message's first line, with a count of the lines after it (usually a stack
   trace). Clicking a row shows the whole record in a pane below the list, or over it (see
   [Responsiveness](#responsiveness)).
-- Times are in the browser's time zone, to the millisecond, with the date when it isn't today.
+- Times are in the browser's time zone, to the millisecond, with the date when it isn't today and the year when it isn't
+  this year. A row drawn yesterday gains its date at midnight.
 
 ### Events
 
@@ -337,9 +348,9 @@ and we cache browsed share trees in IndexedDB), show when each result was fetche
 - Sources needs debug on at startup, which `GET /options/startup` says. It's read again each time the application hub
   connects, which covers a restart, rather than polled.
 - `PATCH /options` isn't used: its change is lost on restart, and editing the file covers it.
-- CodeMirror is lazy because most installs can't edit their file from here. Effective is coloured by `yaml` itself,
-  which the main chunk has for the dump anyway. The editor has its own search, since the browser's find can't see
-  lines CodeMirror hasn't drawn.
+- CodeMirror is a chunk of its own because most installs can't edit their file from here. Effective is coloured by
+  `yaml` itself, which the page has for the dump anyway. The editor has its own search, since the browser's find can't
+  see lines CodeMirror hasn't drawn.
 
 ### Health
 

@@ -5,7 +5,7 @@ import { api } from '../lib/api'
 import { createAtom, createResource, createResourceMap, poll, type Resource, useAtom, useResource } from '../lib/store'
 import { createStoredAtom } from '../lib/stored'
 import { compareExactly } from '../lib/text'
-import { application } from '../system/application'
+import { application, ownUsername } from '../system/application'
 import { lastOpen, mentionMatcher, type Message, reuseMessages } from './messages'
 
 type RawRoomMessage = { timestamp: string; username: string; message: string; self?: boolean }
@@ -85,7 +85,7 @@ function settlePending(room: string, messages: readonly Message[]) {
 }
 
 function toMessages(room: string, raws: RawRoomMessage[], previous?: readonly Message[]): RoomMessages {
-  const mentions = mentionMatcher(application.getSnapshot().data?.username)
+  const mentions = mentionMatcher(ownUsername.get())
   const counts = new Map<string, number>()
   const messages = raws.map((raw): Message => {
     // Messages have no id, and two can share a time and a sender.
@@ -167,7 +167,16 @@ application.watch(() => {
   if (left.length !== current.size) overrides.set(new Map(left))
 })
 
-const setOverride = (room: string, joined: boolean) => overrides.set((current) => new Map(current).set(room, joined))
+// One that STATE already agrees with would linger until STATE next changes.
+function setOverride(room: string, joined: boolean) {
+  const agreed = application.getSnapshot().data?.rooms.includes(room) === joined
+  overrides.set((current) => {
+    const next = new Map(current)
+    if (agreed) next.delete(room)
+    else next.set(room, joined)
+    return next
+  })
+}
 
 // STATE lists a room being joined a moment before slskd answers for it, so this tab waits for its join to return.
 const joining = createAtom<ReadonlySet<string>>(new Set())

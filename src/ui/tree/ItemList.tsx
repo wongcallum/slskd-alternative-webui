@@ -12,6 +12,7 @@ import {
   HeaderRow,
   Parts,
   rowHeight,
+  RowButton,
   rowId,
   StackedRow,
   stackedHeight,
@@ -161,7 +162,12 @@ function Row({
   onClick: (event: { shiftKey: boolean }) => void
 }) {
   const check = selectable ? (
-    <CheckCell selected={selected} disabled={disabled} onToggle={(shiftKey) => onSelect(id, shiftKey)} />
+    <CheckCell
+      label={`Select ${title}`}
+      selected={selected}
+      disabled={disabled}
+      onToggle={(shiftKey) => onSelect(id, shiftKey)}
+    />
   ) : undefined
   const style = group ? { cursor: 'pointer' } : undefined
   const label = (
@@ -214,9 +220,11 @@ const SubfolderRow = memo(function SubfolderRow({
         folder.locked ? <LockClosedIcon style={{ flexShrink: 0 }} /> : <ChevronRightIcon style={{ flexShrink: 0 }} />
       }
       name={
-        <Text size="2" weight="medium" truncate>
-          {folder.name}
-        </Text>
+        <RowButton>
+          <Text size="2" weight="medium" truncate>
+            {folder.name}
+          </Text>
+        </RowButton>
       }
       count={plural(folder.fileCount, 'file')}
       countCell={<Cell end>{folder.fileCount.toLocaleString()}</Cell>}

@@ -15,6 +15,7 @@ import {
   type Layout,
   rowHeight,
   stackedHeight,
+  stackedHeight3,
   toggleExpanded,
   useLayout,
   useRowToggle,
@@ -60,8 +61,10 @@ export function TransferList(props: ListProps) {
   const layout = useLayout()
   const twoLines = !useFrom('sm')
   const open = useAtom(openSections[direction])
-  const { pending } = useAtom(actions[direction])
+  const { pending, running } = useAtom(actions[direction])
   const lookupMap = useAtom(lookups)
+  // A second retry would re-enqueue what the first hasn't reached yet, and they'd share one progress count.
+  const retryGate = running.retry === undefined ? gates.soulseek : 'A retry is running'
   const activeRows = activeTable.getRowModel().rows
   const finishedRows = finishedTable.getRowModel().rows
   const activeCount = open.active ? Math.max(activeRows.length, 1) : 0
@@ -92,7 +95,9 @@ export function TransferList(props: ListProps) {
     estimateSize: (index) => {
       if (index === 0) return headerHeight('active')
       if (index === finishedHeader) return headerHeight('finished')
-      return layout === 'stacked' && itemAt(index).type === 'row' ? stackedHeight : rowHeight
+      const item = itemAt(index)
+      if (layout !== 'stacked' || item.type !== 'row') return rowHeight
+      return item.row.original.kind === 'group' ? stackedHeight3 : stackedHeight
     },
     // A new key function is what makes the virtualizer measure again, so a new layout has to make one.
     getItemKey: useCallback(
@@ -173,6 +178,7 @@ export function TransferList(props: ListProps) {
         pending={pending.has(original.id)}
         lookup={lookupMap.get(original.id)}
         gate={gates.soulseek}
+        retryGate={retryGate}
         onSelect={onSelect[section]}
       />
     )

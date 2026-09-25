@@ -52,7 +52,7 @@ function describeState({ state, attempts }: Transfer): [string, Color] {
 // Stacked, the bar has a width of its own, since the line it's on doesn't stretch.
 function Bar({ value, stacked }: { value: number; stacked?: boolean }) {
   return (
-    <Flex align="center" gap="2" flexGrow="1" minWidth="0" width={stacked ? '120px' : undefined}>
+    <Flex align="center" gap="2" flexGrow="1" minWidth={stacked ? '0' : '64px'} width={stacked ? '120px' : undefined}>
       <Progress value={value * 100} size="1" style={{ flex: 1 }} />
       <Text size="1" color="gray">
         {Math.floor(value * 100)}%
@@ -70,6 +70,7 @@ type FileRowProps = {
   pending: boolean
   lookup?: Lookup
   gate?: string
+  retryGate?: string
   onSelect: (id: string, shiftKey: boolean) => void
 }
 
@@ -82,6 +83,7 @@ export const FileRow = memo(function FileRow({
   pending,
   lookup,
   gate,
+  retryGate,
   onSelect,
 }: FileRowProps) {
   const time = timeOf(section, file)
@@ -90,11 +92,13 @@ export const FileRow = memo(function FileRow({
       ? formatProgress(file.bytesTransferred, file.size)
       : formatBytes(file.size)
   const speed = section === 'active' && isTransferring(file.state) ? formatSpeed(file.averageSpeed) : undefined
-  const check = <CheckCell selected={selected} onToggle={(shiftKey) => onSelect(file.id, shiftKey)} />
+  const check = (
+    <CheckCell label={`Select ${file.name}`} selected={selected} onToggle={(shiftKey) => onSelect(file.id, shiftKey)} />
+  )
   const actions = (
     <>
       {direction === 'download' && isRetryable(file.state) && (
-        <GatedIconButton label="Retry" gate={gate} onClick={() => retry([file])}>
+        <GatedIconButton label="Retry" gate={retryGate} onClick={() => retry([file])}>
           <ReloadIcon />
         </GatedIconButton>
       )}
@@ -259,8 +263,9 @@ export const GroupRow = memo(function GroupRow({
       {folder.failed.toLocaleString()} failed
     </Text>
   )
+  // Beside a bar, it gives way before the bar does.
   const cancelled = folder.cancelled > 0 && (
-    <Text size="1" color="gray" style={{ flexShrink: 0 }}>
+    <Text size="1" color="gray" truncate>
       {folder.cancelled.toLocaleString()} cancelled
     </Text>
   )
@@ -270,7 +275,12 @@ export const GroupRow = memo(function GroupRow({
       : formatBytes(group.size)
   const speed = section === 'active' && group.speed > 0 ? formatSpeed(group.speed) : undefined
   const check = (
-    <CheckCell selected={selected} partial={partial} onToggle={(shiftKey) => onSelect(group.id, shiftKey)} />
+    <CheckCell
+      label={`Select ${group.name}`}
+      selected={selected}
+      partial={partial}
+      onToggle={(shiftKey) => onSelect(group.id, shiftKey)}
+    />
   )
   const actions = (
     <>
@@ -293,14 +303,11 @@ export const GroupRow = memo(function GroupRow({
             {count}
           </GroupName>
         }
-        meta={
+        meta={<Parts items={[<UserMenu key="user" username={group.username} />, done, failed, cancelled]} />}
+        more={
           <Parts
             items={[
-              <UserMenu key="user" username={group.username} />,
               section === 'active' && <Bar key="bar" value={fraction(group)} stacked />,
-              done,
-              failed,
-              cancelled,
               size,
               speed,
               group.time > 0 && <Ago key="time" time={group.time} />,

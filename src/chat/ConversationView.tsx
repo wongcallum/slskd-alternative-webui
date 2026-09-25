@@ -2,7 +2,8 @@ import { Navigate } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 
 import { BrowseUserButton } from '../browse/BrowseUserButton'
-import { useResource } from '../lib/store'
+import { useAtom, useResource } from '../lib/store'
+import { ownUsername } from '../system/application'
 import { Loading } from '../ui/status'
 import { UserMenu } from '../users/UserMenu'
 import { ChatEmpty } from './ChatEmpty'
@@ -26,9 +27,9 @@ export function ConversationView({ user }: { user: string }) {
 // The Chat tab lands here, and returns to whatever was open last, if it's still there.
 function ChatIndex() {
   const { known, rooms } = useJoinedRooms()
-  const list = useResource(conversations).data?.list
-  if (!known || list === undefined) return <Loading />
-  return <Resume rooms={rooms} users={list.map((each) => each.username)} />
+  const { data, error } = useResource(conversations)
+  if (!known || (data === undefined && error === undefined)) return <Loading />
+  return <Resume rooms={rooms} users={data?.list.map((each) => each.username) ?? []} />
 }
 
 function Resume({ rooms, users }: { rooms: readonly string[]; users: readonly string[] }) {
@@ -46,6 +47,7 @@ function OpenConversation({ username }: { username: string }) {
   const resource = conversationMessages(username)
   const { data, error } = useResource(resource)
   const started = useResource(conversations).data?.list.some((each) => each.username === username) === true
+  const ownName = useAtom(ownUsername)
 
   useEffect(() => {
     if (started) lastOpen.set({ kind: 'user', name: username })
@@ -64,6 +66,7 @@ function OpenConversation({ username }: { username: string }) {
         data && (
           <MessageLog
             messages={data.messages}
+            ownName={ownName}
             newFrom={data.newFrom}
             note={
               data.messages.length >= conversationMessageLimit

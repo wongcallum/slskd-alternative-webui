@@ -3,12 +3,13 @@ import {
   createRoute,
   createRouter,
   HeadContent,
+  lazyRouteComponent,
   redirect,
   stringifySearchWith,
   stripSearchParams,
   useRouter,
 } from '@tanstack/react-router'
-import { useCallback, useEffect } from 'react'
+import { useEffect } from 'react'
 
 import { BrowsePage } from '../browse/BrowsePage'
 import { type BrowseSearch, browseSearch, browseSearchDefaults } from '../browse/params'
@@ -23,14 +24,14 @@ import { type ResultsSearch, resultsSearch, resultsSearchDefaults } from '../sea
 import { ResultsPage } from '../search/results/ResultsPage'
 import { searches } from '../search/searches'
 import { type SearchesSearch, SearchesPage, searchesSearch, searchesSearchDefaults } from '../search/SearchesPage'
+import { onSessionEnd } from '../session/session'
 import { SessionGate } from '../session/SessionGate'
-import { type EventsSearch, EventsPage, eventsSearch, eventsSearchDefaults } from '../system/EventsPage'
 import { FilesPage } from '../system/files/FilesPage'
 import { type FilesSearch, filesSearch, filesSearchDefaults } from '../system/files/params'
 import { InfoPage } from '../system/InfoPage'
-import { type LogsSearch, LogsPage, logsSearch, logsSearchDefaults } from '../system/LogsPage'
-import { OptionsPage } from '../system/options/OptionsPage'
-import { type OptionsSearch, optionsSearch, optionsSearchDefaults } from '../system/options/params'
+import { LogsPage } from '../system/LogsPage'
+import { optionsSearch, optionsSearchDefaults } from '../system/options/params'
+import { eventsSearch, eventsSearchDefaults, type LogsSearch, logsSearch, logsSearchDefaults } from '../system/params'
 import { type SharesSearch, sharesSearch, sharesSearchDefaults } from '../system/shares/params'
 import { SharesPage } from '../system/shares/SharesPage'
 import {
@@ -43,26 +44,18 @@ import { usersSearch, usersSearchDefaults } from '../users/params'
 import { ProfilePage } from '../users/ProfilePage'
 import { UsersPage } from '../users/UsersPage'
 import { NotFound, RouteError } from './pages'
+import { useSearchChange } from './search'
 import { Shell } from './Shell'
+
+const loadYamlPages = () => import('./yamlPages')
+
+// Loaded soon after the app starts rather than on first use, when a browser that failed to load it once never tries
+// again, and slskd may be restarting or have replaced it with a newer build.
+setTimeout(() => void loadYamlPages().catch(() => {}), 3000)
 
 function title(name: string) {
   const unread = unreadCount()
   return { meta: [{ title: `${unread > 0 ? `(${unread}) ` : ''}${name} – slskd` }] }
-}
-
-// Params that filter or sort replace the history entry. Changing a navigation param pushes one, so Back returns to it.
-function useSearchChange<T extends object>(
-  navigate: (options: { search: (previous: T) => T; replace: boolean }) => Promise<void>,
-  navigation?: keyof T,
-) {
-  return useCallback(
-    (patch: Partial<T>) =>
-      navigate({
-        search: (previous) => ({ ...previous, ...patch }),
-        replace: navigation === undefined || !(navigation in patch),
-      }),
-    [navigate, navigation],
-  )
 }
 
 const rootRoute = createRootRoute({
@@ -244,14 +237,7 @@ const systemOptionsRoute = createRoute({
   head: () => title('Options – System'),
   validateSearch: optionsSearch,
   search: { middlewares: [stripSearchParams(optionsSearchDefaults)] },
-  component: function Options() {
-    return (
-      <OptionsPage
-        search={systemOptionsRoute.useSearch()}
-        onSearchChange={useSearchChange<OptionsSearch>(systemOptionsRoute.useNavigate())}
-      />
-    )
-  },
+  component: lazyRouteComponent(loadYamlPages, 'Options'),
 })
 
 const systemSharesRoute = createRoute({
@@ -292,14 +278,7 @@ const systemEventsRoute = createRoute({
   head: () => title('Events – System'),
   validateSearch: eventsSearch,
   search: { middlewares: [stripSearchParams(eventsSearchDefaults)] },
-  component: function Events() {
-    return (
-      <EventsPage
-        search={systemEventsRoute.useSearch()}
-        onSearchChange={useSearchChange<EventsSearch>(systemEventsRoute.useNavigate())}
-      />
-    )
-  },
+  component: lazyRouteComponent(loadYamlPages, 'Events'),
 })
 
 const systemLogsRoute = createRoute({
@@ -345,6 +324,9 @@ export const router = createRouter({
   parseSearch: (search) => Object.fromEntries(new URLSearchParams(search)),
   stringifySearch: stringifySearchWith(String),
 })
+
+// Titles come from snapshots the session's end has just cleared, like a search's text.
+onSessionEnd(() => void router.invalidate())
 
 declare module '@tanstack/react-router' {
   interface Register {

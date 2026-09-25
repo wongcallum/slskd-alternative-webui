@@ -38,9 +38,7 @@ export const getSession = () => session
 
 export const useSession = () => useSyncExternalStore(listeners.add, getSession)
 
-export function onSessionEnd(listener: () => void) {
-  endListeners.add(listener)
-}
+export const onSessionEnd = (listener: () => void) => endListeners.add(listener)
 
 let controller = new AbortController()
 onSessionEnd(() => {

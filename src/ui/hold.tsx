@@ -2,7 +2,7 @@ import { PauseIcon, PlayIcon } from '@radix-ui/react-icons'
 import { Button, Tooltip } from '@radix-ui/themes'
 import { type Key, type ReactNode, type UIEvent, useCallback, useRef, useState } from 'react'
 
-import { formatFullPreciseTime, formatPreciseTime } from '../lib/format'
+import { formatFullPreciseTime, usePreciseTime } from '../lib/format'
 import { FilterField, Toolbar, ToolbarEnd } from './controls'
 import {
   Cell,
@@ -11,6 +11,7 @@ import {
   HeaderRow,
   type Layout,
   Parts,
+  RowButton,
   rowHeight,
   StackedRow,
   stackedHeight,
@@ -114,13 +115,14 @@ export function HeldRow({
   cells: ReactNode
   onClick: () => void
 }) {
+  const shown = usePreciseTime(time)
   if (layout === 'stacked') {
     return (
       <StackedRow
         selected={selected}
         dimmed={dimmed}
-        title={title}
-        meta={<Parts items={[formatPreciseTime(time), ...details]} />}
+        title={<RowButton>{title}</RowButton>}
+        meta={<Parts items={[shown, ...details]} />}
         style={{ cursor: 'pointer' }}
         onClick={onClick}
       />
@@ -134,7 +136,9 @@ export function HeldRow({
       style={{ cursor: 'pointer' }}
       onClick={onClick}
     >
-      <Cell title={formatFullPreciseTime(time)}>{formatPreciseTime(time)}</Cell>
+      <Cell title={formatFullPreciseTime(time)}>
+        <RowButton>{shown}</RowButton>
+      </Cell>
       {cells}
     </GridRow>
   )

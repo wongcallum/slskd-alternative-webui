@@ -1,6 +1,6 @@
 import './table.css'
 import { ArrowDownIcon, ArrowUpIcon, ChevronDownIcon, ChevronRightIcon } from '@radix-ui/react-icons'
-import { Checkbox, Flex, type FlexProps, Text } from '@radix-ui/themes'
+import { Checkbox, Flex, type FlexProps, Text, VisuallyHidden } from '@radix-ui/themes'
 import { constructSortFn, type ExpandedStateList } from '@tanstack/react-table'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import {
@@ -174,7 +174,7 @@ export function StackedRow({
   )
 }
 
-// A stacked row's details, separated by dots. When they don't fit, the last one gives way first.
+// A stacked row's details, spaced apart. When they don't fit, the last one gives way first.
 export function Parts({ items }: { items: ReactNode[] }) {
   return items.map((part, index) =>
     part === undefined || part === null || part === false || part === '' ? null : (
@@ -188,11 +188,13 @@ export function Parts({ items }: { items: ReactNode[] }) {
 
 // The whole cell toggles, which makes a finger-sized target of a 16px box.
 export function CheckCell({
+  label,
   selected,
   partial,
   disabled,
   onToggle,
 }: {
+  label: string
   selected: boolean
   partial?: boolean
   disabled?: boolean
@@ -206,7 +208,7 @@ export function CheckCell({
         if (!disabled) onToggle(event.shiftKey)
       }}
     >
-      <Checkbox checked={selected ? true : partial ? 'indeterminate' : false} disabled={disabled} />
+      <Checkbox aria-label={label} checked={selected ? true : partial ? 'indeterminate' : false} disabled={disabled} />
     </div>
   )
 }
@@ -223,13 +225,24 @@ export function Cell({ end, title, children }: { end?: boolean; title?: string; 
 
 type GroupNameProps = { expanded: boolean; name: string; children?: ReactNode }
 
+// A row acts on a click anywhere in it, which the keyboard reaches through this. Its click bubbles up to the row.
+export function RowButton({ expanded, children }: { expanded?: boolean; children: ReactNode }) {
+  return (
+    <button type="button" className="row-button" aria-expanded={expanded}>
+      {children}
+    </button>
+  )
+}
+
 export function GroupName({ expanded, name, children }: GroupNameProps) {
   return (
     <>
-      {expanded ? <ChevronDownIcon style={{ flexShrink: 0 }} /> : <ChevronRightIcon style={{ flexShrink: 0 }} />}
-      <Text size="2" weight="medium" truncate>
-        {name}
-      </Text>
+      <RowButton expanded={expanded}>
+        {expanded ? <ChevronDownIcon style={{ flexShrink: 0 }} /> : <ChevronRightIcon style={{ flexShrink: 0 }} />}
+        <Text size="2" weight="medium" truncate>
+          {name}
+        </Text>
+      </RowButton>
       {children}
     </>
   )
@@ -278,6 +291,7 @@ export function HeaderRow({
     >
       {table !== undefined && (
         <CheckCell
+          label="Select all"
           selected={table.getIsAllRowsSelected()}
           // getIsSomeRowsSelected counts ids left in the state by rows that were deleted, filtered out or moved.
           partial={table.getSelectedRowModel().flatRows.length > 0}
@@ -309,6 +323,9 @@ export function ColumnHeader({ label, end, column }: { label: string; end?: bool
       <button type="button" className="table-sort table-label" onClick={column.getToggleSortingHandler()}>
         {label}
         {sorted === 'asc' ? <ArrowUpIcon /> : sorted === 'desc' ? <ArrowDownIcon /> : null}
+        {sorted !== false && (
+          <VisuallyHidden>{sorted === 'asc' ? ', sorted ascending' : ', sorted descending'}</VisuallyHidden>
+        )}
       </button>
     </div>
   )
