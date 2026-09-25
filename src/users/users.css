@@ -3,6 +3,11 @@
   cursor: pointer;
 }
 
+.user-name-button:focus-visible {
+  border-radius: var(--radius-1);
+  outline: 2px solid var(--focus-8);
+}
+
 @media (hover: hover) {
   .user-name-button:hover {
     text-decoration: underline;
