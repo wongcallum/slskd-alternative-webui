@@ -38,6 +38,8 @@ structural sharing deep-allocates over the whole payload every tick) or assume t
 - List polls have no timeout: uncompressed, a heavy list takes about 10 s over a 3 Mbit/s link. Other requests
   keep ky's 10 s.
 - A failed tick keeps the last good data and never blanks the screen.
+- Polls pause while the tab is hidden and tick as soon as it's shown again, except the conversation list (see
+  [Chat](#chat)).
 - A stopped resource keeps its snapshot, so coming back to a page shows the last data with its age at once.
   Every resource snapshot and module-level atom is cleared when the session ends.
 - Hubs send their snapshot (`STATE`, `LIST`) only as they connect, and stay connected for 2 s after their last
@@ -247,7 +249,8 @@ and we cache browsed share trees in IndexedDB), show when each result was fetche
     unread marks. The open room's users every 30 s, since they only change as people join and leave, and a busy
     room's list is hundreds of KB.
   - The conversation list every 10 s wherever the app is open, for the unread count on the Chat tab and at the start
-    of the page title. The open conversation every 2 s.
+    of the page title. It keeps polling in a hidden tab, where the title is what shows. The open conversation every
+    2 s.
 - `STATE.rooms` lists a room being joined before slskd can answer for it, and keeps a left room for a few seconds
   (see the facts). So a room this tab is joining shows once the join returns, and a room it leaves goes at once.
 - slskd has no read state for rooms, so the newest message time seen in each room is kept in localStorage, in slskd's

@@ -34,7 +34,7 @@ const path = (username: string) => `conversations/${encodeURIComponent(username)
 
 const byUsername = (a: Conversation, b: Conversation) => compareExactly(a.username, b.username)
 
-// Polled wherever the app is open, for the unread count in the nav and the title.
+// Polled wherever the app is open, for the unread count in the nav and the title, which shows in a hidden tab too.
 export const conversations = createResource<Conversations>((sink) => {
   let last: { text: string; data: Conversations } | undefined
   return poll(
@@ -52,6 +52,7 @@ export const conversations = createResource<Conversations>((sink) => {
       return data
     },
     conversationListInterval,
+    { whileHidden: true },
   )
 })
 
