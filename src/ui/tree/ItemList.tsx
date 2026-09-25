@@ -1,10 +1,23 @@
 import { ChevronRightIcon, FileIcon, LockClosedIcon } from '@radix-ui/react-icons'
 import { Flex, Text } from '@radix-ui/themes'
-import { type ComponentType, memo } from 'react'
+import { type ComponentType, memo, type ReactNode } from 'react'
 
-import { formatBytes } from '../../lib/format'
+import { formatBytes, plural } from '../../lib/format'
 import type { Folder, Item, TreeFile } from '../../lib/tree'
-import { Cell, CheckCell, ColumnHeader, GridRow, HeaderRow, rowId, useRowToggle, VirtualTable } from '../table'
+import {
+  Cell,
+  CheckCell,
+  ColumnHeader,
+  GridRow,
+  HeaderRow,
+  Parts,
+  rowHeight,
+  rowId,
+  StackedRow,
+  stackedHeight,
+  useRowToggle,
+  VirtualTable,
+} from '../table'
 import type { ExtraColumn, Layout, PaneRow, PaneTable } from './columns'
 
 export type FileBadge = ComponentType<{ file: TreeFile }>
@@ -12,7 +25,7 @@ export type FileBadge = ComponentType<{ file: TreeFile }>
 type Props = {
   table: PaneTable
   layout: Layout
-  extras: readonly ExtraColumn[]
+  stacked: boolean
   selectable: boolean
   filtered: boolean
   separator: string
@@ -21,22 +34,28 @@ type Props = {
   onOpen: (folder: Folder) => void
 }
 
-export function ItemList({ table, layout, extras, selectable, filtered, separator, folderOf, Badge, onOpen }: Props) {
+export function ItemList({ table, layout, stacked, selectable, filtered, separator, folderOf, Badge, onOpen }: Props) {
   const rows = table.getRowModel().rows
   const onSelect = useRowToggle(table)
-  const { template, minWidth } = layout
+  const { template, minWidth, counted, extras } = layout
 
   const header = (
-    <HeaderRow template={template} table={selectable ? table : undefined}>
+    <HeaderRow template={template} table={selectable ? table : undefined} stacked={stacked}>
       <ColumnHeader label="Name" column={table.getColumn('name')} />
-      {filtered ? (
-        <ColumnHeader label="Folder" column={table.getColumn('folder')} />
-      ) : (
-        <ColumnHeader label="Files" end column={table.getColumn('files')} />
-      )}
-      <ColumnHeader label="Size" end column={table.getColumn('size')} />
+      {(counted || stacked) &&
+        (filtered ? (
+          <ColumnHeader label="Folder" column={table.getColumn('folder')} />
+        ) : (
+          <ColumnHeader label="Files" end={!stacked} column={table.getColumn('files')} />
+        ))}
+      <ColumnHeader label="Size" end={!stacked} column={table.getColumn('size')} />
       {extras.map((extra) => (
-        <ColumnHeader key={extra.id} label={extra.label} end={extra.end} column={table.getColumn(extra.id)} />
+        <ColumnHeader
+          key={extra.id}
+          label={extra.label}
+          end={!stacked && extra.end}
+          column={table.getColumn(extra.id)}
+        />
       ))}
     </HeaderRow>
   )
@@ -48,6 +67,8 @@ export function ItemList({ table, layout, extras, selectable, filtered, separato
         <SubfolderRow
           folder={item}
           template={template}
+          stacked={stacked}
+          counted={counted}
           extras={extras}
           selectable={selectable}
           disabled={!row.getCanSelect()}
@@ -61,6 +82,8 @@ export function ItemList({ table, layout, extras, selectable, filtered, separato
       <FileRow
         file={item}
         template={template}
+        stacked={stacked}
+        counted={counted}
         extras={extras}
         folder={filtered ? folderOf(item) : undefined}
         separator={separator}
@@ -73,7 +96,16 @@ export function ItemList({ table, layout, extras, selectable, filtered, separato
     )
   }
 
-  return <VirtualTable minWidth={minWidth} header={header} items={rows} itemKey={rowId} renderItem={render} />
+  return (
+    <VirtualTable
+      minWidth={stacked ? 0 : minWidth}
+      header={header}
+      items={rows}
+      itemKey={rowId}
+      rowSize={stacked ? stackedHeight : rowHeight}
+      renderItem={render}
+    />
+  )
 }
 
 function ExtraCells({ item, extras }: { item: Item; extras: readonly ExtraColumn[] }) {
@@ -84,104 +116,145 @@ function ExtraCells({ item, extras }: { item: Item; extras: readonly ExtraColumn
   ))
 }
 
-type SubfolderRowProps = {
-  folder: Folder
+type RowProps = {
   template: string
+  stacked: boolean
+  counted: boolean
   extras: readonly ExtraColumn[]
   selectable: boolean
   disabled: boolean
   selected: boolean
   onSelect: (id: string, shiftKey: boolean) => void
-  onOpen: (folder: Folder) => void
+}
+
+function Row({
+  id,
+  item,
+  group,
+  dimmed,
+  title,
+  icon,
+  name,
+  count,
+  countCell,
+  size,
+  onClick,
+  stacked,
+  template,
+  counted,
+  extras,
+  selectable,
+  disabled,
+  selected,
+  onSelect,
+}: RowProps & {
+  id: string
+  item: Item
+  group?: boolean
+  dimmed: boolean
+  title: string
+  icon: ReactNode
+  name: ReactNode
+  count: ReactNode
+  countCell: ReactNode
+  size: ReactNode
+  onClick: (event: { shiftKey: boolean }) => void
+}) {
+  const check = selectable ? (
+    <CheckCell selected={selected} disabled={disabled} onToggle={(shiftKey) => onSelect(id, shiftKey)} />
+  ) : undefined
+  const style = group ? { cursor: 'pointer' } : undefined
+  const label = (
+    <>
+      {icon}
+      {name}
+    </>
+  )
+  if (stacked) {
+    return (
+      <StackedRow
+        group={group}
+        selected={selected}
+        dimmed={dimmed}
+        check={check}
+        title={label}
+        meta={<Parts items={[count, size, ...extras.map((extra) => extra.render(item))]} />}
+        style={style}
+        onClick={onClick}
+      />
+    )
+  }
+  return (
+    <GridRow template={template} group={group} selected={selected} dimmed={dimmed} style={style} onClick={onClick}>
+      {check}
+      <Flex className="table-cell" align="center" gap="2" title={title}>
+        {label}
+      </Flex>
+      {counted && countCell}
+      <Cell end>{size}</Cell>
+      <ExtraCells item={item} extras={extras} />
+    </GridRow>
+  )
 }
 
 const SubfolderRow = memo(function SubfolderRow({
   folder,
-  template,
-  extras,
-  selectable,
-  disabled,
-  selected,
-  onSelect,
   onOpen,
-}: SubfolderRowProps) {
-  const id = `folder\n${folder.id}`
+  ...props
+}: RowProps & { folder: Folder; onOpen: (folder: Folder) => void }) {
   return (
-    <GridRow
-      template={template}
+    <Row
+      {...props}
+      id={`folder\n${folder.id}`}
+      item={folder}
       group
-      selected={selected}
       dimmed={folder.locked || folder.hidden}
-      style={{ cursor: 'pointer' }}
-      onClick={() => onOpen(folder)}
-    >
-      {selectable && (
-        <CheckCell selected={selected} disabled={disabled} onToggle={(shiftKey) => onSelect(id, shiftKey)} />
-      )}
-      <Flex className="table-cell" align="center" gap="2" title={folder.name}>
-        {folder.locked ? <LockClosedIcon style={{ flexShrink: 0 }} /> : <ChevronRightIcon style={{ flexShrink: 0 }} />}
+      title={folder.name}
+      icon={
+        folder.locked ? <LockClosedIcon style={{ flexShrink: 0 }} /> : <ChevronRightIcon style={{ flexShrink: 0 }} />
+      }
+      name={
         <Text size="2" weight="medium" truncate>
           {folder.name}
         </Text>
-      </Flex>
-      <Cell end>{folder.fileCount.toLocaleString()}</Cell>
-      <Cell end>{formatBytes(folder.size)}</Cell>
-      <ExtraCells item={folder} extras={extras} />
-    </GridRow>
+      }
+      count={plural(folder.fileCount, 'file')}
+      countCell={<Cell end>{folder.fileCount.toLocaleString()}</Cell>}
+      size={formatBytes(folder.size)}
+      onClick={() => onOpen(folder)}
+    />
   )
 })
 
-type FileRowProps = {
-  file: TreeFile
-  template: string
-  extras: readonly ExtraColumn[]
-  folder?: string
-  separator: string
-  selectable: boolean
-  disabled: boolean
-  selected: boolean
-  Badge?: FileBadge
-  onSelect: (id: string, shiftKey: boolean) => void
-}
-
 const FileRow = memo(function FileRow({
   file,
-  template,
-  extras,
   folder,
   separator,
-  selectable,
-  disabled,
-  selected,
   Badge,
-  onSelect,
-}: FileRowProps) {
+  ...props
+}: RowProps & { file: TreeFile; folder?: string; separator: string; Badge?: FileBadge }) {
   const id = `file\n${file.id}`
-  const toggle = selectable && !disabled
+  const path = folder?.split(separator).join(' › ')
   return (
-    <GridRow
-      template={template}
-      selected={selected}
+    <Row
+      {...props}
+      id={id}
+      item={file}
       dimmed={file.locked || file.hidden}
-      onClick={(event) => toggle && onSelect(id, event.shiftKey)}
-    >
-      {selectable && (
-        <CheckCell selected={selected} disabled={disabled} onToggle={(shiftKey) => onSelect(id, shiftKey)} />
-      )}
-      <Flex className="table-cell" align="center" gap="2" title={file.filename}>
-        {file.locked ? <LockClosedIcon style={{ flexShrink: 0 }} /> : <FileIcon style={{ flexShrink: 0 }} />}
-        <Text size="2" truncate>
-          {file.name}
-        </Text>
-        {Badge !== undefined && <Badge file={file} />}
-      </Flex>
-      {folder === undefined ? (
-        <div className="table-cell" />
-      ) : (
-        <Cell title={folder}>{folder.split(separator).join(' › ')}</Cell>
-      )}
-      <Cell end>{!file.link && formatBytes(file.size)}</Cell>
-      <ExtraCells item={file} extras={extras} />
-    </GridRow>
+      title={file.filename}
+      icon={file.locked ? <LockClosedIcon style={{ flexShrink: 0 }} /> : <FileIcon style={{ flexShrink: 0 }} />}
+      name={
+        <>
+          <Text size="2" truncate>
+            {file.name}
+          </Text>
+          {Badge !== undefined && <Badge file={file} />}
+        </>
+      }
+      count={path}
+      countCell={folder === undefined ? <div className="table-cell" /> : <Cell title={folder}>{path}</Cell>}
+      size={!file.link && formatBytes(file.size)}
+      onClick={(event) => props.selectable && !props.disabled && props.onSelect(id, event.shiftKey)}
+    />
   )
 })

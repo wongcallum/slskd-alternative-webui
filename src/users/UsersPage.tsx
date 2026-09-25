@@ -1,14 +1,12 @@
-import { ReloadIcon, TrashIcon } from '@radix-ui/react-icons'
 import { Flex, Text } from '@radix-ui/themes'
 import { type ReactNode, useEffect, useMemo } from 'react'
 
 import { entriesByUser } from '../lib/db'
 import { useAtom } from '../lib/store'
 import { useSoulseekGate } from '../soulseek/soulseek'
-import { GatedIconButton } from '../ui/controls'
 import { Ago, Busy } from '../ui/status'
-import { ActionsCell, Cell, GridRow } from '../ui/table'
-import { UserLinkCell, UserListPage } from '../ui/UserList'
+import { Cell, type Layout } from '../ui/table'
+import { UserListPage, UserListRow } from '../ui/UserList'
 import { LookUpBox } from './LookUpBox'
 import { LookupErrorLine, PresenceLabel } from './LookupStatus'
 import {
@@ -25,14 +23,15 @@ import {
 
 type Entry = { username: string; record?: UserRecord; startedAt?: number; errors?: LookupErrors }
 
-const template = 'minmax(200px, 1fr) 100px 90px 80px 100px minmax(240px, 1.2fr) 76px'
-
-const minWidth = 886
+const templates = {
+  wide: 'minmax(200px, 1fr) 100px 90px 80px 100px minmax(240px, 1.2fr) 76px',
+  medium: 'minmax(160px, 1fr) 100px 80px 100px minmax(160px, 1.2fr) 76px',
+}
 
 const columns = [
   { label: 'User' },
   { label: 'Presence' },
-  { label: 'Free slot' },
+  { label: 'Free slot', wide: true },
   { label: 'Queue', end: true },
   { label: 'Updated' },
   { label: 'Status' },
@@ -62,16 +61,16 @@ export function UsersPage() {
       list={list}
       what="the stored profiles"
       empty="No one looked up yet. Look up a user by name, or from the menu on their name elsewhere."
-      template={template}
-      minWidth={minWidth}
+      templates={templates}
+      minWidth={886}
       columns={columns}
       entries={entries}
-      renderRow={(entry) => <UserRow entry={entry} />}
+      renderRow={(entry, layout) => <UserRow entry={entry} layout={layout} />}
     />
   )
 }
 
-function UserRow({ entry }: { entry: Entry }) {
+function UserRow({ entry, layout }: { entry: Entry; layout: Layout }) {
   const soulseekGate = useSoulseekGate()
   const { username, record, startedAt, errors } = entry
   const gate = startedAt === undefined ? soulseekGate : `Already looking up ${username}`
@@ -80,33 +79,46 @@ function UserRow({ entry }: { entry: Entry }) {
   else if (errors !== undefined) status = <LookupErrorLine username={username} errors={errors} />
   const info = record?.info
   return (
-    <GridRow template={template}>
-      <UserLinkCell username={username} to="/users" />
-      <Flex className="table-cell" align="center">
-        {record?.status !== undefined && <PresenceLabel presence={record.status.presence} />}
-      </Flex>
-      <div className="table-cell">
-        {info !== undefined && (
-          <Text size="2" color={info.freeSlot ? 'green' : 'gray'}>
-            {info.freeSlot ? 'Yes' : 'No'}
+    <UserListRow
+      username={username}
+      to="/users"
+      layout={layout}
+      templates={templates}
+      status={status}
+      details={[
+        record?.status !== undefined && <PresenceLabel key="presence" presence={record.status.presence} size="1" />,
+        info !== undefined && (
+          <Text key="slot" color={info.freeSlot ? 'green' : undefined}>
+            {info.freeSlot ? 'Free slot' : 'No free slot'}
           </Text>
-        )}
-      </div>
-      <Cell end>{info?.queue.toLocaleString()}</Cell>
-      <Cell>{record !== undefined && <Ago time={lookedUpAt(record)} />}</Cell>
-      <Flex className="table-cell" align="center">
-        {status}
-      </Flex>
-      <ActionsCell>
-        {record !== undefined && (
-          <GatedIconButton label="Delete" onClick={() => void deleteUser(username)}>
-            <TrashIcon />
-          </GatedIconButton>
-        )}
-        <GatedIconButton label="Look up again" gate={gate} onClick={() => void lookUp(username)}>
-          <ReloadIcon />
-        </GatedIconButton>
-      </ActionsCell>
-    </GridRow>
+        ),
+        info !== undefined && `${info.queue.toLocaleString()} queued`,
+        record !== undefined && (
+          <span key="updated">
+            Updated <Ago time={lookedUpAt(record)} />
+          </span>
+        ),
+      ]}
+      cells={
+        <>
+          <Flex className="table-cell" align="center">
+            {record?.status !== undefined && <PresenceLabel presence={record.status.presence} />}
+          </Flex>
+          {layout === 'wide' && (
+            <div className="table-cell">
+              {info !== undefined && (
+                <Text size="2" color={info.freeSlot ? 'green' : 'gray'}>
+                  {info.freeSlot ? 'Yes' : 'No'}
+                </Text>
+              )}
+            </div>
+          )}
+          <Cell end>{info?.queue.toLocaleString()}</Cell>
+          <Cell>{record !== undefined && <Ago time={lookedUpAt(record)} />}</Cell>
+        </>
+      }
+      onDelete={record === undefined ? undefined : () => void deleteUser(username)}
+      again={{ label: 'Look up again', gate, onClick: () => void lookUp(username) }}
+    />
   )
 }

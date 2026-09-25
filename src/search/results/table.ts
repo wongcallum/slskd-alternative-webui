@@ -12,7 +12,7 @@ import {
 } from '@tanstack/react-table'
 
 import { createAtom } from '../../lib/store'
-import { type Expansion, sortByName } from '../../ui/table'
+import { type Expansion, type Layout, sortByName, stackedHeight, stackedHeight3 } from '../../ui/table'
 import { availability, type ResultFile, type ResultGroup } from './results'
 
 export const columnIds = ['name', 'user', 'files', 'size', 'quality', 'length', 'speed', 'queue'] as const
@@ -61,9 +61,18 @@ export const columnLabels: Record<(typeof columnIds)[number], string> = {
 
 export const endAligned = new Set<string>(['files', 'size', 'length', 'speed', 'queue'])
 
-export const template = '40px minmax(280px, 1fr) 150px 90px 100px 160px 80px 110px 80px 132px'
+export const templates: Record<Exclude<Layout, 'stacked'>, string> = {
+  wide: '40px minmax(280px, 1fr) 150px 90px 100px 160px 80px 110px 80px 132px',
+  medium: '40px minmax(260px, 1fr) 120px 60px 90px 120px 90px 60px 132px',
+}
 
-export const minWidth = 1222
+export const minWidths: Record<Layout, number> = { stacked: 0, wide: 1222, medium: 972 }
+
+export const columnsOf = (layout: Layout) =>
+  layout === 'medium' ? columnIds.filter((id) => id !== 'length') : columnIds
+
+// Stacked folders take three lines, so the user, speed and queue fit beside the four actions.
+export const stackedSize = (row: TableRow) => (row.original.kind === 'group' ? stackedHeight3 : stackedHeight)
 
 export const expansions = createAtom<ReadonlyMap<string, Expansion>>(new Map())
 

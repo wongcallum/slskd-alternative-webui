@@ -116,9 +116,9 @@ and we cache browsed share trees in IndexedDB), show when each result was fetche
   Soulseek popover lists each hub instead.
 - System is a gear on the right rather than a tab, since it's visited rarely and the wide tables keep the full width.
 - The new-version link can't be dismissed: it goes once you update, and `no_version_check` is the opt-out.
-- The version, the theme and Log out sit in a menu at the end of the bar, which keeps the bar short. On narrow
-  screens the tabs, the speeds and the update notice will collapse into it too, the notice as an amber dot on its
-  button.
+- The version, the theme and Log out sit in a menu at the end of the bar, which keeps the bar short. What doesn't fit
+  goes into it too: the update notice below lg, as an amber dot on its button, the speeds below md, and the tabs below
+  sm, where the bar names the page instead and a red dot marks unread messages. Soulseek shows only its dot below lg.
 - Each direction's speed and counts come from its list while its page polls it and the list is fresh, and otherwise
   from the metrics hub, marked "About". So the bar never disagrees with the page, and the Downloads badge follows the
   same rule.
@@ -130,7 +130,8 @@ and we cache browsed share trees in IndexedDB), show when each result was fetche
   the higher never double counts. **Accepted gap:** during an album of short files it still shows about a quarter of
   the real rate. Only the Downloads or Uploads page is exact.
 - An idle direction shows a dimmed "0 B/s", and "–" while the hub is down and its list isn't fresh, rather than a
-  frozen number. Both directions always show, at a fixed minimum width, so nothing in the bar shifts.
+  frozen number. Both directions always show, right after the bar's free space, so a value that gets wider grows into it
+  and nothing else in the bar shifts.
 - Speeds stay out of the page title, since one that changes every second is noise in the tab strip.
 
 ### Theme
@@ -141,6 +142,33 @@ and we cache browsed share trees in IndexedDB), show when each result was fetche
 - `index.html` declares `color-scheme: light dark`, so System paints the right background before the app loads with no
   script. An inline script rewrites it only for a stored Light or Dark. It ranks below Radix's own rule once the app
   renders, so it can go stale after a switch without harm, where an inline style on `<html>` would win.
+
+### Responsiveness
+
+- The breakpoints are Radix's: sm 768, md 1024 and lg 1280 px. Responsive props do what a prop can, and a `matchMedia`
+  hook the rest, since row heights and markup change too.
+- Rows keep a fixed height per breakpoint. Below a table's breakpoint they stack into a title line and a line of
+  details ending in the row's actions: below md for transfers and results, which have eight columns, and below sm for
+  the rest. The column header becomes a strip of sort labels. Between md and lg the widest tables drop a column rather
+  than scroll sideways.
+- Below sm there's room for one pane:
+  - Browse, Shares and Files show the folder, whose path leads up, and a Folders toggle swaps the tree in.
+  - Chat shows its list or what's open, with a back link. `/chat` shows the list rather than resuming, so there's
+    always a list to go back to. A room's users swap in from a toggle below md.
+  - Log and event details cover the list, also on screens under 600 px tall, and the list stays mounted underneath to
+    keep its place.
+- Touch:
+  - Radix's tooltips never open from touch (see the facts), so one that says why an action is disabled or what failed
+    opens from a tap too, as a popover. A label tooltip on an enabled button stays hover-only, or every tap would pop
+    one up.
+  - On coarse pointers, small buttons take a 36 px tap through a pseudo-element, and small menus, selects and text
+    fields take size 2's metrics. Editable text is 16 px, because iOS zooms into smaller text as it's focused.
+  - Hover highlights only apply where something hovers, so a tapped row doesn't stay grey. Text fields don't autofocus,
+    since that pops up the keyboard.
+- The viewport's `interactive-widget=resizes-content` lets Android's keyboard shrink the layout, which is `100dvh`, so
+  the composer stays above it. **Accepted gap:** Safari ignores it and pans the page instead.
+- **Accepted gaps:** names cut short keep their full text in `title` attributes only, which touch can't reach (Details
+  has it for transfers and results), and the sort strip scrolls with no visible hint.
 
 ### Transfers
 
@@ -211,7 +239,7 @@ and we cache browsed share trees in IndexedDB), show when each result was fetche
 
 - Rooms and private conversations share one page behind the Chat tab. `/rooms?room=` and `/chat?user=` both render
   it, so stock's paths still work, and its sidebar is a layout route, so it stays mounted while switching. The tab
-  goes back to whatever was open last.
+  goes back to whatever was open last, except below sm (see [Responsiveness](#responsiveness)).
 - Only the joined room names are pushed (`STATE.rooms`), so the rest is polled:
   - The open room's messages every 2 s, and the other joined rooms' every 10 s while the page is open, for their
     unread marks. The open room's users every 30 s, since they only change as people join and leave, and a busy
@@ -274,7 +302,8 @@ and we cache browsed share trees in IndexedDB), show when each result was fetche
 - The list holds still while it's scrolled down or paused, and Resume says how many new records match the filter.
   Otherwise records arriving at the top and being dropped at the bottom would move whatever is being read.
 - Rows have a fixed height and show the message's first line, with a count of the lines after it (usually a stack
-  trace). Clicking a row shows the whole record in a pane below the list.
+  trace). Clicking a row shows the whole record in a pane below the list, or over it (see
+  [Responsiveness](#responsiveness)).
 - Times are in the browser's time zone, to the millisecond, with the date when it isn't today.
 
 ### Events

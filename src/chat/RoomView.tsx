@@ -1,7 +1,9 @@
+import { PersonIcon } from '@radix-ui/react-icons'
 import { Button, Flex, Text } from '@radix-ui/themes'
 import { Navigate } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 
+import { useFrom } from '../lib/media'
 import { useAtom, useResource } from '../lib/store'
 import { useRun } from '../lib/useRun'
 import { useSoulseekGate } from '../soulseek/soulseek'
@@ -20,6 +22,7 @@ import {
   roomMessageLimit,
   roomMessages,
   roomPollInterval,
+  roomUsers,
   sendToRoom,
   setOpenRoom,
   useJoinedRooms,
@@ -72,6 +75,9 @@ function NotJoined({ room }: { room: string }) {
 }
 
 function JoinedRoom({ room }: { room: string }) {
+  const md = useFrom('md')
+  const [usersShown, setUsersShown] = useState(false)
+  const userCount = useResource(roomUsers(room)).data?.users.length
   const resource = roomMessages(room)
   const { data, error } = useResource(resource)
   const pending = useAtom(pendingMessages).get(room)
@@ -98,6 +104,21 @@ function JoinedRoom({ room }: { room: string }) {
     <Flex flexGrow="1" minWidth="0" height="100%">
       <ChatPane
         target={{ kind: 'room', name: room }}
+        actions={
+          !md && (
+            <Button
+              size="1"
+              variant={usersShown ? 'solid' : 'soft'}
+              color="gray"
+              aria-pressed={usersShown}
+              onClick={() => setUsersShown((shown) => !shown)}
+            >
+              <PersonIcon />
+              {userCount === undefined ? 'Users' : userCount.toLocaleString()}
+            </Button>
+          )
+        }
+        instead={!md && usersShown ? <RoomUsers room={room} fill /> : undefined}
         resource={resource}
         interval={roomPollInterval}
         error={error}
@@ -119,7 +140,7 @@ function JoinedRoom({ room }: { room: string }) {
           )
         }
       />
-      <RoomUsers room={room} />
+      {md && <RoomUsers room={room} />}
     </Flex>
   )
 }

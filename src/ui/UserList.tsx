@@ -1,14 +1,27 @@
+import { ReloadIcon, TrashIcon } from '@radix-ui/react-icons'
 import { Flex, Link } from '@radix-ui/themes'
 import { Link as RouterLink } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 
 import { describeError } from '../lib/api'
 import type { RecordList } from '../lib/db'
-import { toolbarStyle } from './controls'
+import { GatedIconButton, Toolbar } from './controls'
 import { Empty, ErrorCallout, Loading } from './status'
-import { ColumnHeader, HeaderRow, VirtualTable } from './table'
+import {
+  ActionsCell,
+  ColumnHeader,
+  GridRow,
+  HeaderRow,
+  type Layout,
+  Parts,
+  rowHeight,
+  StackedRow,
+  stackedHeight,
+  useListLayout,
+  VirtualTable,
+} from './table'
 
-type Column = { label: string; end?: boolean }
+type Column = { label: string; end?: boolean; wide?: boolean }
 
 const entryKey = (entry: { username: string }) => entry.username
 
@@ -18,7 +31,7 @@ export function UserListPage<E extends { username: string }>({
   list,
   what,
   empty,
-  template,
+  templates,
   minWidth,
   columns,
   entries,
@@ -28,12 +41,13 @@ export function UserListPage<E extends { username: string }>({
   list: RecordList<unknown>
   what: string
   empty: string
-  template: string
+  templates: Record<Exclude<Layout, 'stacked'>, string>
   minWidth: number
   columns: Column[]
   entries: readonly E[]
-  renderRow: (entry: E) => ReactNode
+  renderRow: (entry: E, layout: Layout) => ReactNode
 }) {
+  const layout = useListLayout()
   let content: ReactNode
   if (!list.loaded) content = <Loading />
   else if (entries.length === 0) {
@@ -46,36 +60,102 @@ export function UserListPage<E extends { username: string }>({
         </ErrorCallout>
       )
   } else {
-    const header = (
-      <HeaderRow template={template}>
-        {columns.map((column) => (
-          <ColumnHeader key={column.label} label={column.label} end={column.end} />
-        ))}
+    const header = layout !== 'stacked' && (
+      <HeaderRow template={templates[layout]}>
+        {columns
+          .filter((column) => layout === 'wide' || column.wide !== true)
+          .map((column) => (
+            <ColumnHeader key={column.label} label={column.label} end={column.end} />
+          ))}
         <div />
       </HeaderRow>
     )
     content = (
-      <VirtualTable minWidth={minWidth} header={header} items={entries} itemKey={entryKey} renderItem={renderRow} />
+      <VirtualTable
+        minWidth={layout === 'wide' ? minWidth : 0}
+        header={header || undefined}
+        items={entries}
+        itemKey={entryKey}
+        rowSize={layout === 'stacked' ? stackedHeight : rowHeight}
+        renderItem={(entry) => renderRow(entry, layout)}
+      />
     )
   }
   return (
     <Flex direction="column" height="100%">
-      <Flex align="center" gap="4" px="4" py="3" flexShrink="0" style={toolbarStyle}>
+      <Toolbar gap="4" py="3">
         {toolbar}
-      </Flex>
+      </Toolbar>
       {content}
     </Flex>
   )
 }
 
-export function UserLinkCell({ username, to }: { username: string; to: '/browse' | '/users' }) {
+type To = '/browse' | '/users'
+
+// Stacked, a status replaces the details while there is one.
+export function UserListRow({
+  username,
+  to,
+  layout,
+  templates,
+  status,
+  details,
+  cells,
+  onDelete,
+  again,
+}: {
+  username: string
+  to: To
+  layout: Layout
+  templates: Record<Exclude<Layout, 'stacked'>, string>
+  status: ReactNode
+  details: ReactNode[]
+  cells: ReactNode
+  onDelete?: () => void
+  again: { label: string; gate?: string; onClick: () => void }
+}) {
+  const actions = (
+    <>
+      {onDelete !== undefined && (
+        <GatedIconButton label="Delete" onClick={onDelete}>
+          <TrashIcon />
+        </GatedIconButton>
+      )}
+      <GatedIconButton label={again.label} gate={again.gate} onClick={again.onClick}>
+        <ReloadIcon />
+      </GatedIconButton>
+    </>
+  )
+  if (layout === 'stacked') {
+    return (
+      <StackedRow
+        title={<UserLink username={username} to={to} />}
+        meta={status ?? <Parts items={details} />}
+        actions={actions}
+      />
+    )
+  }
   return (
-    <div className="table-cell" title={username}>
-      <Link asChild size="2" weight="medium">
-        <RouterLink to={to} search={{ user: username }}>
-          {username}
-        </RouterLink>
-      </Link>
-    </div>
+    <GridRow template={templates[layout]}>
+      <div className="table-cell" title={username}>
+        <UserLink username={username} to={to} />
+      </div>
+      {cells}
+      <Flex className="table-cell" align="center">
+        {status}
+      </Flex>
+      <ActionsCell>{actions}</ActionsCell>
+    </GridRow>
+  )
+}
+
+function UserLink({ username, to }: { username: string; to: To }) {
+  return (
+    <Link asChild size="2" weight="medium" truncate>
+      <RouterLink to={to} search={{ user: username }}>
+        {username}
+      </RouterLink>
+    </Link>
   )
 }

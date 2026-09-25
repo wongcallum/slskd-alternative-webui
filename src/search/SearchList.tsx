@@ -20,19 +20,26 @@ import {
   ColumnHeader,
   GridRow,
   HeaderRow,
+  type Layout,
+  Parts,
+  rowHeight,
   rowId,
+  StackedRow,
+  stackedHeight,
   stop,
+  useListLayout,
   useRowToggle,
   VirtualTable,
 } from '../ui/table'
 import { deleteSearches, listActions, type Search, stopSearches } from './searches'
-import { SearchState } from './SearchState'
+import { describeCounts, SearchState } from './SearchState'
 
 const features = tableFeatures({ rowSelectionFeature })
 
-const template = '40px 130px minmax(240px, 1fr) 110px 170px 110px 76px'
-
-const minWidth = 1000
+const templates = {
+  wide: '40px 130px minmax(240px, 1fr) 110px 170px 110px 76px',
+  medium: '40px 110px minmax(200px, 1fr) 150px 100px 76px',
+}
 
 export function useListTable(
   data: Search[],
@@ -53,27 +60,34 @@ export function SearchList({ table, gate }: { table: ReturnType<typeof useListTa
   const { pending } = useAtom(listActions)
   const rows = table.getRowModel().rows
   const onSelect = useRowToggle(table)
+  const layout = useListLayout()
 
   const header = (
-    <HeaderRow template={template} table={table}>
-      <ColumnHeader label="State" />
+    <HeaderRow template={layout === 'stacked' ? '' : templates[layout]} table={table} stacked={layout === 'stacked'}>
+      {layout !== 'stacked' && <ColumnHeader label="State" />}
       <ColumnHeader label="Search" />
-      <ColumnHeader label="Responses" end />
-      <ColumnHeader label="Files" end />
-      <ColumnHeader label="Started" />
-      <div />
+      {layout === 'wide' && <ColumnHeader label="Responses" end />}
+      {layout !== 'stacked' && (
+        <>
+          <ColumnHeader label="Files" end />
+          <ColumnHeader label="Started" />
+          <div />
+        </>
+      )}
     </HeaderRow>
   )
 
   return (
     <VirtualTable
-      minWidth={minWidth}
+      minWidth={layout === 'wide' ? 1000 : 0}
       header={header}
       items={rows}
       itemKey={rowId}
+      rowSize={layout === 'stacked' ? stackedHeight : rowHeight}
       renderItem={(row) => (
         <SearchRow
           search={row.original}
+          layout={layout}
           selected={row.getIsSelected()}
           pending={pending.has(row.original.id)}
           gate={gate}
@@ -86,28 +100,73 @@ export function SearchList({ table, gate }: { table: ReturnType<typeof useListTa
 
 type SearchRowProps = {
   search: Search
+  layout: Layout
   selected: boolean
   pending: boolean
   gate?: string
   onSelect: (id: string, shiftKey: boolean) => void
 }
 
-const SearchRow = memo(function SearchRow({ search, selected, pending, gate, onSelect }: SearchRowProps) {
+const SearchRow = memo(function SearchRow({ search, layout, selected, pending, gate, onSelect }: SearchRowProps) {
+  const check = <CheckCell selected={selected} onToggle={(shiftKey) => onSelect(search.id, shiftKey)} />
+  const state = (
+    <>
+      <SearchState search={search} size={layout === 'stacked' ? '1' : '2'} />
+      {pending && <Spinner size="1" />}
+    </>
+  )
+  const link = (
+    <Link asChild size="2" weight="medium" truncate>
+      <RouterLink to="/searches/$id" params={{ id: search.id }} onClick={stop}>
+        {search.text}
+      </RouterLink>
+    </Link>
+  )
+  const actions = (
+    <>
+      {!search.isComplete && (
+        <GatedIconButton label="Stop" gate={gate} onClick={() => stopSearches([search])}>
+          <StopIcon />
+        </GatedIconButton>
+      )}
+      <GatedIconButton label="Delete" gate={gate} onClick={() => deleteSearches([search])}>
+        <TrashIcon />
+      </GatedIconButton>
+    </>
+  )
+  const onClick = (event: { shiftKey: boolean }) => onSelect(search.id, event.shiftKey)
+  if (layout === 'stacked') {
+    return (
+      <StackedRow
+        selected={selected}
+        check={check}
+        title={link}
+        meta={
+          <Parts
+            items={[
+              <Flex key="state" align="center" gap="2">
+                {state}
+              </Flex>,
+              describeCounts(search),
+              <Ago key="started" time={search.startedAt} />,
+            ]}
+          />
+        }
+        actions={actions}
+        onClick={onClick}
+      />
+    )
+  }
   return (
-    <GridRow template={template} selected={selected} onClick={(event) => onSelect(search.id, event.shiftKey)}>
-      <CheckCell selected={selected} onToggle={(shiftKey) => onSelect(search.id, shiftKey)} />
+    <GridRow template={templates[layout]} selected={selected} onClick={onClick}>
+      {check}
       <Flex className="table-cell" align="center" gap="2">
-        <SearchState search={search} />
-        {pending && <Spinner size="1" />}
+        {state}
       </Flex>
       <div className="table-cell" title={search.text}>
-        <Link asChild size="2" weight="medium">
-          <RouterLink to="/searches/$id" params={{ id: search.id }} onClick={stop}>
-            {search.text}
-          </RouterLink>
-        </Link>
+        {link}
       </div>
-      <Cell end>{search.responses.toLocaleString()}</Cell>
+      {layout === 'wide' && <Cell end>{search.responses.toLocaleString()}</Cell>}
       <Cell end>
         {search.files.toLocaleString()}
         {search.locked > 0 && ` + ${search.locked.toLocaleString()} locked`}
@@ -115,16 +174,7 @@ const SearchRow = memo(function SearchRow({ search, selected, pending, gate, onS
       <Cell>
         <Ago time={search.startedAt} />
       </Cell>
-      <ActionsCell>
-        {!search.isComplete && (
-          <GatedIconButton label="Stop" gate={gate} onClick={() => stopSearches([search])}>
-            <StopIcon />
-          </GatedIconButton>
-        )}
-        <GatedIconButton label="Delete" gate={gate} onClick={() => deleteSearches([search])}>
-          <TrashIcon />
-        </GatedIconButton>
-      </ActionsCell>
+      <ActionsCell>{actions}</ActionsCell>
     </GridRow>
   )
 })

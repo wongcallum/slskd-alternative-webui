@@ -4,15 +4,15 @@ import * as v from 'valibot'
 import { stringify } from 'yaml'
 
 import { describeError } from '../lib/api'
-import { formatFullPreciseTime, formatPreciseTime, plural } from '../lib/format'
+import { formatFullPreciseTime, plural } from '../lib/format'
 import { textParam } from '../lib/params'
 import { useAtom, useResource } from '../lib/store'
 import { toStringOptions, yamlVersion } from '../lib/yaml'
 import { useFilterText } from '../ui/controls'
 import { DetailsPane } from '../ui/details'
-import { HeldList, HeldToolbar, useHold } from '../ui/hold'
+import { HeldList, HeldRow, HeldToolbar, useHold } from '../ui/hold'
 import { Busy, Empty, Freshness, Polling } from '../ui/status'
-import { Cell, GridRow, rowHeight } from '../ui/table'
+import { Cell, type Layout, rowHeight } from '../ui/table'
 import { YamlView } from '../ui/YamlView'
 import { UserMenu } from '../users/UserMenu'
 import {
@@ -107,13 +107,15 @@ export function EventsPage({ search, onSearchChange }: Props) {
   } else {
     content = (
       <HeldList
-        template={template}
+        templates={templates}
         labels={labels}
         records={shown}
         itemKey={eventId}
         selected={selected?.id}
         onSelect={setSelected}
-        renderRow={(record, isSelected, toggle) => <EventRow record={record} selected={isSelected} onSelect={toggle} />}
+        renderRow={(record, layout, isSelected, toggle) => (
+          <EventRow record={record} layout={layout} selected={isSelected} onSelect={toggle} />
+        )}
         hold={hold}
         onScroll={(element) => {
           if (automatic && nearEnd(element)) void loadOlder()
@@ -241,43 +243,68 @@ function ListEnd({ data, filtered, replaced }: { data: Events; filtered: boolean
   )
 }
 
-const template = '170px 160px 180px minmax(300px, 1fr)'
+const templates = {
+  wide: '170px 160px 180px minmax(300px, 1fr)',
+  medium: '140px 150px 130px minmax(300px, 1fr)',
+}
 
 const labels = ['Time', 'Type', 'User', 'Details']
 
 const eventId = (record: EventRecord) => record.id
 
-type EventRowProps = { record: EventRecord; selected: boolean; onSelect: (record: EventRecord) => void }
+type EventRowProps = {
+  record: EventRecord
+  layout: Layout
+  selected: boolean
+  onSelect: (record: EventRecord) => void
+}
 
-const EventRow = memo(function EventRow({ record, selected, onSelect }: EventRowProps) {
+const EventRow = memo(function EventRow({ record, layout, selected, onSelect }: EventRowProps) {
   const { user, room, text, replayed } = record.summary
-  return (
-    <GridRow template={template} selected={selected} style={{ cursor: 'pointer' }} onClick={() => onSelect(record)}>
-      <Cell title={formatFullPreciseTime(record.time)}>{formatPreciseTime(record.time)}</Cell>
-      <Cell title={record.type}>{typeLabel(record.type)}</Cell>
-      <div className="table-cell" title={user}>
-        {user !== undefined && (
-          <Text size="2">
-            <UserMenu username={user} />
-          </Text>
-        )}
-      </div>
-      <Flex className="table-cell" align="center" gap="2" title={text}>
-        {room !== undefined && (
-          <Text size="2" color="gray" truncate style={{ flexShrink: 0, maxWidth: '40%' }}>
-            {room}
-          </Text>
-        )}
-        <Text size="2" truncate>
-          {text}
+  const details = (
+    <>
+      {room !== undefined && (
+        <Text size="2" color="gray" truncate style={{ flexShrink: 0, maxWidth: '40%' }}>
+          {room}
         </Text>
-        {replayed === true && (
-          <Badge size="1" color="gray" style={{ flexShrink: 0 }}>
-            Replayed
-          </Badge>
-        )}
-      </Flex>
-    </GridRow>
+      )}
+      <Text size="2" truncate>
+        {text}
+      </Text>
+      {replayed === true && (
+        <Badge size="1" color="gray" style={{ flexShrink: 0 }}>
+          Replayed
+        </Badge>
+      )}
+    </>
+  )
+  // Stacked, an event with nothing to say, such as a connect, is titled by its type.
+  const titled = text === undefined || text === ''
+  return (
+    <HeldRow
+      layout={layout}
+      templates={templates}
+      time={record.time}
+      selected={selected}
+      title={titled ? <Text size="2">{typeLabel(record.type)}</Text> : details}
+      details={[!titled && typeLabel(record.type), user !== undefined && <UserMenu key="user" username={user} />]}
+      cells={
+        <>
+          <Cell title={record.type}>{typeLabel(record.type)}</Cell>
+          <div className="table-cell" title={user}>
+            {user !== undefined && (
+              <Text size="2">
+                <UserMenu username={user} />
+              </Text>
+            )}
+          </div>
+          <Flex className="table-cell" align="center" gap="2" title={text}>
+            {details}
+          </Flex>
+        </>
+      }
+      onClick={() => onSelect(record)}
+    />
   )
 })
 

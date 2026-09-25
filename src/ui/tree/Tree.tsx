@@ -9,6 +9,7 @@ import {
 } from '@tanstack/react-table'
 import { memo, useCallback, useMemo } from 'react'
 
+import { useFrom, useTouch } from '../../lib/media'
 import { createAtom, useAtom } from '../../lib/store'
 import type { Folder, Matches, Tree as FolderTree } from '../../lib/tree'
 import { type Expansion, expandedState, isExpanded, rowId, stop, toggleExpanded, VirtualTable } from '../table'
@@ -56,9 +57,9 @@ export function expandTo(tree: FolderTree, folder: Folder, self: boolean) {
 
 type TreeProps = { tree: FolderTree; selected: Folder; matches?: Matches; onOpen: (folder: Folder) => void }
 
-const treeRowHeight = 30
-
 export function Tree({ tree, selected, matches, onOpen }: TreeProps) {
+  const sm = useFrom('sm')
+  const touch = useTouch()
   const stored = useAtom(expansions).get(tree.key)
   const expansion = useMemo(() => stored ?? initialExpansion(tree), [stored, tree])
   const expanded = useMemo(
@@ -101,7 +102,7 @@ export function Tree({ tree, selected, matches, onOpen }: TreeProps) {
       minWidth={0}
       items={rows}
       itemKey={rowId}
-      rowSize={treeRowHeight}
+      rowSize={!sm ? 40 : touch ? 36 : 30}
       reveal={{ key: `${selected.id}\n${matches === undefined}`, index: selectedIndex }}
       role="tree"
       label="Folders"
