@@ -1,5 +1,4 @@
 import { Flex, Text } from '@radix-ui/themes'
-import { Link as RouterLink } from '@tanstack/react-router'
 import { useMemo } from 'react'
 
 import { formatBytes, plural } from '../../lib/format'
@@ -10,7 +9,7 @@ import { useRun } from '../../lib/useRun'
 import { ActionButton, ConfirmButton, OutcomeLine } from '../../ui/controls'
 import { Ago, FetchedResource, Fetching } from '../../ui/status'
 import type { ExtraColumn } from '../../ui/tree/columns'
-import type { FolderLinkProps, Selection, TreeConfig } from '../../ui/tree/FolderPane'
+import type { Selection, TreeConfig } from '../../ui/tree/FolderPane'
 import { TreeView } from '../../ui/tree/TreeView'
 import { useApplication } from '../application'
 import { useOptions } from '../options/options'
@@ -53,12 +52,6 @@ export function FilesPage({ search, onSearchChange }: Props) {
   )
 }
 
-function FilesFolderLink({ path, ...props }: FolderLinkProps) {
-  return (
-    <RouterLink {...props} from="/system/files" to="/system/files" search={(previous) => ({ ...previous, path })} />
-  )
-}
-
 const modifiedColumn: ExtraColumn = {
   id: 'modified',
   label: 'Modified',
@@ -71,9 +64,9 @@ const modifiedColumn: ExtraColumn = {
 const selectable = (item: Item) => item.kind === 'file' || item.path.includes('/')
 
 const filesConfig = (deleting: boolean): TreeConfig => ({
+  page: '/system/files',
   scope: 'the listing',
   extras: [modifiedColumn],
-  FolderLink: FilesFolderLink,
   selectable: deleting ? selectable : undefined,
   actions: deleting ? (selection) => <DeleteAction selection={selection} /> : undefined,
   status: <FilesStatus />,

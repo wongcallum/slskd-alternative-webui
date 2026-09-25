@@ -11,10 +11,20 @@ import type { ReactNode } from 'react'
 
 import { formatDuration } from '../../lib/format'
 import { useFrom } from '../../lib/media'
+import { sortOf, textParam } from '../../lib/params'
 import { byName, compareNames } from '../../lib/text'
 import type { Item } from '../../lib/tree'
 
-export const paneColumnIds = ['name', 'folder', 'files', 'size'] as const
+const paneColumnIds = ['name', 'folder', 'files', 'size'] as const
+
+// A tree view's place in the URL, sortable by the view's own columns too.
+export const treeSearch = <const T extends string>(extraIds: readonly T[]) => ({
+  path: textParam,
+  q: textParam,
+  sort: sortOf([...paneColumnIds, ...extraIds]),
+})
+
+export const treeSearchDefaults = { path: '', q: '' } as const
 
 // Each view adds its own columns after the name, files or folder, and size. A wide one only shows from lg.
 export type ExtraColumn = {
