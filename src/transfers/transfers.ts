@@ -4,6 +4,7 @@ import { toTime } from '../lib/format'
 import { createRate } from '../lib/rate'
 import { createResource, isStale, poll, type Resource } from '../lib/store'
 import { byName, compareNames } from '../lib/text'
+import { onSessionEnd } from '../session/session'
 
 export type Direction = 'download' | 'upload'
 
@@ -140,6 +141,7 @@ function merge(
   previous: Transfers | undefined,
   users: RawUser[],
   measureSpeed: (moved: number) => number | undefined,
+  partials: Map<string, number>,
 ): Transfers {
   const byId = new Map<string, Transfer>()
   const previousGroups = new Map<string, Group>()
@@ -170,8 +172,14 @@ function merge(
       let cancelled = 0
       for (const raw of files) {
         const old = previous?.byId.get(raw.id)
-        // A retry can reuse the id and start again from 0.
-        moved += Math.max(0, raw.bytesTransferred - (old?.bytesTransferred ?? 0))
+        // A retry, under the same id or a new one, starts again from 0 and then jumps to where the last attempt
+        // stopped, since slskd resumes. Those bytes moved before.
+        const key = `${username}\n${raw.filename}`
+        const before = old?.bytesTransferred ?? 0
+        const resumed = before === 0 && raw.bytesTransferred > 0 ? (partials.get(key) ?? 0) : 0
+        if (resumed > 0) partials.delete(key)
+        moved += Math.max(0, raw.bytesTransferred - Math.max(before, resumed))
+        if (isFinished(raw.state) && !isSucceeded(raw.state)) partials.set(key, raw.bytesTransferred)
         const file = old !== undefined && unchanged(old, raw) ? old : toTransfer(raw, username, directory)
         byId.set(file.id, file)
         if (isFinished(file.state)) {
@@ -233,6 +241,9 @@ export const pollInterval = 1000
 
 function createTransfers(direction: Direction) {
   const rate = createRate()
+  // What each file's last failed attempt got to, by user and path, since a resume starts from there.
+  const partials = new Map<string, number>()
+  onSessionEnd(() => partials.clear())
   const resource: Resource<Transfers> = createResource((sink) =>
     poll(
       sink,
@@ -245,7 +256,7 @@ function createTransfers(direction: Direction) {
           last === undefined || isStale(now - last, resource.getInterval() ?? pollInterval) ? undefined : now - last
         if (elapsed === undefined) rate.reset()
         const measureSpeed = (moved: number) => (elapsed === undefined ? undefined : rate.add(now, elapsed, moved))
-        return measure(() => merge(resource.getSnapshot().data, JSON.parse(text) as RawUser[], measureSpeed))
+        return measure(() => merge(resource.getSnapshot().data, JSON.parse(text) as RawUser[], measureSpeed, partials))
       },
       pollInterval,
     ),

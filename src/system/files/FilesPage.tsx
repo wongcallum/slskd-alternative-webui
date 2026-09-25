@@ -92,9 +92,14 @@ function describeTargets(targets: readonly Target[]) {
 function DeleteAction({ selection }: { selection: Selection }) {
   const { running } = useAtom(fileActions)
   const { error } = useResource(files)
-  const targets = targetsOf(selection.items)
-  const size = targets.reduce((sum, target) => sum + target.size, 0)
-  const unaddressable = targets.find((target) => encodePath(target.relative) === undefined)
+  const { targets, size, unaddressable } = useMemo(() => {
+    const all = targetsOf(selection.items)
+    return {
+      targets: all,
+      size: all.reduce((sum, target) => sum + target.size, 0),
+      unaddressable: all.find((target) => encodePath(target.relative) === undefined),
+    }
+  }, [selection.items])
   let gate: string | undefined
   if (error !== undefined) gate = 'The last listing failed, so it may be out of date'
   else if (unaddressable !== undefined) {

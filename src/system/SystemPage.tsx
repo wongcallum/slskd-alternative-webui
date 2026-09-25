@@ -1,4 +1,4 @@
-import { Flex } from '@radix-ui/themes'
+import { Flex, VisuallyHidden } from '@radix-ui/themes'
 import type { ReactNode } from 'react'
 
 import { useResource } from '../lib/store'
@@ -25,7 +25,12 @@ export function SystemPage({ status, children }: { status?: ReactNode; children:
           <NavTab to="/system/shares">
             <Flex align="center" gap="2">
               Shares
-              {data !== undefined && rescanNeeded(data) && <StatusDot color="amber" />}
+              {data !== undefined && rescanNeeded(data) && (
+                <>
+                  <StatusDot color="amber" />
+                  <VisuallyHidden>, rescan needed</VisuallyHidden>
+                </>
+              )}
             </Flex>
           </NavTab>
           <NavTab to="/system/files">Files</NavTab>

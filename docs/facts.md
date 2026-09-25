@@ -187,10 +187,11 @@ Error bodies are JSON strings. Encode the username segment with `encodeURICompon
   `user {username, privileges, statistics}`, `distributedNetwork`,
   `shares {scanPending, scanning, ready, faulted, cancelled, scanProgress, hosts, directories, files}`, `rooms` and
   `users`. `users` is never populated.
-- `user.username` is updated on every Soulseek client state change. `pendingReconnect` is set when an option
-  that needs a reconnect changes while connected, and any disconnect clears it. `pendingRestart` stays set
-  until a restart. `version.latest` and `isUpdateAvailable` stay null on dev and canary builds and with
-  `no_version_check`.
+- `user.username` is updated on every Soulseek client state change. It's null until the first login and again after
+  every disconnect, since Soulseek.NET clears its `Username` as it disconnects (`SoulseekClient.cs`).
+  `pendingReconnect` is set when an option that needs a reconnect changes while connected, and any disconnect clears
+  it. `pendingRestart` stays set until a restart. `version.latest` and `isUpdateAvailable` stay null on dev and
+  canary builds and with `no_version_check`.
 - `OPTIONS` is the whole options object with every secret replaced by `"*****"`. It's pushed on connect and
   after each options change that actually differs.
 - Other shapes: `user.statistics {averageSpeed, directoryCount, fileCount, uploadCount}` (as the server reports
@@ -500,6 +501,8 @@ in relay agent mode.
   `{name, fullName, length, attributes, createdAt, modifiedAt}`, and child directories have no `files`, `directories`
   or `length`.
   - **`fullName` is relative to the folder asked for**, and a root's own `name` is its basename.
+  - It's .NET's `FullName` with the folder cut off, so on Windows it's separated by `\` (from the source). The
+    endpoints that take a path read `\` and `/` alike on every platform, so a name containing `\` can't be reached.
   - `attributes` is a flags string (`"Hidden, Directory"`, `"Directory, ReparsePoint"`).
   - Times are UTC. On Linux `createdAt` equals `modifiedAt` (observed).
   - Entries come in filesystem order.
@@ -1195,6 +1198,10 @@ in headless Chromium).
 - Unmatched paths render `defaultNotFoundComponent` or the nearest route's `notFoundComponent`
   (`notFoundMode: 'fuzzy'`); leaf routes can't handle not-found. Without either you get `<p>Not Found</p>`.
 - Preloading and scroll restoration are off by default, but `window` scrolls to the top on navigation.
+- `lazyRouteComponent(importer, name)` gives a component with a `preload`, which the router awaits as it loads the
+  match, so the page being left stays up until the chunk is in (`lazyRouteComponent.tsx`, router-core's
+  `load-client.ts`). An import that fails as a missing module, as after a newer build replaced it, reloads the page
+  once, remembered in sessionStorage by the error's message. Any other failure goes to the route's error component.
 
 ## Radix Themes
 
@@ -1233,6 +1240,8 @@ Checked against the `@radix-ui/themes` 3.3.0 package source.
 - The `TabNav` list scrolls sideways with its scrollbar hidden (`_internal/base-tab-list.css`), and nothing scrolls the
   active tab into view.
 - `DropdownMenu.Item` takes `asChild`, but `DropdownMenu.RadioItem` doesn't.
+- `Button` and `IconButton` default `disabled` to `loading` (`_internal/base-button.tsx`), so a focused button that
+  starts loading loses focus to `<body>` (observed) unless `disabled={false}` is passed.
 - Text fields of size 1, 2 and 3 are 24, 32 and 40 px high with 12, 14 and 16 px text. Menu and select items are 24 px
   at size 1 and 32 px at size 2, through `--base-menu-item-height` and `--select-item-height`.
 - **Tooltips never open from touch** (`@radix-ui/react-tooltip` 1.2.16, `TooltipTrigger`): a touch pointer's move is
@@ -1304,11 +1313,16 @@ share of 200k files in 15k directories (54 MB of JSON), with `idb` 8.0.3. "Block
   data all at once, least recently used first, so it takes stock's data with ours. `navigator.storage.persist()` is
   decided by engagement in Chrome (it returned `false` headless), prompts in Firefox, and is decided automatically
   in Safari.
+- An upgrade waits until every connection on the older version closes, firing `blocked` meanwhile, so a tab whose build
+  has no `versionchange` handler holds it up for as long as it stays open (observed). `idb`'s `terminated` covers a
+  connection the browser closes on its own.
 - `idb` 8.0.3 (May 2025) is 1.4 KB, with a typed `DBSchema` and manual upgrades. `idb-keyval` allows only one store
   per database. Dexie 4.4.6 is 32.6 KB.
 
 ## Browser APIs
 
+- Chromium keeps a failed dynamic `import()` in its module map: importing the same URL again fails at once, without a
+  request (observed in Chromium 153).
 - Web Locks (`navigator.locks`) needs a secure context
   ([MDN](https://developer.mozilla.org/en-US/docs/Web/API/Web_Locks_API)), so a plain-HTTP LAN install can't use it.
   `BroadcastChannel` doesn't.
@@ -1339,7 +1353,7 @@ Checked against `yaml` 2.9.1.
 - With `version: '1.1'`, stringify quotes strings that YAML 1.1 would read as something else, such as `"on"` and
   timestamps. `lineWidth: 0` stops long strings from folding. A comment set on a node's `comment` is written after its
   value on the same line.
-- Stringify and parse together added about 34 kB gzipped to the main chunk.
+- Stringify and parse together come to about 94 kB minified and 34 kB gzipped.
 
 ## CodeMirror
 

@@ -57,7 +57,11 @@ export function useListTable(
 }
 
 export function SearchList({ table, gate }: { table: ReturnType<typeof useListTable>; gate?: string }) {
-  const { pending } = useAtom(listActions)
+  const { pending, running } = useAtom(listActions)
+  // Two stops or deletes at once would share one progress count and outcome.
+  const rowGate =
+    gate ??
+    (running.stop !== undefined || running.delete !== undefined ? 'Another stop or delete is running' : undefined)
   const rows = table.getRowModel().rows
   const onSelect = useRowToggle(table)
   const layout = useListLayout()
@@ -90,7 +94,7 @@ export function SearchList({ table, gate }: { table: ReturnType<typeof useListTa
           layout={layout}
           selected={row.getIsSelected()}
           pending={pending.has(row.original.id)}
-          gate={gate}
+          gate={rowGate}
           onSelect={onSelect}
         />
       )}
@@ -108,7 +112,13 @@ type SearchRowProps = {
 }
 
 const SearchRow = memo(function SearchRow({ search, layout, selected, pending, gate, onSelect }: SearchRowProps) {
-  const check = <CheckCell selected={selected} onToggle={(shiftKey) => onSelect(search.id, shiftKey)} />
+  const check = (
+    <CheckCell
+      label={`Select ${search.text}`}
+      selected={selected}
+      onToggle={(shiftKey) => onSelect(search.id, shiftKey)}
+    />
+  )
   const state = (
     <>
       <SearchState search={search} size={layout === 'stacked' ? '1' : '2'} />

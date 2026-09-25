@@ -7,7 +7,7 @@ import { useFrom } from '../lib/media'
 import { useAtom, useResource } from '../lib/store'
 import { useRun } from '../lib/useRun'
 import { useSoulseekGate } from '../soulseek/soulseek'
-import { application } from '../system/application'
+import { ownUsername } from '../system/application'
 import { disabledProps } from '../ui/controls'
 import { Loading } from '../ui/status'
 import { renderUserMenu } from '../users/UserMenu'
@@ -60,7 +60,7 @@ function NotJoined({ room }: { room: string }) {
         <Button
           loading={running}
           {...disabledProps(gate !== undefined)}
-          onClick={() => gate === undefined && run(() => joinRoom(room))}
+          onClick={() => gate === undefined && !running && run(() => joinRoom(room))}
         >
           Join {room}
         </Button>
@@ -81,7 +81,7 @@ function JoinedRoom({ room }: { room: string }) {
   const resource = roomMessages(room)
   const { data, error } = useResource(resource)
   const pending = useAtom(pendingMessages).get(room)
-  const username = useResource(application).data?.username
+  const ownName = useAtom(ownUsername)
   const newest = data?.messages.at(-1)?.time
 
   useEffect(() => {
@@ -128,7 +128,7 @@ function JoinedRoom({ room }: { room: string }) {
             <MessageLog
               messages={data.messages}
               pending={pending}
-              username={username}
+              ownName={ownName}
               note={
                 data.messages.length >= roomMessageLimit
                   ? `slskd keeps only the newest ${roomMessageLimit} messages.`

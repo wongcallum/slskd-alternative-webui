@@ -1,9 +1,7 @@
 import { Flex, Text } from '@radix-ui/themes'
 import { memo, type ReactNode, useId, useMemo, useState } from 'react'
-import * as v from 'valibot'
 
 import { formatFullPreciseTime } from '../lib/format'
-import { oneOf, textParam } from '../lib/params'
 import { type Choices, ChoiceSelect, type Color, useFilterText } from '../ui/controls'
 import { DetailsPane, Preformatted } from '../ui/details'
 import { HeldList, HeldRow, HeldToolbar, useHold } from '../ui/hold'
@@ -17,16 +15,10 @@ import {
   logs,
   maxRecords,
   type MinimumLevel,
-  minimumLevels,
   useLogs,
 } from './logs'
+import type { LogsSearch } from './params'
 import { SystemPage } from './SystemPage'
-
-export const logsSearch = v.object({ q: textParam, level: oneOf(minimumLevels, 'debug') })
-
-export const logsSearchDefaults = { q: '', level: 'debug' } as const
-
-export type LogsSearch = v.InferOutput<typeof logsSearch>
 
 const minimumChoices: Choices<MinimumLevel> = [
   ['debug', 'Debug'],

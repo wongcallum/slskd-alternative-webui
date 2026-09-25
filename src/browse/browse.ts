@@ -62,21 +62,27 @@ function setLoaded(username: string, loaded: Loaded | undefined) {
   })
 }
 
+// A browse or a newer read that lands first wins.
 async function readShare(username: string) {
   const signal = sessionSignal()
-  setLoaded(username, { status: 'loading' })
+  const loading: Loaded = { status: 'loading' }
+  setLoaded(username, loading)
+  const current = () => !signal.aborted && loadedShares.get().get(username) === loading
   try {
-    const database = await db()
-    const [record, blob] = await Promise.all([database.get('shares', username), database.get('trees', username)])
-    if (signal.aborted) return
+    const transaction = (await db()).transaction(['shares', 'trees'])
+    const [record, blob] = await Promise.all([
+      transaction.objectStore('shares').get(username),
+      transaction.objectStore('trees').get(username),
+    ])
+    if (!current()) return
     if (record === undefined || blob === undefined) {
       setLoaded(username, { status: 'missing' })
       return
     }
     const share = await parseShare(username, blob)
-    if (!signal.aborted) setLoaded(username, { status: 'ready', share, fetchedAt: record.fetchedAt })
+    if (current()) setLoaded(username, { status: 'ready', share, fetchedAt: record.fetchedAt })
   } catch (error) {
-    if (!signal.aborted) setLoaded(username, { status: 'failed', error })
+    if (current()) setLoaded(username, { status: 'failed', error })
   }
 }
 
@@ -98,9 +104,10 @@ export const reloadShare = (username: string) => void readShare(username)
 
 async function touch(username: string) {
   try {
-    const database = await db()
-    const record = await database.get('shares', username)
-    if (record !== undefined) await database.put('shares', { ...record, openedAt: Date.now() })
+    const transaction = (await db()).transaction('shares', 'readwrite')
+    const record = await transaction.store.get(username)
+    if (record !== undefined) await transaction.store.put({ ...record, openedAt: Date.now() })
+    await transaction.done
   } catch {
     // A failed touch only changes which share is evicted first.
   }
@@ -144,7 +151,7 @@ const announce = (username: string) => announceChange({ type: 'share', username 
 async function resync(username: string) {
   await loadShareList()
   const loaded = loadedShares.get().get(username)
-  if (loaded === undefined || loaded.status === 'loading' || browses.get().has(username)) return
+  if (loaded === undefined || browses.get().has(username)) return
   if (loaded.status === 'ready') {
     if (loaded.notCached !== undefined) return
     if (shareList.get().records.get(username)?.fetchedAt === loaded.fetchedAt) return

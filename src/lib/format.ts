@@ -58,8 +58,13 @@ const dayAndTime = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'nu
 
 const fullTime = new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'short', day: 'numeric', ...clock })
 
-const isToday = (time: number) => new Date(time).toDateString() === new Date().toDateString()
-
-export const formatPreciseTime = (time: number) => (isToday(time) ? timeOnly : dayAndTime).format(time)
+// The date only when it isn't today, and the year only when it isn't this year. A row showing one re-renders when the
+// day changes, which its own data never would.
+export function usePreciseTime(time: number) {
+  const today = useClock((now) => new Date(now).toDateString())
+  const date = new Date(time)
+  if (date.toDateString() === today) return timeOnly.format(time)
+  return (date.getFullYear() === new Date().getFullYear() ? dayAndTime : fullTime).format(time)
+}
 
 export const formatFullPreciseTime = (time: number) => fullTime.format(time)

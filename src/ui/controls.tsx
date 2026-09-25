@@ -16,11 +16,12 @@ import {
   type TextProps,
   Tooltip,
 } from '@radix-ui/themes'
-import { type CSSProperties, type ReactElement, type ReactNode, useDeferredValue, useState } from 'react'
+import { cloneElement, type CSSProperties, type ReactElement, type ReactNode, useDeferredValue, useState } from 'react'
 
 import { type Actions, dismissOutcome, type Progress } from '../lib/actions'
 import { useFrom, useTouch } from '../lib/media'
 import { type Atom, useAtom } from '../lib/store'
+import { stop } from './table'
 
 export type Color = NonNullable<TextProps['color']>
 
@@ -51,8 +52,10 @@ export function ToolbarEnd({ children }: { children: ReactNode }) {
   )
 }
 
-// Disabled actions stay focusable so their tooltip can say why.
+// Disabled actions stay focusable so their tooltip can say why. Radix disables a button while it's loading unless told
+// otherwise, which would drop the focus of whoever pressed it.
 export const disabledProps = (disabled: boolean) => ({
+  disabled: false,
   'aria-disabled': disabled || undefined,
   'data-disabled': disabled || undefined,
 })
@@ -61,11 +64,16 @@ export const disabledProps = (disabled: boolean) => ({
 // Radix's tooltips never open from touch.
 export function Tip({ content, children }: { content: ReactNode; children: ReactElement }) {
   const touch = useTouch()
-  if (!touch) return <Tooltip content={content}>{children}</Tooltip>
+  // Text that explains something is made focusable, so the keyboard reaches what it says too.
+  const trigger =
+    typeof children.props === 'object' && children.props !== null && 'onClick' in children.props
+      ? children
+      : cloneElement(children as ReactElement<{ tabIndex?: number }>, { tabIndex: 0 })
+  if (!touch) return <Tooltip content={<span style={{ whiteSpace: 'pre-line' }}>{content}</span>}>{trigger}</Tooltip>
   return (
     <Popover.Root>
-      <Popover.Trigger>{children}</Popover.Trigger>
-      <Popover.Content size="1" maxWidth="320px">
+      <Popover.Trigger onClick={stop}>{trigger}</Popover.Trigger>
+      <Popover.Content size="1" maxWidth="320px" onClick={stop}>
         <Text as="p" size="2" style={{ whiteSpace: 'pre-line', overflowWrap: 'anywhere' }}>
           {content}
         </Text>

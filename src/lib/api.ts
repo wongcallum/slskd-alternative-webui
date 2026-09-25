@@ -15,14 +15,14 @@ export const api = http.extend({
       ({ request }) => {
         const session = getSession()
         if (session.status === 'authenticated') request.headers.set('Authorization', `Bearer ${session.token}`)
-        else if (session.status !== 'open') throw new SessionEndedError()
+        else if (session.status !== 'open') throw new SessionEndedError('Logged out')
       },
     ],
     afterResponse: [
       ({ request, response }) => {
         if (response.status !== 401) return
         endSession(request.headers.get('Authorization')?.slice('Bearer '.length))
-        throw new SessionEndedError()
+        throw new SessionEndedError('slskd no longer accepts the login this was sent with')
       },
     ],
   },

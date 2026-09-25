@@ -78,7 +78,7 @@ export const columnLabels: Record<Section, Record<ColumnId, string>> = {
 
 export const templates: Record<Exclude<Layout, 'stacked'>, Record<Section, string>> = {
   wide: {
-    active: '40px minmax(240px, 1fr) 160px 280px 170px 110px 90px 76px',
+    active: '40px minmax(240px, 1fr) 160px 280px 170px 110px 100px 76px',
     finished: '40px minmax(240px, 1fr) 160px 280px 170px 200px 76px',
   },
   medium: {
@@ -87,7 +87,7 @@ export const templates: Record<Exclude<Layout, 'stacked'>, Record<Section, strin
   },
 }
 
-export const minWidths: Record<Layout, number> = { stacked: 0, wide: 1166, medium: 946 }
+export const minWidths: Record<Layout, number> = { stacked: 0, wide: 1176, medium: 946 }
 
 export const columnsOf = (section: Section, layout: Layout) =>
   layout === 'medium' ? columnIds[section].filter((id) => id !== 'time') : columnIds[section]
@@ -107,6 +107,19 @@ export const expansions: Record<Direction, Atom<Record<Section, Expansion>>> = {
 export const openSections: Record<Direction, Atom<Record<Section, boolean>>> = {
   download: createAtom<Record<Section, boolean>>({ active: true, finished: true }),
   upload: createAtom<Record<Section, boolean>>({ active: true, finished: true }),
+}
+
+// A row that leaves its section, as a retried file does, would come back selected if it returned under the same id.
+export function keepPresent(selection: RowSelectionState, groups: readonly Group[] | undefined) {
+  const ids = Object.keys(selection)
+  if (ids.length === 0 || groups === undefined) return selection
+  const present = new Set<string>()
+  for (const group of groups) {
+    present.add(group.id)
+    for (const file of group.files) present.add(file.id)
+  }
+  if (ids.every((id) => present.has(id))) return selection
+  return Object.fromEntries(Object.entries(selection).filter(([id]) => present.has(id)))
 }
 
 export function useSectionTable<S extends string>(

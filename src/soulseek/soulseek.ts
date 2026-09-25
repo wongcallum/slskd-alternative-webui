@@ -1,15 +1,8 @@
 import { isHTTPError } from 'ky'
 
 import { api, describeError } from '../lib/api'
-import { useFreshness } from '../lib/store'
 import { sessionSignal } from '../session/session'
-import { application, useApplication, waitForApplication } from '../system/application'
-
-export function useSoulseek() {
-  const { data, error, known } = useApplication()
-  const age = useFreshness(application)
-  return { data, error, known, age }
-}
+import { useApplication, waitForApplication } from '../system/application'
 
 // The reason actions that need Soulseek are disabled, if they are.
 export function useSoulseekGate() {
