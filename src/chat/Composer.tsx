@@ -1,12 +1,13 @@
 import { PaperPlaneIcon } from '@radix-ui/react-icons'
-import { Box, IconButton, Text, TextField } from '@radix-ui/themes'
-import { type KeyboardEvent, useState } from 'react'
+import { Box, IconButton, TextField } from '@radix-ui/themes'
+import type { KeyboardEvent } from 'react'
 
-import { describeError } from '../lib/api'
 import { useTouch } from '../lib/media'
 import { useAtom } from '../lib/store'
+import { useRun } from '../lib/useRun'
 import { useSoulseekGate } from '../soulseek/soulseek'
 import { disabledProps, GateTip } from '../ui/controls'
+import { ActionNote } from '../ui/status'
 import { drafts } from './messages'
 
 type Props = { draftKey: string; placeholder: string; send: (text: string) => Promise<void> }
@@ -16,8 +17,7 @@ export function Composer({ draftKey, placeholder, send }: Props) {
   const gate = useSoulseekGate()
   const touch = useTouch()
   const text = useAtom(drafts).get(draftKey) ?? ''
-  const [sending, setSending] = useState(false)
-  const [error, setError] = useState<string>()
+  const { running: sending, error, run } = useRun()
   const blank = text.trim() === ''
   const reason = gate ?? (blank ? 'Type a message' : undefined)
 
@@ -29,23 +29,18 @@ export function Composer({ draftKey, placeholder, send }: Props) {
       return next
     })
 
-  async function submit() {
+  function submit() {
     if (reason !== undefined || sending) return
-    setSending(true)
-    setError(undefined)
-    try {
+    run(async () => {
       await send(text)
       if ((drafts.get().get(draftKey) ?? '') === text) setText('')
-    } catch (thrown) {
-      setError(describeError(thrown))
-    }
-    setSending(false)
+    })
   }
 
   function onKeyDown(event: KeyboardEvent) {
     if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
     event.preventDefault()
-    void submit()
+    submit()
   }
 
   return (
@@ -71,18 +66,14 @@ export function Composer({ draftKey, placeholder, send }: Props) {
               aria-label="Send"
               loading={sending}
               {...disabledProps(reason !== undefined)}
-              onClick={() => void submit()}
+              onClick={submit}
             >
               <PaperPlaneIcon />
             </IconButton>
           </GateTip>
         </TextField.Slot>
       </TextField.Root>
-      {(error ?? gate) !== undefined && (
-        <Text as="p" size="1" mt="1" color={error === undefined ? 'gray' : 'red'}>
-          {error ?? gate}
-        </Text>
-      )}
+      <ActionNote error={error} gate={gate} size="1" mt="1" />
     </Box>
   )
 }

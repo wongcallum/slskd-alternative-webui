@@ -1,24 +1,18 @@
 import {
   createColumnHelper,
-  createExpandedRowModel,
-  createSortedRowModel,
   type Row,
-  rowExpandingFeature,
-  rowSelectionFeature,
   type RowSelectionState,
-  rowSortingFeature,
   sortFn_basic,
-  tableFeatures,
   type Updater,
   useTable,
 } from '@tanstack/react-table'
 import { useMemo } from 'react'
 
-import { toTime } from '../lib/format'
+import { formatBytes, formatProgress, toTime } from '../lib/format'
 import { useSortParam } from '../lib/params'
-import { type Atom, createAtom } from '../lib/store'
-import { collapsed, type Expansion, expandedState, type Layout, sortByName } from '../ui/table'
-import { type Direction, type Group, isFailed, isTransferring, type Section, type Transfer } from './transfers'
+import { createAtom } from '../lib/store'
+import { collapsed, type Expansion, expandedState, groupFeatures, type Layout, sortByName } from '../ui/table'
+import { type Group, isFailed, isTransferring, perDirection, type Section, type Transfer } from './transfers'
 
 export const columnIds = {
   active: ['name', 'user', 'status', 'size', 'speed', 'time'],
@@ -27,21 +21,18 @@ export const columnIds = {
 
 type ColumnId = (typeof columnIds.active)[number]
 
-const features = tableFeatures({
-  rowSortingFeature,
-  sortedRowModel: createSortedRowModel(),
-  rowExpandingFeature,
-  expandedRowModel: createExpandedRowModel(),
-  rowSelectionFeature,
-})
-
 type Item = Group | Transfer
 
-export type TableRow = Row<typeof features, Item>
+export type TableRow = Row<typeof groupFeatures, Item>
 
-const helper = createColumnHelper<typeof features, Item>()
+const helper = createColumnHelper<typeof groupFeatures, Item>()
 
 export const fraction = (item: Item) => (item.size > 0 ? item.bytesTransferred / item.size : 0)
+
+export const sizeOf = (section: Section, item: Item) =>
+  section === 'active' && item.bytesTransferred > 0
+    ? formatProgress(item.bytesTransferred, item.size)
+    : formatBytes(item.size)
 
 const speedOf = (item: Item) =>
   item.kind === 'group' ? item.speed : isTransferring(item.state) ? item.averageSpeed : 0
@@ -99,15 +90,9 @@ export const twoLineBarHeight = 72
 
 const initialExpansion = (): Record<Section, Expansion> => ({ active: { all: true, toggled: {} }, finished: collapsed })
 
-export const expansions: Record<Direction, Atom<Record<Section, Expansion>>> = {
-  download: createAtom(initialExpansion()),
-  upload: createAtom(initialExpansion()),
-}
+export const expansions = perDirection(() => createAtom(initialExpansion()))
 
-export const openSections: Record<Direction, Atom<Record<Section, boolean>>> = {
-  download: createAtom<Record<Section, boolean>>({ active: true, finished: true }),
-  upload: createAtom<Record<Section, boolean>>({ active: true, finished: true }),
-}
+export const openSections = perDirection(() => createAtom<Record<Section, boolean>>({ active: true, finished: true }))
 
 // A row that leaves its section, as a retried file does, would come back selected if it returned under the same id.
 export function keepPresent(selection: RowSelectionState, groups: readonly Group[] | undefined) {
@@ -134,7 +119,7 @@ export function useSectionTable<S extends string>(
   const { sorting, onSortingChange } = useSortParam(sort, onSortChange)
   const expanded = useMemo(() => expandedState(expansion, data), [expansion, data])
   return useTable({
-    features,
+    features: groupFeatures,
     columns: columns[section],
     data,
     getRowId: (item) => item.id,

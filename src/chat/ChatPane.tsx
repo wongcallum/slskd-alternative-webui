@@ -1,11 +1,10 @@
-import { ArrowLeftIcon } from '@radix-ui/react-icons'
-import { Flex, IconButton, Text } from '@radix-ui/themes'
-import { Link as RouterLink } from '@tanstack/react-router'
+import { Flex, Text } from '@radix-ui/themes'
 import type { ReactNode } from 'react'
 
 import { useFrom } from '../lib/media'
 import type { Resource } from '../lib/store'
 import { toolbarStyle } from '../ui/controls'
+import { BackLink } from '../ui/nav'
 import { Freshness, Polling } from '../ui/status'
 import { Composer } from './Composer'
 import { type Target, targetKey } from './messages'
@@ -14,13 +13,7 @@ export function ChatToolbar({ title, children }: { title: ReactNode; children?: 
   const sm = useFrom('sm')
   return (
     <Flex align="center" gap="3" px="4" py="2" flexShrink="0" minHeight="45px" style={toolbarStyle}>
-      {!sm && (
-        <IconButton asChild variant="ghost" color="gray" aria-label="Back to chats">
-          <RouterLink to="/chat">
-            <ArrowLeftIcon />
-          </RouterLink>
-        </IconButton>
-      )}
+      {!sm && <BackLink to="/chat" label="Back to chats" />}
       <Text weight="bold" truncate>
         {title}
       </Text>
@@ -54,13 +47,12 @@ export function ChatPane({
   send,
   log,
 }: Props) {
-  const loaded = log !== undefined
   return (
     <Flex direction="column" flexGrow="1" minWidth="0">
       <ChatToolbar title={title}>
         {actions}
         <Flex ml="auto" align="center" flexShrink="0">
-          <Freshness resource={resource} interval={interval} error={loaded ? error : undefined} />
+          <Freshness resource={resource} interval={interval} />
         </Flex>
       </ChatToolbar>
       {instead ?? (

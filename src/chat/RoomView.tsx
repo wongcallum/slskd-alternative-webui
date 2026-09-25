@@ -9,7 +9,7 @@ import { useRun } from '../lib/useRun'
 import { useSoulseekGate } from '../soulseek/soulseek'
 import { ownUsername } from '../system/application'
 import { disabledProps } from '../ui/controls'
-import { Loading } from '../ui/status'
+import { ActionNote, Loading } from '../ui/status'
 import { renderUserMenu } from '../users/UserMenu'
 import { ChatEmpty } from './ChatEmpty'
 import { ChatPane, ChatToolbar } from './ChatPane'
@@ -64,11 +64,7 @@ function NotJoined({ room }: { room: string }) {
         >
           Join {room}
         </Button>
-        {(error ?? gate) !== undefined && (
-          <Text size="2" color={error === undefined ? 'gray' : 'red'}>
-            {error ?? gate}
-          </Text>
-        )}
+        <ActionNote error={error} gate={gate} size="2" />
       </Flex>
     </Flex>
   )

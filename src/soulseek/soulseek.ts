@@ -1,8 +1,9 @@
 import { isHTTPError } from 'ky'
 
 import { api, describeError } from '../lib/api'
+import { waitFor } from '../lib/store'
 import { sessionSignal } from '../session/session'
-import { useApplication, waitForApplication } from '../system/application'
+import { application, useApplication } from '../system/application'
 
 // The reason actions that need Soulseek are disabled, if they are.
 export function useSoulseekGate() {
@@ -20,7 +21,9 @@ export const disconnect = () => api.delete('server', { json: 'client disconnecte
 export async function reconnect() {
   const signal = sessionSignal()
   await disconnect()
-  await waitForApplication((data) => !data.isConnected && !data.isTransitioning, signal, 30_000)
+  if (!(await waitFor(application, (data) => !data.isConnected && !data.isTransitioning, signal, 30_000))) {
+    throw new Error('Timed out waiting for slskd')
+  }
   await connect()
 }
 

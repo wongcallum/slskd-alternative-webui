@@ -1,9 +1,8 @@
 import { Flex } from '@radix-ui/themes'
 import type { RowSelectionState } from '@tanstack/react-table'
 import { type ReactNode, useMemo, useState } from 'react'
-import * as v from 'valibot'
 
-import { oneOf, sortOf, textParam } from '../lib/params'
+import type { SearchProps } from '../lib/params'
 import { type Resource, useAtom, useResource, useStale } from '../lib/store'
 import { useSoulseekGate } from '../soulseek/soulseek'
 import {
@@ -17,7 +16,8 @@ import {
 } from '../ui/controls'
 import { Empty, Freshness, Polling } from '../ui/status'
 import { actions, cancel, remove, retry } from './actions'
-import { columnIds, expansions, type Gates, keepPresent, useSectionTable } from './table'
+import type { TransfersSearch } from './params'
+import { expansions, type Gates, keepPresent, useSectionTable } from './table'
 import { TransferList } from './TransferList'
 import {
   type Direction,
@@ -31,23 +31,10 @@ import {
   transfers,
 } from './transfers'
 
-export const transfersSearch = v.object({
-  q: textParam,
-  show: oneOf(['all', 'succeeded', 'failed', 'cancelled'], 'all'),
-  activeSort: sortOf(columnIds.active),
-  finishedSort: sortOf(columnIds.finished),
-})
-
-export const transfersSearchDefaults = { q: '', show: 'all' } as const
-
-export type TransfersSearch = v.InferOutput<typeof transfersSearch>
-
 const noGroups: Group[] = []
 
-type Props = {
+type Props = SearchProps<TransfersSearch> & {
   direction: Direction
-  search: TransfersSearch
-  onSearchChange: (patch: Partial<TransfersSearch>) => void
 }
 
 export function TransfersPage({ direction, search, onSearchChange }: Props) {
@@ -128,7 +115,6 @@ export function TransfersPage({ direction, search, onSearchChange }: Props) {
       <TransfersToolbar
         direction={direction}
         resource={resource}
-        error={data === undefined ? undefined : error}
         text={filter.text}
         onTextChange={filter.change}
         selected={selected}
@@ -146,7 +132,6 @@ export function TransfersPage({ direction, search, onSearchChange }: Props) {
 type TransfersToolbarProps = {
   direction: Direction
   resource: Resource<Transfers>
-  error: unknown
   text: string
   onTextChange: (value: string) => void
   selected: Transfer[]
@@ -157,7 +142,6 @@ type TransfersToolbarProps = {
 function TransfersToolbar({
   direction,
   resource,
-  error,
   text,
   onTextChange,
   selected,
@@ -201,7 +185,7 @@ function TransfersToolbar({
       )}
       <ToolbarEnd>
         <OutcomeLine atom={actions[direction]} />
-        <Freshness resource={resource} interval={pollInterval} error={error} />
+        <Freshness resource={resource} interval={pollInterval} />
       </ToolbarEnd>
     </Toolbar>
   )

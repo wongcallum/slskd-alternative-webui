@@ -1,5 +1,5 @@
 import { Flex, Text } from '@radix-ui/themes'
-import { type ReactNode, useEffect, useMemo } from 'react'
+import { type ReactNode, useMemo } from 'react'
 
 import { entriesByUser } from '../lib/db'
 import { useAtom } from '../lib/store'
@@ -11,14 +11,13 @@ import { LookUpBox } from './LookUpBox'
 import { LookupErrorLine, PresenceLabel } from './LookupStatus'
 import {
   deleteUser,
-  loadUserList,
   lookedUpAt,
   lookUp,
   type LookupErrors,
   lookupErrors,
   lookups,
   type UserRecord,
-  userList,
+  useUserList,
 } from './users'
 
 type Entry = { username: string; record?: UserRecord; startedAt?: number; errors?: LookupErrors }
@@ -38,10 +37,7 @@ const columns = [
 ]
 
 export function UsersPage() {
-  useEffect(() => {
-    void loadUserList()
-  }, [])
-  const list = useAtom(userList)
+  const list = useUserList()
   const running = useAtom(lookups)
   const failed = useAtom(lookupErrors)
 

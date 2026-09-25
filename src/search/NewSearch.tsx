@@ -1,10 +1,11 @@
 import { MagnifyingGlassIcon } from '@radix-ui/react-icons'
-import { Box, Button, Flex, Spinner, Text, TextField } from '@radix-ui/themes'
+import { Box, Button, Flex, Spinner, TextField } from '@radix-ui/themes'
 import { type SubmitEvent, useState } from 'react'
 
 import { useTouch } from '../lib/media'
 import { useSoulseekGate } from '../soulseek/soulseek'
 import { disabledProps } from '../ui/controls'
+import { ActionNote } from '../ui/status'
 import { useCreateSearch } from './useCreateSearch'
 
 export function NewSearch() {
@@ -46,11 +47,7 @@ export function NewSearch() {
           </Button>
         </Flex>
       </form>
-      {(error ?? gate) !== undefined && (
-        <Text as="p" size="2" mt="2" color={error === undefined ? 'gray' : 'red'}>
-          {error ?? gate}
-        </Text>
-      )}
+      <ActionNote error={error} gate={gate} size="2" mt="2" />
     </Box>
   )
 }

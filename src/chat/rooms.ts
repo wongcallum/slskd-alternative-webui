@@ -4,7 +4,7 @@ import { useMemo } from 'react'
 import { api } from '../lib/api'
 import { createAtom, createResource, createResourceMap, poll, type Resource, useAtom, useResource } from '../lib/store'
 import { createStoredAtom } from '../lib/stored'
-import { compareExactly } from '../lib/text'
+import { byUsername, compareExactly } from '../lib/text'
 import { application, ownUsername } from '../system/application'
 import { lastOpen, mentionMatcher, type Message, reuseMessages } from './messages'
 
@@ -134,8 +134,6 @@ function toUser(raw: RawRoomUser): RoomUser {
     self: raw.self === true,
   }
 }
-
-const byUsername = (a: RoomUser, b: RoomUser) => compareExactly(a.username, b.username)
 
 const userResources = createResourceMap((room) =>
   createResource<RoomUsers>((sink) => {

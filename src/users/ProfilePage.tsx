@@ -2,21 +2,21 @@ import { Badge, Box, Button, Dialog, Flex, Grid, Heading, Link, Spinner, Text } 
 import { Link as RouterLink, useNavigate } from '@tanstack/react-router'
 import { type ReactNode, useEffect } from 'react'
 
-import { loadShareList, shareList } from '../browse/browse'
+import { useShareList } from '../browse/browse'
 import { useBrowseUser } from '../browse/useBrowseUser'
 import { describeError } from '../lib/api'
 import { formatBytes, plural } from '../lib/format'
 import { useAtom, useResource } from '../lib/store'
 import { useSoulseekGate } from '../soulseek/soulseek'
-import { ActionButton, Tip, Toolbar } from '../ui/controls'
+import { ActionButton, Tip } from '../ui/controls'
 import { LinkedText } from '../ui/LinkedText'
 import { Ago, Busy, Loading } from '../ui/status'
+import { UserPage } from '../ui/UserList'
 import { LookUpBox } from './LookUpBox'
 import { LookupErrorLine, PresenceLabel } from './LookupStatus'
 import {
   type DirectionHistory,
   loadPicture,
-  loadUserList,
   lookedUpAt,
   lookUp,
   type LookupErrors,
@@ -25,14 +25,11 @@ import {
   pictures,
   transferHistory,
   type UserRecord,
-  userList,
+  useUserList,
 } from './users'
 
 export function ProfilePage({ username }: { username: string }) {
-  useEffect(() => {
-    void loadUserList()
-  }, [])
-  const list = useAtom(userList)
+  const list = useUserList()
   const record = list.records.get(username)
   const startedAt = useAtom(lookups).get(username)
   const errors = useAtom(lookupErrors).get(username)
@@ -53,37 +50,34 @@ export function ProfilePage({ username }: { username: string }) {
         <Text color="gray">
           Looking up asks the Soulseek server for {username}'s status, and {username} for their profile.
         </Text>
-        <ActionButton label={`Look up ${username}`} busy="" gate={gate} onClick={() => void lookUp(username)} />
+        <ActionButton label={`Look up ${username}`} gate={gate} onClick={() => void lookUp(username)} />
       </Flex>
     )
   }
 
   return (
-    <Flex direction="column" height="100%">
-      <Toolbar gap="4" py="3">
-        <LookUpBox current={username} />
-        {record !== undefined && (
-          <Flex ml="auto" align="center" gap="3" flexShrink="0">
-            <Text size="2" color="gray">
-              Updated <Ago time={lookedUpAt(record)} />
-            </Text>
-            <ActionButton
-              label="Look up again"
-              busy=""
-              loading={running}
-              gate={gate}
-              onClick={() => void lookUp(username)}
-            />
-          </Flex>
-        )}
-      </Toolbar>
+    <UserPage
+      toolbar={
+        <>
+          <LookUpBox current={username} />
+          {record !== undefined && (
+            <Flex ml="auto" align="center" gap="3" flexShrink="0">
+              <Text size="2" color="gray">
+                Updated <Ago time={lookedUpAt(record)} />
+              </Text>
+              <ActionButton label="Look up again" loading={running} gate={gate} onClick={() => void lookUp(username)} />
+            </Flex>
+          )}
+        </>
+      }
+    >
       <Box flexGrow="1" overflow="auto">
         <Flex direction="column" gap="4" p="4" maxWidth="900px">
           {content}
           <TransferHistory username={username} />
         </Flex>
       </Box>
-    </Flex>
+    </UserPage>
   )
 }
 
@@ -175,10 +169,7 @@ function Picture({ username, picture }: { username: string; picture: string }) {
 }
 
 function CachedShare({ username }: { username: string }) {
-  useEffect(() => {
-    void loadShareList()
-  }, [])
-  const share = useAtom(shareList).records.get(username)
+  const share = useShareList().records.get(username)
   if (share === undefined) return null
   return (
     <Text size="2" color="gray">

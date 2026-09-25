@@ -4,9 +4,9 @@ import { useNavigate } from '@tanstack/react-router'
 import { type ReactNode, useDeferredValue, useMemo, useState } from 'react'
 
 import { api, describeError } from '../lib/api'
-import { compareExactly } from '../lib/text'
+import { byName } from '../lib/text'
 import { FilterField, GateTip } from '../ui/controls'
-import { ErrorCallout, Loading } from '../ui/status'
+import { Fetching } from '../ui/status'
 import { ColumnHeader, GridRow, HeaderRow, VirtualTable } from '../ui/table'
 import { joinRoom, useJoinedRooms } from './rooms'
 
@@ -72,9 +72,7 @@ function RoomPicker({ listing, onRetry, onJoined }: { listing: Listing; onRetry:
     const matching = needle === '' ? available : available.filter((room) => room.name.toLowerCase().includes(needle))
     const direction = sort.desc ? -1 : 1
     return matching.toSorted((a, b) =>
-      sort.id === 'name'
-        ? direction * compareExactly(a.name, b.name)
-        : direction * (a.userCount - b.userCount) || compareExactly(a.name, b.name),
+      sort.id === 'name' ? direction * byName(a, b) : direction * (a.userCount - b.userCount) || byName(a, b),
     )
   }, [available, needle, sort])
 
@@ -102,9 +100,12 @@ function RoomPicker({ listing, onRetry, onJoined }: { listing: Listing; onRetry:
   })
 
   let list: ReactNode
-  if (listing.status === 'loading') list = <Loading />
-  else if (listing.status === 'failed') {
-    list = <ErrorCallout onRetry={onRetry}>Can't load the room list: {describeError(listing.error)}</ErrorCallout>
+  if (listing.status !== 'ready') {
+    list = (
+      <Fetching error={listing.status === 'failed' ? listing.error : undefined} onRetry={onRetry}>
+        Can't load the room list
+      </Fetching>
+    )
   } else {
     const header = (
       <HeaderRow template={template}>

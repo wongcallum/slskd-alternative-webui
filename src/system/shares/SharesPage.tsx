@@ -1,14 +1,14 @@
 import { ChevronRightIcon, Cross2Icon } from '@radix-ui/react-icons'
 import { Box, Callout, Code, Flex, Text } from '@radix-ui/themes'
-import { Link as RouterLink } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 
 import { describeError } from '../../lib/api'
 import { plural } from '../../lib/format'
+import type { SearchProps } from '../../lib/params'
 import { useResource } from '../../lib/store'
 import { useRun } from '../../lib/useRun'
 import { ActionButton, Tip, toolbarStyle } from '../../ui/controls'
-import { Busy, Empty, ErrorCallout, FetchedResource, Freshness, Loading } from '../../ui/status'
+import { Busy, Empty, FetchedResource, Fetching, Freshness } from '../../ui/status'
 import {
   Cell,
   ColumnHeader,
@@ -22,34 +22,33 @@ import {
   useListLayout,
 } from '../../ui/table'
 import { audioColumns } from '../../ui/tree/columns'
-import type { FolderLinkProps, TreeConfig } from '../../ui/tree/FolderPane'
+import type { TreeConfig } from '../../ui/tree/FolderPane'
 import { TreeView } from '../../ui/tree/TreeView'
-import { type Application, application, applicationPollInterval, rescanNeeded, useApplication } from '../application'
+import {
+  type Application,
+  application,
+  applicationPollInterval,
+  rescanNeeded,
+  stateGate,
+  useApplication,
+} from '../application'
 import { useOptions } from '../options/options'
 import { PendingCallout } from '../PendingCallouts'
 import { SystemPage } from '../SystemPage'
 import type { SharesSearch } from './params'
 import { cancelScan, contents, contentsLoading, notScanned, rescan, type Share, shareList } from './shares'
 
-type Props = {
-  search: SharesSearch
-  onSearchChange: (patch: Partial<SharesSearch>) => void
-}
+type Props = SearchProps<SharesSearch>
 
 // The list is the top of the contents, so an empty path shows the list rather than the tree.
 export function SharesPage({ search, onSearchChange }: Props) {
-  const { data, error, live, known } = useApplication()
+  const { data, live, known } = useApplication()
   const listing = search.path === ''
   return (
     <SystemPage
       status={
         listing ? (
-          <Freshness
-            resource={application}
-            interval={applicationPollInterval}
-            error={data === undefined ? undefined : error}
-            live={live}
-          />
+          <Freshness resource={application} interval={applicationPollInterval} live={live} />
         ) : (
           <FetchedResource resource={contents} loading={contentsLoading} />
         )
@@ -88,7 +87,7 @@ function pendingReason(data: Application) {
 
 function ScanBar({ data, known }: { data: Application; known: boolean }) {
   const run = useRun()
-  const gate = known ? undefined : "slskd's state is out of date"
+  const gate = stateGate(known)
   if (data.scanning) {
     return (
       <Bar error={run.error}>
@@ -96,25 +95,12 @@ function ScanBar({ data, known }: { data: Application; known: boolean }) {
           {data.scanFolders > 0 ? `Scanning ${plural(data.scanFolders, 'folder')}` : 'Scanning'}:{' '}
           {Math.floor(data.scanProgress * 100)}%, {plural(data.scanFiles, 'file')} so far
         </Busy>
-        <ActionButton
-          label="Cancel"
-          busy="Cancelling"
-          loading={run.running}
-          gate={gate}
-          onClick={() => run.run(cancelScan)}
-        />
+        <ActionButton label="Cancel" loading={run.running} gate={gate} onClick={() => run.run(cancelScan)} />
       </Bar>
     )
   }
   const rescanButton = (color?: 'amber') => (
-    <ActionButton
-      label="Rescan"
-      busy="Rescanning"
-      color={color}
-      loading={run.running}
-      gate={gate}
-      onClick={() => run.run(rescan)}
-    />
+    <ActionButton label="Rescan" color={color} loading={run.running} gate={gate} onClick={() => run.run(rescan)} />
   )
   if (rescanNeeded(data)) {
     return (
@@ -143,8 +129,11 @@ function ShareTable({ onOpen }: { onOpen: (path: string) => void }) {
   const options = useOptions()
   const stacked = useListLayout() === 'stacked'
   if (data === undefined) {
-    if (error === undefined) return <Loading />
-    return <ErrorCallout onRetry={shareList.refresh}>Can't load the shares: {describeError(error)}</ErrorCallout>
+    return (
+      <Fetching error={error} onRetry={shareList.refresh}>
+        Can't load the shares
+      </Fetching>
+    )
   }
   const hosts = data.hosts > 1
   const template = `${hosts ? '140px ' : ''}minmax(300px, 2fr) minmax(160px, 1fr) 100px 100px`
@@ -287,12 +276,6 @@ function ShareRow({
   )
 }
 
-function SharesFolderLink({ path, ...props }: FolderLinkProps) {
-  return (
-    <RouterLink {...props} from="/system/shares" to="/system/shares" search={(previous) => ({ ...previous, path })} />
-  )
-}
-
 function ScanningNote() {
   const scanning = useResource(application).data?.scanning === true
   return (
@@ -305,9 +288,9 @@ function ScanningNote() {
 }
 
 const contentsConfig: TreeConfig = {
+  page: '/system/shares',
   scope: 'the shares',
   extras: audioColumns,
-  FolderLink: SharesFolderLink,
   status: <ScanningNote />,
 }
 
@@ -324,7 +307,10 @@ function ContentsView({ search, onSearchChange }: Props) {
       />
     )
   }
-  if (error === undefined) return <Loading />
   if (notScanned(error)) return <Empty>Nothing has been scanned yet.</Empty>
-  return <ErrorCallout onRetry={contents.refresh}>Can't load what's shared: {describeError(error)}</ErrorCallout>
+  return (
+    <Fetching error={error} onRetry={contents.refresh}>
+      Can't load what's shared
+    </Fetching>
+  )
 }

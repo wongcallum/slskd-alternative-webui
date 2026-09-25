@@ -4,6 +4,7 @@ import { useAtom } from '../../lib/store'
 import {
   collapsed,
   ColumnHeader,
+  groupState,
   HeaderRow,
   rowHeight,
   rowId,
@@ -70,9 +71,7 @@ export function ResultList({ searchId, table, folders, gate, folderGate }: Props
           searchId={searchId}
           group={original}
           layout={layout}
-          expanded={row.getIsExpanded()}
-          selected={row.getIsAllSubRowsSelected()}
-          partial={row.getIsSomeSelected()}
+          {...groupState(row)}
           fetch={folders.get(original.id)}
           gate={gate}
           folderGate={folderGate}

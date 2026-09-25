@@ -3,19 +3,17 @@ import { Button, Flex } from '@radix-ui/themes'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { useFrom } from '../../lib/media'
-import { useSortParam } from '../../lib/params'
+import { type SearchProps, useSortParam } from '../../lib/params'
 import { type Folder, matchTree, nearestFolder, type Tree as FolderTree } from '../../lib/tree'
 import { FilterField, GatedIconButton, toolbarStyle, useFilterText } from '../controls'
 import { FolderPane, type TreeConfig } from './FolderPane'
 import { expandTo, Tree, updateExpansion } from './Tree'
 
-export type TreeSearch<S extends string> = { path: string; q: string; sort?: S }
+type TreeSearch<S extends string> = { path: string; q: string; sort?: S }
 
-type Props<S extends string> = {
+type Props<S extends string> = SearchProps<TreeSearch<S>> & {
   tree: FolderTree
   fetchedAt: number
-  search: TreeSearch<S>
-  onSearchChange: (patch: Partial<TreeSearch<S>>) => void
   config: TreeConfig
 }
 

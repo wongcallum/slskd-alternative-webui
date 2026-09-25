@@ -3,13 +3,12 @@ import { type RowSelectionState, useTable } from '@tanstack/react-table'
 import { useDeferredValue, useMemo, useState } from 'react'
 
 import { countFiles } from '../../lib/files'
-import { formatBytes } from '../../lib/format'
 import { useFrom } from '../../lib/media'
 import { useSortParam } from '../../lib/params'
 import { useAtom } from '../../lib/store'
 import { useSoulseekGate } from '../../soulseek/soulseek'
+import { DownloadButton } from '../../transfers/DownloadButton'
 import {
-  ActionButton,
   CheckboxField,
   FilterField,
   OutcomeLine,
@@ -19,7 +18,7 @@ import {
   useFilterText,
 } from '../../ui/controls'
 import { Empty } from '../../ui/status'
-import { collapsed, expandedState } from '../../ui/table'
+import { collapsed, expandedState, groupFeatures } from '../../ui/table'
 import { FiltersButton } from './Filters'
 import { countFilters, noFilters, qualities, type ResultsSearch } from './params'
 import { ResultList } from './ResultList'
@@ -32,7 +31,7 @@ import {
   unfiltered,
   viewGroups,
 } from './results'
-import { canSelect, columns, expansions, features } from './table'
+import { canSelect, columns, expansions } from './table'
 
 type Props = {
   searchId: string
@@ -66,7 +65,7 @@ export function ResultsView({ searchId, results, folders, params, onSearchChange
   const { sorting, onSortingChange } = useSortParam(params.sort, (sort) => onSearchChange({ sort }))
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const table = useTable({
-    features,
+    features: groupFeatures,
     columns,
     data: groups,
     getRowId: (item) => item.id,
@@ -83,7 +82,6 @@ export function ResultsView({ searchId, results, folders, params, onSearchChange
   for (const row of table.getSelectedRowModel().flatRows) {
     if (row.original.kind === 'file' && !row.original.locked) selected.push(row.original)
   }
-  const selectedSize = selected.reduce((sum, file) => sum + file.size, 0)
   const soulseekGate = useSoulseekGate()
   const downloads = useAtom(downloadsOf(searchId))
   const sm = useFrom('sm')
@@ -119,11 +117,10 @@ export function ResultsView({ searchId, results, folders, params, onSearchChange
         </Button>
         {selected.length > 0 && (
           <SelectionActions onClear={() => setRowSelection({})}>
-            <ActionButton
-              label={`Download ${selected.length.toLocaleString()} (${formatBytes(selectedSize)})`}
-              busy="Enqueueing"
-              progress={downloads.running.download}
-              gate={soulseekGate}
+            <DownloadButton
+              downloads={downloadsOf(searchId)}
+              count={selected.length}
+              size={selected.reduce((sum, file) => sum + file.size, 0)}
               onClick={() => void download(searchId, selected).then(() => setRowSelection({}))}
             />
           </SelectionActions>

@@ -1,15 +1,15 @@
-import { ArrowLeftIcon } from '@radix-ui/react-icons'
-import { Box, Flex, Heading, IconButton, Link, Text } from '@radix-ui/themes'
-import { Link as RouterLink, useNavigate } from '@tanstack/react-router'
+import { Box, Flex, Heading, Text } from '@radix-ui/themes'
+import { useNavigate } from '@tanstack/react-router'
 import { type ReactNode, useEffect } from 'react'
 
-import { describeError } from '../../lib/api'
 import { formatAge } from '../../lib/format'
+import type { SearchProps } from '../../lib/params'
 import { useAtom } from '../../lib/store'
 import { useRun } from '../../lib/useRun'
 import { useSoulseekGate } from '../../soulseek/soulseek'
 import { ActionButton, toolbarStyle } from '../../ui/controls'
-import { Ago, Empty, ErrorCallout, Freshness, Loading, Polling } from '../../ui/status'
+import { BackLink } from '../../ui/nav'
+import { Ago, Empty, Fetching, Freshness, Missing, Polling } from '../../ui/status'
 import {
   deleteSearches,
   listGate,
@@ -25,10 +25,8 @@ import type { ResultsSearch } from './params'
 import { entries, loadResults, openResults } from './results'
 import { ResultsView } from './ResultsView'
 
-type Props = {
+type Props = SearchProps<ResultsSearch> & {
   id: string
-  search: ResultsSearch
-  onSearchChange: (patch: Partial<ResultsSearch>) => void
 }
 
 export function ResultsPage({ id, search: params, onSearchChange }: Props) {
@@ -44,19 +42,7 @@ export function ResultsPage({ id, search: params, onSearchChange }: Props) {
   }, [id, saved])
 
   if (search === undefined) {
-    if (known) {
-      return (
-        <Box p="5">
-          <Heading mb="2">No such search</Heading>
-          <Text as="p" color="gray" mb="3">
-            It may have been deleted.
-          </Text>
-          <Link asChild>
-            <RouterLink to="/searches">Go to Search</RouterLink>
-          </Link>
-        </Box>
-      )
-    }
+    if (known) return <Missing title="No such search">It may have been deleted.</Missing>
     return <Polling what="searches" error={data === undefined ? error : undefined} />
   }
 
@@ -64,14 +50,11 @@ export function ResultsPage({ id, search: params, onSearchChange }: Props) {
   if (!saved) {
     content = <Running search={search} />
   } else if (entry?.results === undefined) {
-    content =
-      entry?.error === undefined ? (
-        <Loading />
-      ) : (
-        <ErrorCallout onRetry={() => void loadResults(id)}>
-          Can't load the results: {describeError(entry.error)}
-        </ErrorCallout>
-      )
+    content = (
+      <Fetching error={entry?.error} onRetry={() => void loadResults(id)}>
+        Can't load the results
+      </Fetching>
+    )
   } else if (entry.results.all.length === 0) {
     content = <Empty>No results.</Empty>
   } else {
@@ -88,13 +71,13 @@ export function ResultsPage({ id, search: params, onSearchChange }: Props) {
 
   return (
     <Flex direction="column" height="100%">
-      <Header search={search} known={known} live={live} error={error} />
+      <Header search={search} known={known} live={live} />
       {content}
     </Flex>
   )
 }
 
-function Header({ search, known, live, error }: { search: Search; known: boolean; live: boolean; error: unknown }) {
+function Header({ search, known, live }: { search: Search; known: boolean; live: boolean }) {
   const navigate = useNavigate()
   const soulseekGate = useSoulseekGate()
   const gate = listGate(known)
@@ -114,11 +97,7 @@ function Header({ search, known, live, error }: { search: Search; known: boolean
       style={toolbarStyle}
     >
       <Flex align="center" gap="3" minWidth="0" flexBasis={{ initial: '100%', md: 'auto' }}>
-        <IconButton asChild variant="ghost" color="gray" aria-label="Back to searches">
-          <RouterLink to="/searches">
-            <ArrowLeftIcon />
-          </RouterLink>
-        </IconButton>
+        <BackLink to="/searches" label="Back to searches" />
         <Heading size="4" truncate title={search.text}>
           {search.text}
         </Heading>
@@ -142,7 +121,6 @@ function Header({ search, known, live, error }: { search: Search; known: boolean
         {!search.isComplete && (
           <ActionButton
             label="Stop"
-            busy="Stopping"
             loading={stop.running}
             gate={gate}
             onClick={() => stop.run(() => stopSearch(search))}
@@ -150,14 +128,12 @@ function Header({ search, known, live, error }: { search: Search; known: boolean
         )}
         <ActionButton
           label="Search again"
-          busy="Searching"
           loading={again.busy}
           gate={soulseekGate}
           onClick={() => void again.create(search.text)}
         />
         <ActionButton
           label="Delete"
-          busy="Deleting"
           color="red"
           gate={gate}
           onClick={() => {
@@ -166,7 +142,7 @@ function Header({ search, known, live, error }: { search: Search; known: boolean
           }}
         />
         <Box ml="2">
-          <Freshness resource={searches} interval={searchPollInterval} error={error} live={live} />
+          <Freshness resource={searches} interval={searchPollInterval} live={live} />
         </Box>
       </Flex>
     </Flex>

@@ -1,14 +1,9 @@
 import * as v from 'valibot'
 
-import { sortOf, textParam } from '../../lib/params'
-import { paneColumnIds } from '../../ui/tree/columns'
+import { treeSearch, treeSearchDefaults } from '../../ui/tree/columns'
 
-export const filesSearch = v.object({
-  path: textParam,
-  q: textParam,
-  sort: sortOf([...paneColumnIds, 'modified']),
-})
+export const filesSearch = v.object(treeSearch(['modified']))
 
-export const filesSearchDefaults = { path: '', q: '' } as const
+export const filesSearchDefaults = treeSearchDefaults
 
 export type FilesSearch = v.InferOutput<typeof filesSearch>
