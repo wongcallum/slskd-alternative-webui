@@ -26,7 +26,7 @@ export type Color = NonNullable<TextProps['color']>
 
 export const toolbarStyle = { boxShadow: 'inset 0 -1px 0 0 var(--gray-a5)' }
 
-// A toolbar wraps rather than overflows. Below sm, selection actions take a line of their own under the rest.
+// Below sm, selection actions take a line of their own under the rest.
 export function Toolbar({
   gap = '3',
   py = '2',

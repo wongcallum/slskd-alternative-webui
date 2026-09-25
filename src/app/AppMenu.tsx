@@ -44,7 +44,6 @@ export function AppMenu({ pages, speeds, update }: Props) {
       <DropdownMenu.Content align="end">
         {shown.length > 0 && (
           <>
-            {/* The page that's open is checked, like the theme. */}
             <DropdownMenu.RadioGroup
               value={shown.find(({ to, also }) => isActive(to, also))?.to ?? ''}
               onValueChange={(to) => void navigate({ to })}

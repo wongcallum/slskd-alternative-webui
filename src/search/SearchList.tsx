@@ -36,7 +36,6 @@ import { describeCounts, SearchState } from './SearchState'
 
 const features = tableFeatures({ rowSelectionFeature })
 
-// Stacked below sm. Between sm and md the response count goes.
 const templates = {
   wide: '40px 130px minmax(240px, 1fr) 110px 170px 110px 76px',
   medium: '40px 110px minmax(200px, 1fr) 150px 100px 76px',

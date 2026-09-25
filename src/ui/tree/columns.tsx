@@ -46,7 +46,6 @@ export const paneColumns = (extras: readonly ExtraColumn[]) =>
     ),
   )
 
-// Stacked below sm. Beside the tree, the pane drops its file count or folder column below md, and wide extras below lg.
 export type PaneWidth = 'stacked' | 'narrow' | 'medium' | 'wide'
 
 export function usePaneWidth(): PaneWidth {

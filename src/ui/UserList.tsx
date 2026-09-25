@@ -93,7 +93,7 @@ export function UserListPage<E extends { username: string }>({
 
 type To = '/browse' | '/users'
 
-// A stored user's row. Stacked, a status replaces the details while there is one.
+// Stacked, a status replaces the details while there is one.
 export function UserListRow({
   username,
   to,

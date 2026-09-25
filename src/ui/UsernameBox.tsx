@@ -29,7 +29,6 @@ export function UsernameBox({
     if (username !== current) void navigate({ to, search: { user: username } })
   }
 
-  // Below sm the box fills its line.
   return (
     <Box
       asChild

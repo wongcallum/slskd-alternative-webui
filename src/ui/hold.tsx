@@ -93,7 +93,6 @@ export function HeldToolbar({
   )
 }
 
-// A record's row: stacked, its time leads the details under its title; otherwise it leads the cells.
 export function HeldRow({
   layout,
   templates,
@@ -141,7 +140,6 @@ export function HeldRow({
   )
 }
 
-// Stacked below sm, narrower below md.
 export function HeldList<T>({
   templates,
   labels,

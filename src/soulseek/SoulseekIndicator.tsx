@@ -61,7 +61,6 @@ function describeSource(data: Application | undefined, known: boolean, age: numb
   return age === undefined ? 'Not polled yet' : `Polled, updated ${formatAge(age)} ago`
 }
 
-// Compact, the bar shows only the dot and the popover says what it means.
 export function SoulseekIndicator({ compact }: { compact: boolean }) {
   const soulseek = useSoulseek()
   const { color, label } = describeSoulseek(soulseek.data, soulseek.known)

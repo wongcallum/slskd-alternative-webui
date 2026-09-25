@@ -11,7 +11,6 @@ export function SystemPage({ status, children }: { status?: ReactNode; children:
   const { data } = useResource(application)
   return (
     <Flex direction="column" height="100%">
-      {/* Below sm the tabs take the whole width and the status goes under them. */}
       <Flex
         direction={{ initial: 'column', sm: 'row' }}
         align={{ initial: 'stretch', sm: 'center' }}

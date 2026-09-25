@@ -74,7 +74,6 @@ function NotJoined({ room }: { room: string }) {
   )
 }
 
-// Below md the users take the log's place when shown, rather than a column beside it.
 function JoinedRoom({ room }: { room: string }) {
   const md = useFrom('md')
   const [usersShown, setUsersShown] = useState(false)

@@ -77,14 +77,12 @@ export const columnsHeight = 32
 
 export type Layout = 'stacked' | 'medium' | 'wide'
 
-// The widest tables stack their rows below md, and drop a column between md and lg.
 export function useLayout(): Layout {
   const md = useFrom('md')
   const lg = useFrom('lg')
   return !md ? 'stacked' : lg ? 'wide' : 'medium'
 }
 
-// Other lists stack below sm, and narrow or drop a column between sm and md.
 export function useListLayout(): Layout {
   const sm = useFrom('sm')
   const md = useFrom('md')
@@ -178,14 +176,14 @@ export function StackedRow({
 
 // A stacked row's details, separated by dots. When they don't fit, the last one gives way first.
 export function Parts({ items }: { items: ReactNode[] }) {
-  return items
-    .filter((part) => part !== undefined && part !== null && part !== false && part !== '')
-    .map((part, index) => (
-      // oxlint-disable-next-line react/no-array-index-key -- a row's parts don't reorder
+  return items.map((part, index) =>
+    part === undefined || part === null || part === false || part === '' ? null : (
+      // oxlint-disable-next-line react/no-array-index-key -- each position always holds the same detail
       <span key={index} className="table-part">
         {part}
       </span>
-    ))
+    ),
+  )
 }
 
 // The whole cell toggles, which makes a finger-sized target of a 16px box.
@@ -259,7 +257,6 @@ type SelectAll = {
   toggleAllRowsSelected: () => void
 }
 
-// Stacked, the columns become a strip of the labels to sort by.
 export function HeaderRow({
   template,
   table,
