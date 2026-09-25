@@ -221,6 +221,8 @@ observed on throwaway instances of the dev build and the 0.25.1 and 0.26.0 relea
   - The release binary passes its own path again as an argument, so each restart adds one more
     (`slskd slskd slskd --app-dir …`). slskd ignores them.
   - The mutex is per Unix session (no `Global\` prefix), and the child stays in its parent's session.
+  - Under devenv 2.3's process manager it never comes back (observed): the manager watches the process's Unix session
+    and ends it when the process it started exits, which takes the re-executed child with it.
   - Nothing detects Docker or a supervisor. The image's entrypoint exits with slskd, which kills the child, so in
     Docker a restart relies on the container's restart policy, and under `always` or `unless-stopped` a shutdown
     comes back too (inferred).
@@ -1161,6 +1163,8 @@ Read from the `@microsoft/signalr` 10.0.11 package source (paths are under its `
   During a reconnect it fires `onclose(undefined)`.
 - If the WebSocket fails, the client falls back to SSE and then long polling, negotiating afresh each
   time. Observed against slskd: it stays on WebSockets across restarts.
+- Without `configureLogging`, the connection logs to the console at `Information` (`Utils.ts`, `createLogger`), so every
+  drop and failed attempt logs errors and warnings.
 
 ## TanStack Router
 

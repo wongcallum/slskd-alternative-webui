@@ -16,7 +16,15 @@ import {
   type TextProps,
   Tooltip,
 } from '@radix-ui/themes'
-import { cloneElement, type CSSProperties, type ReactElement, type ReactNode, useDeferredValue, useState } from 'react'
+import {
+  cloneElement,
+  type CSSProperties,
+  type ReactElement,
+  type ReactNode,
+  useDeferredValue,
+  useRef,
+  useState,
+} from 'react'
 
 import { type Actions, dismissOutcome, type Progress } from '../lib/actions'
 import { formatBytes } from '../lib/format'
@@ -158,10 +166,25 @@ export function ConfirmButton({
   ...button
 }: Omit<ActionButtonProps, 'onClick'> & { title: string; description: string; action: string; onConfirm: () => void }) {
   const [open, setOpen] = useState(false)
+  // The button isn't the dialog's trigger, since a gated one mustn't open it, so Radix wouldn't know where to return
+  // focus on closing.
+  const opener = useRef<Element | null>(null)
   return (
     <AlertDialog.Root open={open} onOpenChange={setOpen}>
-      <ActionButton {...button} onClick={() => setOpen(true)} />
-      <AlertDialog.Content maxWidth="440px">
+      <ActionButton
+        {...button}
+        onClick={() => {
+          opener.current = document.activeElement
+          setOpen(true)
+        }}
+      />
+      <AlertDialog.Content
+        maxWidth="440px"
+        onCloseAutoFocus={(event) => {
+          event.preventDefault()
+          if (opener.current instanceof HTMLElement) opener.current.focus()
+        }}
+      >
         <AlertDialog.Title>{title}</AlertDialog.Title>
         <AlertDialog.Description size="2">{description}</AlertDialog.Description>
         <Flex gap="3" mt="4" justify="end">
