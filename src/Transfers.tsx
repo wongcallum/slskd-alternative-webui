@@ -306,9 +306,9 @@ function useSectionTable(
   // TanStack skips expansion entirely while the expanded state is empty, so defaults have to be spelled out.
   const expanded = useMemo(() => {
     if (!expandedByDefault(section)) return toggled
-    const expanded: ExpandedStateList = {}
-    for (const group of data) expanded[group.id] = toggled[group.id] ?? true
-    return expanded
+    const all: ExpandedStateList = {}
+    for (const group of data) all[group.id] = toggled[group.id] ?? true
+    return all
   }, [section, data, toggled])
   return useTable({
     features,
@@ -770,7 +770,7 @@ function FileStatus({
             )}
           </Text>
         )}
-      {lookup?.error !== undefined && lookup.pending === false && file.state === 'Queued, Remotely' && (
+      {lookup?.error !== undefined && !lookup.pending && file.state === 'Queued, Remotely' && (
         <Tooltip content={lookup.error}>
           <Text size="1" color="red">
             lookup failed

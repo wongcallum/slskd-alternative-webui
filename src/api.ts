@@ -45,6 +45,9 @@ export async function resendOn429<T>(send: () => Promise<T>, signal?: AbortSigna
 }
 
 export function describeError(error: unknown) {
-  if (isHTTPError(error)) return `HTTP ${error.response.status}${error.data ? `: ${String(error.data)}` : ''}`
+  if (isHTTPError(error)) {
+    const detail = typeof error.data === 'string' ? error.data : JSON.stringify(error.data)
+    return `HTTP ${error.response.status}${error.data ? `: ${detail}` : ''}`
+  }
   return error instanceof Error ? error.message : String(error)
 }

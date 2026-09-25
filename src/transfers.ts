@@ -81,6 +81,7 @@ export const isSucceeded = (state: string) => state === 'Completed, Succeeded'
 export const isFailed = (state: string) => isFinished(state) && !isSucceeded(state)
 export const isTransferring = (state: string) => state === 'InProgress' || state === 'Initializing'
 
+// oxlint-disable-next-line typescript/unbound-method -- Intl.Collator's compare getter returns a bound function
 export const compareNames = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }).compare
 
 const lastSegment = (path: string) => path.slice(Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\')) + 1)

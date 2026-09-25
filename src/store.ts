@@ -217,6 +217,7 @@ export function createAtom<T>(initial: T): Atom<T> {
   const atom: Atom<T> = {
     get: () => value,
     set(next) {
+      // oxlint-disable-next-line unicorn/no-instanceof-builtins -- typeof can't narrow a generic T
       value = next instanceof Function ? next(value) : next
       for (const listener of listeners) listener()
     },

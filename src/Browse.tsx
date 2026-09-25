@@ -14,7 +14,7 @@ import {
   Tooltip,
 } from '@radix-ui/themes'
 import { Link as RouterLink, useNavigate } from '@tanstack/react-router'
-import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
+import { type ReactNode, type SubmitEvent, useCallback, useEffect, useMemo, useState } from 'react'
 import * as v from 'valibot'
 import { describeError } from './api'
 import {
@@ -56,7 +56,7 @@ export function UserBox({ current }: { current?: string }) {
   const gate = useSoulseekGate()
   const [text, setText] = useState(current ?? '')
 
-  function submit(event: FormEvent) {
+  function submit(event: SubmitEvent) {
     event.preventDefault()
     const username = text.trim()
     if (username === '') return
@@ -108,12 +108,12 @@ export function BrowseUserButton({ username, directory }: { username: string; di
   )
 }
 
-export function BrowseProgress({ username, browse }: { username: string; browse: Browse }) {
+export function BrowseProgress({ username, running }: { username: string; running: Browse }) {
   let text: string
-  if (browse.phase === 'waiting') text = `Waiting for ${username} to respond…`
-  else if (browse.phase === 'receiving') {
-    text = `Receiving from ${username}: ${formatProgress(browse.transferred, browse.total)}`
-  } else if (browse.phase === 'loading') text = `Loading from slskd: ${formatBytes(browse.loaded)}`
+  if (running.phase === 'waiting') text = `Waiting for ${username} to respond…`
+  else if (running.phase === 'receiving') {
+    text = `Receiving from ${username}: ${formatProgress(running.transferred, running.total)}`
+  } else if (running.phase === 'loading') text = `Loading from slskd: ${formatBytes(running.loaded)}`
   else text = 'Processing…'
   return (
     <Flex align="center" gap="3" minWidth="0">
@@ -121,9 +121,9 @@ export function BrowseProgress({ username, browse }: { username: string; browse:
       <Text size="2" color="gray" truncate>
         {text}
       </Text>
-      {browse.phase === 'receiving' && browse.total > 0 && (
+      {running.phase === 'receiving' && running.total > 0 && (
         <Box width="120px" flexShrink="0">
-          <Progress size="1" value={Math.min(100, (100 * browse.transferred) / browse.total)} />
+          <Progress size="1" value={Math.min(100, (100 * running.transferred) / running.total)} />
         </Box>
       )}
     </Flex>
@@ -267,13 +267,23 @@ export function BrowsePage() {
   )
 }
 
+function NumberCell({ value }: { value?: number }) {
+  return (
+    <div className="table-cell" data-align="end">
+      <Text size="2" color="gray">
+        {value?.toLocaleString()}
+      </Text>
+    </div>
+  )
+}
+
 function LandingRow({ entry }: { entry: Entry }) {
   const soulseekGate = useSoulseekGate()
   const { username, stats, browse: running, failure, notCached } = entry
   const cached = stats !== undefined && notCached === undefined
   const gate = running === undefined ? soulseekGate : `Already browsing ${username}`
   let status: ReactNode = null
-  if (running !== undefined) status = <BrowseProgress username={username} browse={running} />
+  if (running !== undefined) status = <BrowseProgress username={username} running={running} />
   else if (failure !== undefined) status = <FailureLine username={username} failure={failure} />
   else if (notCached !== undefined) {
     status = (
@@ -282,13 +292,6 @@ function LandingRow({ entry }: { entry: Entry }) {
       </Text>
     )
   }
-  const number = (value: number | undefined) => (
-    <div className="table-cell" data-align="end">
-      <Text size="2" color="gray">
-        {value?.toLocaleString()}
-      </Text>
-    </div>
-  )
   return (
     <div className="table-row" style={{ gridTemplateColumns: template }}>
       <div className="table-cell" title={username}>
@@ -298,14 +301,14 @@ function LandingRow({ entry }: { entry: Entry }) {
           </RouterLink>
         </Link>
       </div>
-      {number(stats?.folders)}
-      {number(stats?.files)}
+      <NumberCell value={stats?.folders} />
+      <NumberCell value={stats?.files} />
       <div className="table-cell" data-align="end">
         <Text size="2" color="gray">
           {stats !== undefined && formatBytes(stats.size)}
         </Text>
       </div>
-      {number(stats?.locked)}
+      <NumberCell value={stats?.locked} />
       <div className="table-cell">
         <Text size="2" color="gray">
           {stats !== undefined && <Ago time={stats.fetchedAt} />}

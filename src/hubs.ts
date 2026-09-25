@@ -10,6 +10,7 @@ export type Hub = {
   subscribe: (listener: () => void) => () => void
   watch: (listener: () => void) => () => void
   getStatus: () => HubStatus
+  // oxlint-disable-next-line typescript/no-unnecessary-type-parameters -- callers name the payload type they expect
   on: <T>(method: string, handler: (payload: T) => void) => () => void
 }
 

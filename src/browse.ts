@@ -24,7 +24,7 @@ interface Schema extends DBSchema {
   trees: { key: string; value: Blob }
 }
 
-let database: Promise<IDBPDatabase<Schema>> | undefined
+let opening: Promise<IDBPDatabase<Schema>> | undefined
 
 const nextTask = () => new Promise((resolve) => setTimeout(resolve))
 
@@ -38,10 +38,10 @@ async function parseShare(username: string, blob: Blob) {
 }
 
 const db = () =>
-  (database ??= openDB<Schema>('slskd-alt', 1, {
-    upgrade(db) {
-      db.createObjectStore('shares', { keyPath: 'username' })
-      db.createObjectStore('trees')
+  (opening ??= openDB<Schema>('slskd-alt', 1, {
+    upgrade(database) {
+      database.createObjectStore('shares', { keyPath: 'username' })
+      database.createObjectStore('trees')
     },
   }))
 
@@ -170,6 +170,7 @@ const channel = typeof BroadcastChannel === 'undefined' ? undefined : new Broadc
 
 type Message = { type: 'share'; username: string }
 
+// oxlint-disable-next-line unicorn/require-post-message-target-origin -- BroadcastChannel has no target origin
 const announce = (username: string) => channel?.postMessage({ type: 'share', username } satisfies Message)
 
 // Another tab stored or deleted a share, so a copy here that came from the old cache is dropped and read again.
@@ -270,6 +271,7 @@ export async function browse(username: string) {
     let stale = await readStatus(username, signal).catch(() => undefined)
     void (async () => {
       let transferred = 0
+      // oxlint-disable-next-line no-unmodified-loop-condition -- set once the browse response arrives
       while (!arrived && !signal.aborted) {
         await sleep(statusPollInterval)
         const status = await readStatus(username, signal).catch(() => undefined)
@@ -393,7 +395,7 @@ export async function downloadFiles(share: Share, base: Folder, files: ShareFile
           continue
         }
         const destination = destinationOf(share, base, folder)
-        const { failures } = await enqueue(
+        const { failures: rejected } = await enqueue(
           {
             username: share.username,
             files: batch.map(({ path, size }) => ({ filename: path, size })),
@@ -401,13 +403,13 @@ export async function downloadFiles(share: Share, base: Folder, files: ShareFile
           },
           operation.signal,
         )
-        const messages = new Map(failures.map((failure) => [failure.filename, failure.message]))
+        const messages = new Map(rejected.map((failure) => [failure.filename, failure.message]))
         for (const file of batch) {
           const message = messages.get(file.path)
           marks.set(file.id, message === undefined ? { ok: true } : { ok: false, message })
           if (message !== undefined) details.push(`${file.name}: ${message}`)
         }
-        failed += failures.length
+        failed += rejected.length
       } catch (error) {
         if (operation.signal.aborted) throw error
         offline = isHTTPError(error) && error.response.status === 404
