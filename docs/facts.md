@@ -3,7 +3,7 @@
 What slskd and our libraries actually do. Each library section names the version it was checked against.
 The slskd sections are verified against slskd `e3d377d4` (2026-09-20). Most of those items come from
 reading the source; the build-contract items were also confirmed against a running instance. slskd paths
-are relative to `../slskd/src/slskd`, and line numbers drift over time.
+are relative to `slskd/src/slskd`, and line numbers drift over time.
 
 ## API surface
 
@@ -162,7 +162,7 @@ Error bodies are JSON strings. Encode the username segment with `encodeURICompon
 ## Shutdown
 
 - Observed once: while a hub WebSocket was connected, SIGTERM made slskd log "Application is shutting
-  down" and "Client stopped" and then hang instead of exiting. `dev/slskd stop` kills it after 10 s.
+  down" and "Client stopped" and then hang instead of exiting. `devenv.nix` gives it a 10 s shutdown grace before SIGKILL.
 - Observed later, with no Soulseek credentials configured: it exited in 0.3 s with both hubs connected.
   What triggers the hang is unknown.
 
@@ -237,8 +237,8 @@ Error bodies are JSON strings. Encode the username segment with `encodeURICompon
 ## Serving the UI (build contract)
 
 - slskd serves `web.content_path` (default `wwwroot`). **The path must be relative to the slskd binary's
-  directory** (`AppContext.BaseDirectory`); an absolute path fails validation at startup.
-  `dev/slskd start --dist` computes the relative path.
+  directory** (`AppContext.BaseDirectory`); an absolute path fails validation at startup, and so does a missing
+  directory. `devenv.nix` creates `dist` and computes the relative path.
 - For a GET that returns 200, slskd checks the `Accept` header: split on commas, it must contain an exact
   `text/html` token. If it does, slskd:
   - regex-rewrites `./static` and `/static` to `{urlBase}/static`, and `./favicon.ico` and
@@ -420,7 +420,7 @@ observations come from browsing one real peer: 168,159 files in 21,852 directori
 
 ## Stock UI
 
-Paths are relative to `../slskd/src/web/src`.
+Paths are relative to `slskd/src/web/src`.
 
 - Routes, all under `urlBase` (`components/App.jsx:582`): `/dashboard`, `/searches/:id?`, `/browse`, `/users`,
   `/chat`, `/rooms`, `/uploads`, `/downloads` and `/system/:tab?` (`info`, `options`, `shares`, `files`, `data`,

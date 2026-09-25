@@ -1,0 +1,6 @@
+inputs:
+  nixpkgs:
+    url: github:NixOS/nixpkgs/nixos-unstable
+  slskd:
+    url: github:slskd/slskd/e3d377d4f2b31eaea0fe70bfa17e326ad4bf74e4
+    flake: false

@@ -1,36 +1,7 @@
 # Design
 
 An alternative web UI for slskd, shipped as a drop-in replacement for its `wwwroot` and run against
-stock slskd. `../slskd` is read-only. Verified behaviour of slskd and the libraries we rely
-on is in [facts.md](facts.md).
-
-## Dev setup
-
-- `nix develop` (or direnv) provides dotnet-sdk_10, nodejs_24, pnpm, jq, curl and chromium.
-- Browser checks: write a throwaway script in `.dev/` using `playwright-core` with
-  `chromium.launch({ executablePath: process.env.CHROMIUM })`, save screenshots to `.dev/` and view them. Headless
-  works without a GPU and needs no extra flags. The devShell also sets `$CHROMIUM` and a `FONTCONFIG_FILE` with DejaVu fonts. Without that
-  font config, pages render blank or in a serif font. If `$CHROMIUM` is unset, the shell predates the flake change, so
-  run the script under `nix develop -c`. Never run `playwright install`: its downloaded browsers break on Nix setups.
-- `dev/slskd build | start|restart [--dist] [slskd args...] | stop | log` manages a dev slskd built from
-  `../slskd`. Build output, app dir and logs live in `.dev/`, and `../slskd` itself stays untouched. The config
-  is `dev/slskd.yml`: `no_connect`, url_base `/slskd`, login `slskd`/`slskd`, and no Soulseek credentials.
-  Extra args go to slskd, so `dev/slskd restart --no-auth` runs an open instance and
-  `dev/slskd restart --dist --url-base /` runs at root.
-- Real Soulseek account: `.dev/soulseek.env` (gitignored) exports `SLSKD_SLSK_USERNAME` and
-  `SLSKD_SLSK_PASSWORD`, and `dev/slskd` loads it. `no_connect` stays on, so slskd only connects when you press
-  Connect in the Soulseek popover. Without the file, Connect fails inside slskd and retries forever without
-  touching the network.
-- Real downloads: `dev/enqueue search <text...>` runs a search and lists the folders found, and
-  `dev/enqueue pick <n>` batch-enqueues one. Both are deliberate Soulseek actions. Never write a fake backend.
-- Dev: run `pnpm dev` (`--host` to reach it through VS Code port forwarding) and open
-  `http://localhost:5173/slskd/`. VS Code's forward carries WebSockets fine. Once, Firefox stopped opening
-  WebSockets to the forwarded port (live reload failed and the hubs fell back to SSE after about 40 s each) until
-  it was restarted. Its requests never reached Vite.
-- Real build: `pnpm build && dev/slskd restart --dist`, then open `http://localhost:5030/slskd/`.
-  Scripted checks must send `-H 'Accept: text/html'`.
-- Before committing, run `pnpm fmt` (oxfmt, Markdown included) and `pnpm lint` (oxlint, type-aware through
-  `oxlint-tsgolint`). A disable comment names its rule and says why the code is right.
+stock slskd. Verified behaviour of slskd and the libraries we rely on is in [facts.md](facts.md).
 
 ## Architecture
 
