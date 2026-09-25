@@ -10,17 +10,17 @@ import {
 import { memo, useCallback, useMemo } from 'react'
 
 import { createAtom, useAtom } from '../../lib/store'
-import { type Expansion, expandedState, isExpanded, rowId, stop, toggleExpanded, VirtualTable } from '../../ui/table'
-import type { Folder, Matches, Share } from '../shareTree'
+import type { Folder, Matches, Tree as FolderTree } from '../../lib/tree'
+import { type Expansion, expandedState, isExpanded, rowId, stop, toggleExpanded, VirtualTable } from '../table'
 
 const treeFeatures = tableFeatures({ rowExpandingFeature, expandedRowModel: createExpandedRowModel() })
 
 const expansions = createAtom<ReadonlyMap<string, Expansion>>(new Map())
 
 // Each root opens down through any single-child chain, so a lone "Music" folder shows what's in it.
-function initialExpansion(share: Share): Expansion {
+function initialExpansion(tree: FolderTree): Expansion {
   const toggled: ExpandedStateList = {}
-  for (const root of share.top.folders) {
+  for (const root of tree.top.folders) {
     for (let folder: Folder | undefined = root; folder !== undefined;) {
       toggled[folder.id] = true
       folder = folder.folders.length === 1 ? folder.folders[0] : undefined
@@ -29,20 +29,20 @@ function initialExpansion(share: Share): Expansion {
   return { all: false, toggled }
 }
 
-export function updateExpansion(share: Share, change: (expansion: Expansion) => Expansion) {
+export function updateExpansion(tree: FolderTree, change: (expansion: Expansion) => Expansion) {
   expansions.set((current) => {
-    const expansion = current.get(share.username) ?? initialExpansion(share)
+    const expansion = current.get(tree.key) ?? initialExpansion(tree)
     const next = change(expansion)
-    return next === expansion && current.has(share.username) ? current : new Map(current).set(share.username, next)
+    return next === expansion && current.has(tree.key) ? current : new Map(current).set(tree.key, next)
   })
 }
 
-function* parentsIn(share: Share) {
-  for (const folder of share.byPath.values()) if (folder.folders.length > 0) yield folder
+function* parentsIn(tree: FolderTree) {
+  for (const folder of tree.byPath.values()) if (folder.folders.length > 0) yield folder
 }
 
-export function expandTo(share: Share, folder: Folder, self: boolean) {
-  updateExpansion(share, (expansion) => {
+export function expandTo(tree: FolderTree, folder: Folder, self: boolean) {
+  updateExpansion(tree, (expansion) => {
     const closed: Folder[] = []
     for (let current = self ? folder : folder.parent; current !== undefined; current = current.parent) {
       if (current.path !== '' && current.folders.length > 0 && !isExpanded(expansion, current.id)) closed.push(current)
@@ -54,20 +54,20 @@ export function expandTo(share: Share, folder: Folder, self: boolean) {
   })
 }
 
-type TreeProps = { share: Share; selected: Folder; matches?: Matches; onOpen: (folder: Folder) => void }
+type TreeProps = { tree: FolderTree; selected: Folder; matches?: Matches; onOpen: (folder: Folder) => void }
 
 const treeRowHeight = 30
 
-export function Tree({ share, selected, matches, onOpen }: TreeProps) {
-  const stored = useAtom(expansions).get(share.username)
-  const expansion = useMemo(() => stored ?? initialExpansion(share), [stored, share])
+export function Tree({ tree, selected, matches, onOpen }: TreeProps) {
+  const stored = useAtom(expansions).get(tree.key)
+  const expansion = useMemo(() => stored ?? initialExpansion(tree), [stored, tree])
   const expanded = useMemo(
-    () => matches !== undefined || expandedState(expansion, parentsIn(share)),
-    [share, matches, expansion],
+    () => matches !== undefined || expandedState(expansion, parentsIn(tree)),
+    [tree, matches, expansion],
   )
   const roots = useMemo(
-    () => (matches === undefined ? share.top.folders : share.top.folders.filter((each) => matches.counts.has(each))),
-    [share, matches],
+    () => (matches === undefined ? tree.top.folders : tree.top.folders.filter((each) => matches.counts.has(each))),
+    [tree, matches],
   )
   const table = useTable({
     features: treeFeatures,
@@ -81,8 +81,8 @@ export function Tree({ share, selected, matches, onOpen }: TreeProps) {
   })
   const rows = table.getRowModel().rows
   const onToggle = useCallback(
-    (folder: Folder) => updateExpansion(share, (current) => toggleExpanded(current, folder.id)),
-    [share],
+    (folder: Folder) => updateExpansion(tree, (current) => toggleExpanded(current, folder.id)),
+    [tree],
   )
   const selectedIndex = rows.findIndex((row) => row.id === selected.id)
 
@@ -156,7 +156,7 @@ const TreeRow = memo(function TreeRow({
       aria-expanded={parent ? expanded : undefined}
       aria-selected={selected}
       data-selected={selected || undefined}
-      data-dimmed={folder.locked || undefined}
+      data-dimmed={folder.locked || folder.hidden || undefined}
       style={{ paddingLeft: 8 + depth * 16 }}
       title={folder.name}
       onClick={() => onOpen(folder)}

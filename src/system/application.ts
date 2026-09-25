@@ -35,7 +35,16 @@ type RawState = {
     children: unknown[]
     parent?: string | null
   }
-  shares: { scanPending: boolean; scanning: boolean; scanProgress: number }
+  shares: {
+    scanPending: boolean
+    scanning: boolean
+    ready: boolean
+    faulted: boolean
+    cancelled: boolean
+    scanProgress: number
+    directories: number
+    files: number
+  }
   rooms: string[]
 }
 
@@ -49,7 +58,12 @@ export type Application = {
   pendingReconnect: boolean
   scanPending: boolean
   scanning: boolean
+  scanReady: boolean
+  scanFaulted: boolean
+  scanCancelled: boolean
   scanProgress: number
+  scanFolders: number
+  scanFiles: number
   state: string
   address?: string
   isConnected: boolean
@@ -100,7 +114,12 @@ function fromState(via: Via, state: RawState): Application {
     pendingReconnect: state.pendingReconnect,
     scanPending: shares.scanPending,
     scanning: shares.scanning,
+    scanReady: shares.ready,
+    scanFaulted: shares.faulted,
+    scanCancelled: shares.cancelled,
     scanProgress: shares.scanProgress,
+    scanFolders: shares.directories,
+    scanFiles: shares.files,
     state: server.state,
     address: server.address ?? undefined,
     isConnected: server.isConnected,
@@ -147,11 +166,16 @@ export const application = createResource<Application>((sink) => {
 
 export const releaseNotes = (version: string) => `https://github.com/slskd/slskd/releases/tag/${version}`
 
+// slskd clears scanPending after a cancelled scan, although searches then miss what it added. During a scan, scanPending
+// is unreliable, and the scan is what would settle it anyway.
+export const rescanNeeded = (data: Application) =>
+  !data.scanning && (data.scanPending || data.scanCancelled || data.scanFaulted)
+
 export function pendingItems(data: Application) {
   const items: string[] = []
   if (data.pendingRestart) items.push('restart')
   if (data.pendingReconnect) items.push('reconnect')
-  if (data.scanPending) items.push('rescan')
+  if (rescanNeeded(data)) items.push('rescan')
   return items
 }
 

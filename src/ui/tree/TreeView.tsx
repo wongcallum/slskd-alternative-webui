@@ -2,33 +2,38 @@ import { MinusIcon, PlusIcon } from '@radix-ui/react-icons'
 import { Flex } from '@radix-ui/themes'
 import { useCallback, useEffect, useMemo } from 'react'
 
-import { FilterField, GatedIconButton, toolbarStyle, useFilterText } from '../../ui/controls'
-import type { BrowseSearch } from '../params'
-import { type Folder, matchShare, nearestFolder, type Share } from '../shareTree'
-import { FolderPane } from './FolderPane'
+import { useSortParam } from '../../lib/params'
+import { type Folder, matchTree, nearestFolder, type Tree as FolderTree } from '../../lib/tree'
+import { FilterField, GatedIconButton, toolbarStyle, useFilterText } from '../controls'
+import { FolderPane, type TreeConfig } from './FolderPane'
 import { expandTo, Tree, updateExpansion } from './Tree'
 
-type Props = {
-  share: Share
+export type TreeSearch<S extends string> = { path: string; q: string; sort?: S }
+
+type Props<S extends string> = {
+  tree: FolderTree
   fetchedAt: number
-  search: BrowseSearch
-  onSearchChange: (patch: Partial<BrowseSearch>) => void
+  search: TreeSearch<S>
+  onSearchChange: (patch: Partial<TreeSearch<S>>) => void
+  config: TreeConfig
 }
 
 const treeWidth = 380
 
-export function ShareView({ share, fetchedAt, search, onSearchChange }: Props) {
+export function TreeView<S extends string>({ tree, fetchedAt, search, onSearchChange, config }: Props<S>) {
   const filter = useFilterText(search.q, (q) => onSearchChange({ q }))
-  const matches = useMemo(() => matchShare(share, filter.query), [share, filter.query])
-  const folder = useMemo(() => nearestFolder(share, search.path), [share, search.path])
-  useEffect(() => expandTo(share, folder, false), [share, folder])
+  const matches = useMemo(() => matchTree(tree, filter.query), [tree, filter.query])
+  const folder = useMemo(() => nearestFolder(tree, search.path), [tree, search.path])
+  const { sorting, onSortingChange } = useSortParam(search.sort, (sort) => onSearchChange({ sort }))
+  useEffect(() => expandTo(tree, folder, false), [tree, folder])
   const open = useCallback(
     (target: Folder) => {
-      expandTo(share, target, true)
+      expandTo(tree, target, true)
       onSearchChange({ path: target.path })
     },
-    [share, onSearchChange],
+    [tree, onSearchChange],
   )
+  const enter = useCallback((target: Folder) => onSearchChange({ path: target.path }), [onSearchChange])
   const expansionGate = matches === undefined ? undefined : 'The filtered tree shows every match'
 
   return (
@@ -49,29 +54,31 @@ export function ShareView({ share, fetchedAt, search, onSearchChange }: Props) {
           <GatedIconButton
             label="Expand all"
             gate={expansionGate}
-            onClick={() => updateExpansion(share, () => ({ all: true, toggled: {} }))}
+            onClick={() => updateExpansion(tree, () => ({ all: true, toggled: {} }))}
           >
             <PlusIcon />
           </GatedIconButton>
           <GatedIconButton
             label="Collapse all"
             gate={expansionGate}
-            onClick={() => updateExpansion(share, () => ({ all: false, toggled: {} }))}
+            onClick={() => updateExpansion(tree, () => ({ all: false, toggled: {} }))}
           >
             <MinusIcon />
           </GatedIconButton>
         </Flex>
-        <Tree share={share} selected={folder} matches={matches} onOpen={open} />
+        <Tree tree={tree} selected={folder} matches={matches} onOpen={open} />
       </Flex>
       <FolderPane
         key={folder.id}
-        share={share}
+        tree={tree}
         folder={folder}
         unknown={folder.path !== search.path}
         fetchedAt={fetchedAt}
         matches={matches}
-        sort={search.sort}
-        onSearchChange={onSearchChange}
+        sorting={sorting}
+        onSortingChange={onSortingChange}
+        onOpen={enter}
+        config={config}
       />
     </Flex>
   )

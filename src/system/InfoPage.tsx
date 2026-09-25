@@ -1,5 +1,5 @@
-import { ExclamationTriangleIcon } from '@radix-ui/react-icons'
 import { Box, Button, Callout, Card, Flex, Grid, Heading, Link, Text } from '@radix-ui/themes'
+import { Link as RouterLink } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 
 import { browses } from '../browse/browse'
@@ -10,9 +10,17 @@ import { useRun } from '../lib/useRun'
 import { useSession } from '../session/session'
 import { reconnect } from '../soulseek/soulseek'
 import { ActionButton, ConfirmButton, type Detail, DetailList } from '../ui/controls'
-import { Polling } from '../ui/status'
-import { type Application, application, applicationPollInterval, releaseNotes, useApplication } from './application'
+import { Freshness, Polling } from '../ui/status'
+import {
+  type Application,
+  application,
+  applicationPollInterval,
+  releaseNotes,
+  rescanNeeded,
+  useApplication,
+} from './application'
 import { lifecycle, restart, restartPatience, shutDown } from './lifecycle'
+import { PendingCallout } from './PendingCallout'
 import { processInfo } from './process'
 import { SystemPage } from './SystemPage'
 
@@ -20,11 +28,14 @@ export function InfoPage() {
   const { data, error, live, known } = useApplication()
   return (
     <SystemPage
-      resource={application}
-      interval={applicationPollInterval}
-      loaded={data !== undefined}
-      error={error}
-      live={live}
+      status={
+        <Freshness
+          resource={application}
+          interval={applicationPollInterval}
+          error={data === undefined ? undefined : error}
+          live={live}
+        />
+      }
     >
       <Box flexGrow="1" minHeight="0" overflow="auto">
         {data === undefined ? (
@@ -188,8 +199,8 @@ function LifecycleLine() {
 
 function PendingCallouts({ data, known }: { data: Application; known: boolean }) {
   const reconnecting = useRun()
-  const rescanning = useRun()
-  if (!data.pendingRestart && !data.pendingReconnect && !data.scanPending) return null
+  const rescan = rescanNeeded(data)
+  if (!data.pendingRestart && !data.pendingReconnect && !rescan) return null
   return (
     <Flex direction="column" gap="2">
       {data.pendingRestart && (
@@ -211,48 +222,15 @@ function PendingCallouts({ data, known }: { data: Application; known: boolean })
           />
         </PendingCallout>
       )}
-      {data.scanPending && (
-        // TODO: move rescanning to the shares tab (README roadmap: System shares)
-        <PendingCallout error={rescanning.error}>
-          {data.scanning ? (
-            <Callout.Text>Scanning shares… {Math.floor(data.scanProgress * 100)}%</Callout.Text>
-          ) : (
-            <>
-              <Callout.Text>Shares need a rescan.</Callout.Text>
-              <ActionButton
-                label="Rescan"
-                busy="Rescanning"
-                color="amber"
-                loading={rescanning.running}
-                gate={known ? undefined : outOfDate}
-                onClick={() => rescanning.run(() => api.put('shares'))}
-              />
-            </>
-          )}
+      {rescan && (
+        <PendingCallout>
+          <Callout.Text>Shares need a rescan.</Callout.Text>
+          <Button asChild size="1" variant="soft" color="amber">
+            <RouterLink to="/system/shares">Open Shares</RouterLink>
+          </Button>
         </PendingCallout>
       )}
     </Flex>
-  )
-}
-
-function PendingCallout({ error, children }: { error?: string; children: ReactNode }) {
-  return (
-    // Callout is a grid that sizes its columns to their content, so a flex row lets the action sit at the far end.
-    <Callout.Root color="amber" size="1" style={{ display: 'flex' }}>
-      <Callout.Icon>
-        <ExclamationTriangleIcon />
-      </Callout.Icon>
-      <Flex direction="column" gap="1" flexGrow="1">
-        <Flex align="center" justify="between" gap="3" wrap="wrap">
-          {children}
-        </Flex>
-        {error !== undefined && (
-          <Text size="2" color="red">
-            {error}
-          </Text>
-        )}
-      </Flex>
-    </Callout.Root>
   )
 }
 

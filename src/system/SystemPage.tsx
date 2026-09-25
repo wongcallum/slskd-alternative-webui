@@ -1,30 +1,30 @@
 import { Flex } from '@radix-ui/themes'
 import type { ReactNode } from 'react'
 
-import type { Resource } from '../lib/store'
+import { useResource } from '../lib/store'
 import { toolbarStyle } from '../ui/controls'
 import { NavTab, NavTabs } from '../ui/nav'
-import { Freshness } from '../ui/status'
+import { StatusDot } from '../ui/status'
+import { application, rescanNeeded } from './application'
 
-type Props = {
-  resource: Resource<unknown>
-  interval: number
-  loaded: boolean
-  error: unknown
-  live: boolean
-  children: ReactNode
-}
-
-export function SystemPage({ resource, interval, loaded, error, live, children }: Props) {
+export function SystemPage({ status, children }: { status?: ReactNode; children: ReactNode }) {
+  const { data } = useResource(application)
   return (
     <Flex direction="column" height="100%">
       <Flex align="center" gap="3" px="4" flexShrink="0" style={toolbarStyle}>
         <NavTabs>
           <NavTab to="/system/info">Info</NavTab>
+          <NavTab to="/system/shares">
+            <Flex align="center" gap="2">
+              Shares
+              {data !== undefined && rescanNeeded(data) && <StatusDot color="amber" />}
+            </Flex>
+          </NavTab>
+          <NavTab to="/system/files">Files</NavTab>
           <NavTab to="/system/logs">Logs</NavTab>
         </NavTabs>
         <Flex ml="auto" align="center" gap="4" flexShrink="0">
-          <Freshness resource={resource} interval={interval} error={loaded ? error : undefined} live={live} />
+          {status}
         </Flex>
       </Flex>
       {children}

@@ -1,6 +1,6 @@
 import { DotsHorizontalIcon } from '@radix-ui/react-icons'
 import { Flex, Heading, IconButton, Text, Tooltip } from '@radix-ui/themes'
-import { type ReactNode, useEffect } from 'react'
+import { type ReactNode, useEffect, useMemo } from 'react'
 
 import { describeError } from '../../lib/api'
 import { formatBytes, plural } from '../../lib/format'
@@ -8,12 +8,13 @@ import { useAtom } from '../../lib/store'
 import { useSoulseekGate } from '../../soulseek/soulseek'
 import { ActionButton, toolbarStyle } from '../../ui/controls'
 import { Ago, Empty, ErrorCallout, Loading } from '../../ui/status'
+import { TreeView } from '../../ui/tree/TreeView'
 import { UserMenu } from '../../users/UserMenu'
 import { browse, browses, failures, loadedShares, reloadShare, viewShare } from '../browse'
 import { BrowseProgress, FailureLine } from '../BrowseStatus'
 import type { BrowseSearch } from '../params'
 import { UserBox } from '../UserBox'
-import { ShareView } from './ShareView'
+import { shareConfig } from './shareConfig'
 
 type Props = {
   search: BrowseSearch
@@ -30,6 +31,7 @@ export function SharePage({ search, onSearchChange }: Props) {
   const gate = running === undefined ? soulseekGate : `Already browsing ${username}`
   const ready = loaded?.status === 'ready' ? loaded : undefined
   const top = ready?.share.top
+  const config = useMemo(() => shareConfig(username), [username])
 
   let content: ReactNode
   if (ready !== undefined) {
@@ -37,7 +39,13 @@ export function SharePage({ search, onSearchChange }: Props) {
       ready.share.folderCount === 0 ? (
         <Empty>{username} shares nothing (or has blocked you).</Empty>
       ) : (
-        <ShareView share={ready.share} fetchedAt={ready.fetchedAt} search={search} onSearchChange={onSearchChange} />
+        <TreeView
+          tree={ready.share}
+          fetchedAt={ready.fetchedAt}
+          search={search}
+          onSearchChange={onSearchChange}
+          config={config}
+        />
       )
   } else if (loaded?.status === 'failed') {
     content = (

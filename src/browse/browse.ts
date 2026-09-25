@@ -3,10 +3,10 @@ import { isHTTPError } from 'ky'
 import { api, describeError, sleep } from '../lib/api'
 import { announce as announceChange, createRecordList, type Database, db, onAnnounce } from '../lib/db'
 import { createAtom, without } from '../lib/store'
+import { buildTree, type Folder, type InputDirectory, relativePath, type Tree, type TreeFile } from '../lib/tree'
 import { sessionSignal } from '../session/session'
 import { describePeerError } from '../soulseek/soulseek'
 import { createDownloads, enqueueDownloads } from '../transfers/enqueue'
-import { buildShare, type Folder, type RawShare, relativePath, type Share, type ShareFile } from './shareTree'
 
 export type ShareRecord = {
   username: string
@@ -20,10 +20,12 @@ export type ShareRecord = {
 }
 
 // Parsing, building and the first render are separate tasks, so the page can paint between them.
+type RawShare = { directories: InputDirectory[]; lockedDirectories: InputDirectory[] }
+
 async function parseShare(username: string, blob: Blob) {
   const raw = JSON.parse(await blob.text()) as RawShare
   await sleep(0)
-  const share = buildShare(username, raw)
+  const share = buildTree({ key: `user\n${username}`, name: username, ...raw })
   await sleep(0)
   return share
 }
@@ -36,7 +38,7 @@ export type Loaded =
   | { status: 'loading' }
   | { status: 'missing' }
   | { status: 'failed'; error: unknown }
-  | { status: 'ready'; share: Share; fetchedAt: number; notCached?: string }
+  | { status: 'ready'; share: Tree; fetchedAt: number; notCached?: string }
 
 export const loadedShares = createAtom<ReadonlyMap<string, Loaded>>(new Map())
 
@@ -289,7 +291,7 @@ export const shareDownloadsOf = createDownloads()
 
 // slskd puts every file of a batch in one folder, so each remote folder gets its own batch to keep the tree, rooted
 // at the folder the download started from.
-function destinationOf(share: Share, base: Folder, folder: Folder) {
+function destinationOf(share: Tree, base: Folder, folder: Folder) {
   const path = relativePath(share, base.parent ?? base, folder)
   return path
     .split(share.separator)
@@ -297,11 +299,11 @@ function destinationOf(share: Share, base: Folder, folder: Folder) {
     .join('/')
 }
 
-export const downloadFiles = (share: Share, base: Folder, files: ShareFile[]) =>
+export const downloadFiles = (username: string, share: Tree, base: Folder, files: TreeFile[]) =>
   enqueueDownloads(
-    shareDownloadsOf(share.username),
+    shareDownloadsOf(username),
     [...Map.groupBy(files, (file) => file.folder)].map(([folder, batch]) => ({
-      username: share.username,
+      username,
       label: folder.name,
       files: batch,
       destination: destinationOf(share, base, folder) || undefined,
