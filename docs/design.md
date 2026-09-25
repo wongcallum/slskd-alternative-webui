@@ -115,6 +115,31 @@ and we cache browsed share trees in IndexedDB), show when each result was fetche
   Soulseek popover lists each hub instead.
 - System is a gear on the right rather than a tab, since it's visited rarely and the wide tables keep the full width.
 - The new-version link can't be dismissed: it goes once you update, and `no_version_check` is the opt-out.
+- The version, the theme and Log out sit in a menu at the end of the bar, which keeps the bar short. On narrow
+  screens the tabs, the speeds and the update notice will collapse into it too, the notice as an amber dot on its
+  button.
+- Each direction's speed and counts come from its list while its page polls it and the list is fresh, and otherwise
+  from the metrics hub, marked "About". So the bar never disagrees with the page, and the Downloads badge follows the
+  same rule.
+- The list's speed is the bytes moved between polls, summed over the polls of the last 3 s. slskd's per-transfer
+  speeds read far too low for short files (see the facts), and an album of short files is the everyday case. A poll
+  after a gap the freshness display would call stale only sets a new baseline. The file and folder columns keep
+  slskd's speeds.
+- The hub's speed is the higher of `totalSpeed` and `averageSpeed`, because `totalSpeed` misses short files and taking
+  the higher never double counts. **Accepted gap:** during an album of short files it still shows about a quarter of
+  the real rate. Only the Downloads or Uploads page is exact.
+- An idle direction shows a dimmed "0 B/s", and "–" while the hub is down and its list isn't fresh, rather than a
+  frozen number. Both directions always show, at a fixed minimum width, so nothing in the bar shifts.
+- Speeds stay out of the page title, since one that changes every second is noise in the tab strip.
+
+### Theme
+
+- System, Light or Dark, from the menu. System follows the OS as it changes. The choice is stored (System as no key at
+  all) and followed across tabs, and stock's `slskd-theme` isn't read.
+- Radix has no system mode, so it always gets an explicit appearance, worked out at startup.
+- `index.html` declares `color-scheme: light dark`, so System paints the right background before the app loads with no
+  script. An inline script rewrites it only for a stored Light or Dark. It ranks below Radix's own rule once the app
+  renders, so it can go stale after a switch without harm, where an inline style on `<html>` would win.
 
 ### Transfers
 
