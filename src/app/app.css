@@ -17,6 +17,21 @@
     --text-field-height: var(--space-6);
   }
 
+  /* Small menus and selects get size 2's items. */
+  .rt-BaseMenuContent:where(.rt-r-size-1) {
+    --base-menu-item-height: var(--space-6);
+  }
+
+  .rt-SelectContent:where(.rt-r-size-1) {
+    --select-item-height: var(--space-6);
+  }
+
+  .rt-BaseMenuContent:where(.rt-r-size-1) :where(.rt-BaseMenuItem),
+  .rt-SelectContent:where(.rt-r-size-1) :where(.rt-SelectItem) {
+    font-size: var(--font-size-2);
+    line-height: var(--line-height-2);
+  }
+
   /* Small buttons keep their look but take a finger-sized tap. */
   .rt-BaseButton:where(.rt-r-size-1) {
     position: relative;
