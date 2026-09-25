@@ -52,8 +52,10 @@ export function ToolbarEnd({ children }: { children: ReactNode }) {
   )
 }
 
-// Disabled actions stay focusable so their tooltip can say why.
+// Disabled actions stay focusable so their tooltip can say why. Radix disables a button while it's loading unless told
+// otherwise, which would drop the focus of whoever pressed it.
 export const disabledProps = (disabled: boolean) => ({
+  disabled: false,
   'aria-disabled': disabled || undefined,
   'data-disabled': disabled || undefined,
 })

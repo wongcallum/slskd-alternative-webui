@@ -60,7 +60,7 @@ function NotJoined({ room }: { room: string }) {
         <Button
           loading={running}
           {...disabledProps(gate !== undefined)}
-          onClick={() => gate === undefined && run(() => joinRoom(room))}
+          onClick={() => gate === undefined && !running && run(() => joinRoom(room))}
         >
           Join {room}
         </Button>

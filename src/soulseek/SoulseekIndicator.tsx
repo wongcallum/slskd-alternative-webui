@@ -163,7 +163,7 @@ function SoulseekPanel({ data, error, known, age }: ReturnType<typeof useSoulsee
               color={action === 'stop' || action === 'disconnect' ? 'red' : undefined}
               loading={pending === action}
               {...disabledProps(!known)}
-              onClick={() => known && void run(action)}
+              onClick={() => known && pending === undefined && void run(action)}
             >
               {actionLabels[action]}
             </Button>
