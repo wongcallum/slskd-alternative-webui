@@ -80,8 +80,8 @@ export function SharePage({ search, onSearchChange }: Props) {
         </UserMenu>
         {top !== undefined && (
           <Text size="2" color="gray">
-            {plural(top.fileCount, 'file')} · {formatBytes(top.size)}
-            {top.lockedCount > 0 && ` · ${top.lockedCount.toLocaleString()} locked`}
+            {plural(top.fileCount, 'file')}
+            {top.lockedCount > 0 && ` (${top.lockedCount.toLocaleString()} locked)`}, {formatBytes(top.size)}
           </Text>
         )}
         <Flex ml="auto" align="center" gap="3" flexShrink="0">

@@ -143,7 +143,7 @@ function FileStatus({
             #{place}
             {lookup?.at !== undefined && (
               <>
-                {' · '}
+                {' as of '}
                 <Ago time={lookup.at} />
               </>
             )}

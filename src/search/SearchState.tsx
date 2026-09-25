@@ -1,5 +1,6 @@
 import { Text, Tooltip } from '@radix-ui/themes'
 
+import { plural } from '../lib/format'
 import type { Color } from '../ui/controls'
 import type { Search } from './searches'
 
@@ -26,7 +27,7 @@ export function SearchState({ search }: { search: Search }) {
 }
 
 export function describeCounts(search: Search) {
-  let counts = `${search.responses.toLocaleString()} responses · ${search.files.toLocaleString()} files`
-  if (search.locked > 0) counts += ` · ${search.locked.toLocaleString()} locked`
+  let counts = `${plural(search.responses, 'response')}, ${plural(search.files, 'file')}`
+  if (search.locked > 0) counts += `, ${search.locked.toLocaleString()} locked`
   return counts
 }

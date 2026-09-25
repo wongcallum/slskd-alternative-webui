@@ -104,7 +104,7 @@ export function summarise(
     summary:
       failed === 0
         ? `${verb} ${plural(done, noun, nouns)}`
-        : `${verb} ${done.toLocaleString()} of ${plural(total, noun, nouns)} · ${failed.toLocaleString()} failed`,
+        : `${verb} ${done.toLocaleString()} of ${plural(total, noun, nouns)}, ${failed.toLocaleString()} failed`,
     failed: failed > 0,
     details,
   }

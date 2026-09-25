@@ -82,8 +82,8 @@ function ScanBar({ data, known }: { data: Application; known: boolean }) {
     return (
       <Bar error={run.error}>
         <Busy>
-          {data.scanFolders > 0 ? `Scanning ${plural(data.scanFolders, 'folder')}…` : 'Scanning…'}{' '}
-          {Math.floor(data.scanProgress * 100)}% · {plural(data.scanFiles, 'file')} so far
+          {data.scanFolders > 0 ? `Scanning ${plural(data.scanFolders, 'folder')}` : 'Scanning'}:{' '}
+          {Math.floor(data.scanProgress * 100)}%, {plural(data.scanFiles, 'file')} so far
         </Busy>
         <ActionButton
           label="Cancel"

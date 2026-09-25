@@ -193,15 +193,16 @@ function SectionHeader({
   const table = section === 'active' ? activeTable : finishedTable
   const groups = section === 'active' ? active : finished
   let summary: string
+  let speed: string | undefined
   if (filtered || (section === 'finished' && show !== 'all')) {
     const total = section === 'active' ? data.transferring + data.queued : data.succeeded + data.failed + data.cancelled
     summary = `${countFiles(groups).toLocaleString()} of ${total.toLocaleString()}`
   } else if (section === 'active') {
-    summary = `${data.transferring.toLocaleString()} ${direction}ing · ${data.queued.toLocaleString()} queued`
-    if (data.speed !== undefined && data.speed > 0) summary += ` · ${formatSpeed(data.speed)}`
+    summary = `${data.transferring.toLocaleString()} ${direction}ing, ${data.queued.toLocaleString()} queued`
+    if (data.speed !== undefined && data.speed > 0) speed = formatSpeed(data.speed)
   } else {
-    summary = `${data.succeeded.toLocaleString()} succeeded · ${data.failed.toLocaleString()} failed`
-    if (data.cancelled > 0) summary += ` · ${data.cancelled.toLocaleString()} cancelled`
+    summary = `${data.succeeded.toLocaleString()} succeeded, ${data.failed.toLocaleString()} failed`
+    if (data.cancelled > 0) summary += `, ${data.cancelled.toLocaleString()} cancelled`
   }
 
   const everything = allFiles(section === 'active' ? data.active : data.finished)
@@ -222,6 +223,7 @@ function SectionHeader({
         <Text size="2" color="gray">
           {summary}
         </Text>
+        {speed !== undefined && <Text size="2">{speed}</Text>}
         <Flex ml="auto" gap="2" align="center">
           {section === 'active' ? (
             <ConfirmButton
