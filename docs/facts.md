@@ -1223,6 +1223,20 @@ Checked against the `@radix-ui/themes` 3.3.0 package source.
 - A `DropdownMenu.CheckboxItem` or `RadioItem` closes the menu when picked unless its `onSelect` calls
   `preventDefault()`. A radio item still changes the value then (`@radix-ui/react-menu` 2.1.24 runs its own handler
   with `checkForDefaultPrevented: false`).
+- The breakpoints are min-width queries: xs 520, sm 768, md 1024, lg 1280 and xl 1640 px (`styles/breakpoints.css`).
+  Responsive props take an object keyed by them, mobile first.
+- **`Popover.Content` has a default `maxWidth` of 480 px** (`popover.props.tsx`), and nothing caps a popover to the
+  screen, while menus and selects are capped to the available height. The primitive sets
+  `--radix-popover-content-available-width` and `-height` on the content element (observed: 340 px on a 360 px screen,
+  with the 10 px collision padding).
+- Its own hover styles are inside `@media (hover: hover)`, so a tap doesn't leave one stuck.
+- The `TabNav` list scrolls sideways with its scrollbar hidden (`_internal/base-tab-list.css`), and nothing scrolls the
+  active tab into view.
+- `DropdownMenu.Item` takes `asChild`, but `DropdownMenu.RadioItem` doesn't.
+- Text fields of size 1, 2 and 3 are 24, 32 and 40 px high with 12, 14 and 16 px text. Menu and select items are 24 px
+  at size 1 and 32 px at size 2, through `--base-menu-item-height` and `--select-item-height`.
+- **Tooltips never open from touch** (`@radix-ui/react-tooltip` 1.2.16, `TooltipTrigger`): a touch pointer's move is
+  ignored, focus that follows a pointer press doesn't open it, and a click closes it.
 - next-themes 0.4.6, which the Radix docs recommend, is mostly unmaintained. Its anti-flash script does nothing
   when rendered client-side only (React 19 doesn't run rendered `<script>`s) and logs a warning in dev.
 
@@ -1298,6 +1312,13 @@ share of 200k files in 15k directories (54 MB of JSON), with `idb` 8.0.3. "Block
 - Web Locks (`navigator.locks`) needs a secure context
   ([MDN](https://developer.mozilla.org/en-US/docs/Web/API/Web_Locks_API)), so a plain-HTTP LAN install can't use it.
   `BroadcastChannel` doesn't.
+- Since Chrome 108 the on-screen keyboard resizes only the visual viewport, so the layout and viewport units such as
+  `dvh` keep their size. `interactive-widget=resizes-content` in the viewport meta makes it resize the layout viewport
+  and the units again. Safari only ever resizes the visual viewport
+  ([Chrome](https://developer.chrome.com/blog/viewport-resize-behavior),
+  [MDN](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/meta/name/viewport)).
+- A pseudo-element sticking out of a button counts toward its scroll container's overflow. Observed: a hit area 6 px
+  past a ghost button near the edge made the chat sidebar scroll sideways by 2 px.
 
 ## Headless Tree
 
