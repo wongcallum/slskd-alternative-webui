@@ -1,4 +1,5 @@
 import { Badge, Tooltip } from '@radix-ui/themes'
+
 import type { Mark } from './enqueue'
 
 export function MarkBadge({ mark }: { mark: Mark }) {

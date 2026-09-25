@@ -1,5 +1,6 @@
 import { type HubConnection, HubConnectionBuilder } from '@microsoft/signalr'
 import { useSyncExternalStore } from 'react'
+
 import { getSession } from '../session/session'
 import { api } from './api'
 import { createListeners } from './listeners'

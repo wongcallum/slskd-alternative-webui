@@ -2,6 +2,7 @@ import { ChevronDownIcon, ChevronRightIcon } from '@radix-ui/react-icons'
 import { Button, Flex, SegmentedControl, Text } from '@radix-ui/themes'
 import { defaultRangeExtractor, type Range, useVirtualizer } from '@tanstack/react-virtual'
 import { useCallback, useRef } from 'react'
+
 import { countFiles } from '../lib/files'
 import { formatSpeed, plural } from '../lib/format'
 import { useAtom } from '../lib/store'

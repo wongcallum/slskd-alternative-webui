@@ -1,6 +1,7 @@
 import { MinusIcon, PlusIcon } from '@radix-ui/react-icons'
 import { Flex, IconButton, Tooltip } from '@radix-ui/themes'
 import { useCallback, useEffect, useMemo } from 'react'
+
 import { FilterField, toolbarStyle, useFilterText } from '../../ui/controls'
 import type { BrowseSearch } from '../params'
 import { type Folder, matchShare, nearestFolder, type Share } from '../shareTree'

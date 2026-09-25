@@ -1,6 +1,7 @@
 import { Box, Button, Flex, TabNav, Text } from '@radix-ui/themes'
 import { Link, Outlet, useMatchRoute } from '@tanstack/react-router'
 import type { CSSProperties, ReactNode } from 'react'
+
 import { logout, useSession } from '../session/session'
 import { SoulseekIndicator } from '../soulseek/SoulseekIndicator'
 import { DownloadsBadge } from '../transfers/DownloadsBadge'

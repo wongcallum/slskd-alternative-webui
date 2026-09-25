@@ -1,6 +1,7 @@
 import { ArchiveIcon } from '@radix-ui/react-icons'
 import { IconButton, Tooltip } from '@radix-ui/themes'
 import { useNavigate } from '@tanstack/react-router'
+
 import { useSoulseekGate } from '../soulseek/soulseek'
 import { browseIfMissing } from './browse'
 

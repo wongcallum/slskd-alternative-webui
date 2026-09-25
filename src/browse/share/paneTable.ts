@@ -7,6 +7,7 @@ import {
   tableFeatures,
   type useTable,
 } from '@tanstack/react-table'
+
 import { byName, compareNames } from '../../lib/text'
 import type { Folder, ShareFile } from '../shareTree'
 

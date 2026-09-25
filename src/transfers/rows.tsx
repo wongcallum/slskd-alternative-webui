@@ -1,6 +1,7 @@
 import { ListBulletIcon, ReloadIcon } from '@radix-ui/react-icons'
 import { Flex, Progress, Spinner, Text, Tooltip } from '@radix-ui/themes'
 import { memo } from 'react'
+
 import { BrowseUserButton } from '../browse/BrowseUserButton'
 import { formatBytes, formatProgress, formatSpeed, formatTime, toTime } from '../lib/format'
 import { type Color, type Detail, DetailList, DetailsButton, GatedIconButton } from '../ui/controls'

@@ -1,5 +1,6 @@
 import { StopIcon, TrashIcon } from '@radix-ui/react-icons'
 import { Flex, Link, Spinner } from '@radix-ui/themes'
+import { Link as RouterLink } from '@tanstack/react-router'
 import {
   type RowSelectionState,
   rowSelectionFeature,
@@ -7,8 +8,8 @@ import {
   type Updater,
   useTable,
 } from '@tanstack/react-table'
-import { Link as RouterLink } from '@tanstack/react-router'
 import { memo } from 'react'
+
 import { useAtom } from '../lib/store'
 import { GatedIconButton } from '../ui/controls'
 import { Ago } from '../ui/status'

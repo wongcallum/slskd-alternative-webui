@@ -10,6 +10,7 @@ import {
   tableFeatures,
   type useTable,
 } from '@tanstack/react-table'
+
 import { createAtom } from '../../lib/store'
 import { type Expansion, sortByName } from '../../ui/table'
 import { availability, type ResultFile, type ResultGroup } from './results'

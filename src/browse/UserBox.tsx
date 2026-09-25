@@ -2,6 +2,7 @@ import { PersonIcon } from '@radix-ui/react-icons'
 import { Button, Flex, TextField } from '@radix-ui/themes'
 import { useNavigate } from '@tanstack/react-router'
 import { type SubmitEvent, useState } from 'react'
+
 import { useSoulseekGate } from '../soulseek/soulseek'
 import { browseIfMissing } from './browse'
 

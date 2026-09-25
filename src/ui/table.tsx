@@ -12,6 +12,7 @@ import {
   useLayoutEffect,
   useRef,
 } from 'react'
+
 import { compareNames } from '../lib/text'
 
 // Clicks on controls inside a row mustn't also select or expand it, and React bubbles clicks out of portals too.

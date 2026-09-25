@@ -1,6 +1,7 @@
 import { ChevronRightIcon, FileIcon, LockClosedIcon } from '@radix-ui/react-icons'
 import { Flex, Spinner, Text } from '@radix-ui/themes'
 import { memo, useCallback } from 'react'
+
 import { formatBytes, formatDuration } from '../../lib/format'
 import { useAtom } from '../../lib/store'
 import type { Mark } from '../../transfers/enqueue'

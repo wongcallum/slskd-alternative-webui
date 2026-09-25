@@ -1,4 +1,5 @@
 import ky, { isHTTPError } from 'ky'
+
 import { endSession, getSession } from '../session/session'
 import { urlBase } from './urlBase'
 

@@ -1,5 +1,6 @@
 import { type DBSchema, type IDBPDatabase, openDB } from 'idb'
 import { isHTTPError } from 'ky'
+
 import { api, describeError, sleep } from '../lib/api'
 import { createAtom } from '../lib/store'
 import { sessionSignal } from '../session/session'

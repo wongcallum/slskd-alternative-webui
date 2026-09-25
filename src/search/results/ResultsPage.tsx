@@ -2,6 +2,7 @@ import { ArrowLeftIcon } from '@radix-ui/react-icons'
 import { Box, Flex, Heading, IconButton, Link, Text } from '@radix-ui/themes'
 import { Link as RouterLink, useNavigate } from '@tanstack/react-router'
 import { type ReactNode, useEffect } from 'react'
+
 import { describeError } from '../../lib/api'
 import { formatDuration } from '../../lib/format'
 import { useAtom } from '../../lib/store'
