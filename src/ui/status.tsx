@@ -4,6 +4,22 @@ import { type ReactNode, useEffect, useState } from 'react'
 import { describeError } from '../lib/api'
 import { formatAge, formatTime, useAgo } from '../lib/format'
 import { isStale, type Resource, useFreshness } from '../lib/store'
+import type { Color } from './controls'
+
+export function StatusDot({ color }: { color: Color }) {
+  return (
+    <span
+      style={{
+        display: 'inline-block',
+        flexShrink: 0,
+        width: 8,
+        height: 8,
+        borderRadius: '50%',
+        background: `var(--${color}-9)`,
+      }}
+    />
+  )
+}
 
 export function DelayedSpinner() {
   const [visible, setVisible] = useState(false)

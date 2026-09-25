@@ -105,20 +105,17 @@ and we cache browsed share trees in IndexedDB), show when each result was fetche
 
 ### Shell
 
-- The Downloads badge counts unfinished downloads from the metrics hub, so it's approximate: slskd's gauges
-  trail the list by a few seconds and by up to a whole batch while it's being enqueued (see the facts). While
-  the downloads list is fresh (the Downloads page is open), the badge shows the list's exact count instead.
-- Connect is only offered while disconnected, because `PUT /server` while connected leaves slskd's retry timer
-  running.
 - Hub health has no indicator of its own in the bar, since two status dots side by side looked wrong. The
   Soulseek popover lists each hub instead.
+- System is a gear on the right rather than a tab, since it's visited rarely and the wide tables keep the full width.
+- The new-version link can't be dismissed: it goes once you update, and `no_version_check` is the opt-out.
 
 ### Transfers
 
 - Rows have a fixed height and `contain: strict`, which makes scrolling far cheaper: scrolling 25k search results
   in 1,500 px jumps went from 28 long tasks in 30 jumps to 0–4.
-- Cancel all, Retry failed and Clear finished act on the whole section whatever the filter, and they're the only
-  actions in the app that ask for confirmation.
+- Cancel all, Retry failed and Clear finished act on the whole section whatever the filter. They ask for
+  confirmation, and so do Restart and Shut down; nothing else does.
 - `Completed, Cancelled` is an outcome of its own, not a failure: it isn't counted as failed and Retry failed skips
   it, but a selected cancelled download can still be retried. A cancel during a retry backoff ends as
   `Completed, Errored` (see the facts), so it still counts as failed.
@@ -157,6 +154,13 @@ and we cache browsed share trees in IndexedDB), show when each result was fetche
 - There's no `navigator.storage.persist()`, because Firefox would prompt for it.
 - The cache survives the session ending.
 
+### System
+
+- Restart is disabled while this tab has a browse running, because slskd can't restart while it's answering a
+  request (see the facts). Other tabs and clients can't be guarded, so the confirmation warns instead.
+- Check for updates is manual only: slskd's forced check ignores `no_version_check`, so a timer would override that
+  opt-out.
+
 ### Health
 
 - Each surface shows its freshness in its own toolbar ("updated 12s ago"). It turns amber once the data is older
@@ -166,9 +170,9 @@ and we cache browsed share trees in IndexedDB), show when each result was fetche
 - Actions disable via `aria-disabled` and give a reason:
   - Every action is gated on REST poll health. The shell has no poll of its own, so its actions are gated
     on the Soulseek server state being known: the hub is connected and has sent `STATE`, or the last
-    `GET /server` succeeded within the amber threshold.
+    `GET /application` succeeded within the amber threshold.
   - Actions that need Soulseek (search, browse, download, user lookup) are also gated on slskd being
     logged in to the Soulseek server (`server.isLoggedIn`). That state is pushed through `STATE`. While
-    the application hub is down, `GET /server` is polled so the gate never acts on stale state. In
+    the application hub is down, `GET /application` is polled so the gate never acts on stale state. In
     `no_connect` dev these actions are always disabled, which is expected.
   - Hub health never gates anything.

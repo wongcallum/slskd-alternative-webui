@@ -62,7 +62,7 @@ type ActionButtonProps = {
   progress?: Progress
   loading?: boolean
   gate?: string
-  color?: 'red'
+  color?: 'red' | 'amber'
   onClick: () => void
 }
 

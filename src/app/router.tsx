@@ -19,6 +19,7 @@ import { ResultsPage } from '../search/results/ResultsPage'
 import { searches } from '../search/searches'
 import { type SearchesSearch, SearchesPage, searchesSearch, searchesSearchDefaults } from '../search/SearchesPage'
 import { SessionGate } from '../session/SessionGate'
+import { InfoPage } from '../system/InfoPage'
 import {
   TransfersPage,
   type TransfersSearch,
@@ -49,7 +50,6 @@ const rootRoute = createRootRoute({
   // Every page route sets its own title, so only unmatched paths are left with this one.
   head: () => title('Page not found'),
   component: Root,
-  notFoundComponent: NotFound,
 })
 
 function Root() {
@@ -154,9 +154,39 @@ const browseRoute = createRoute({
   },
 })
 
+const systemRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'system',
+})
+
+const systemIndexRoute = createRoute({
+  getParentRoute: () => systemRoute,
+  path: '/',
+  beforeLoad: () => {
+    throw redirect({ to: '/system/info' })
+  },
+})
+
+const systemInfoRoute = createRoute({
+  getParentRoute: () => systemRoute,
+  path: 'info',
+  head: () => title('System'),
+  component: InfoPage,
+})
+
 export const router = createRouter({
-  routeTree: rootRoute.addChildren([indexRoute, searchesRoute, searchRoute, downloadsRoute, uploadsRoute, browseRoute]),
+  routeTree: rootRoute.addChildren([
+    indexRoute,
+    searchesRoute,
+    searchRoute,
+    downloadsRoute,
+    uploadsRoute,
+    browseRoute,
+    systemRoute.addChildren([systemIndexRoute, systemInfoRoute]),
+  ]),
   basepath: window.urlBase,
+  // A route with children and no notFoundComponent of its own renders this one for its unmatched paths.
+  defaultNotFoundComponent: NotFound,
   defaultErrorComponent: RouteError,
   parseSearch: (search) => Object.fromEntries(new URLSearchParams(search)),
   stringifySearch: stringifySearchWith(String),

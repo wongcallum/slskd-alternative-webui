@@ -189,6 +189,86 @@ Error bodies are JSON strings. Encode the username segment with `encodeURICompon
   `no_version_check`.
 - `OPTIONS` is the whole options object with every secret replaced by `"*****"`. It's pushed on connect and
   after each options change that actually differs.
+- Other shapes: `user.statistics {averageSpeed, directoryCount, fileCount, uploadCount}` (as the server reports
+  them), `health.search.incoming {latency, queueDepth, dropRate}` (a moving average in ms, the waiting incoming
+  searches, and drops so far this minute; refreshed every 30 s) and
+  `distributedNetwork {branchLevel, branchRoot, canAcceptChildren, childLimit, children[], hasParent, isBranchRoot, parent}`.
+  `vpn` is `{isReady, isConnected}` both when the VPN integration is off and when it's down, and `relay.mode` reads
+  `Controller` with relay disabled, so neither says whether its feature is on.
+- `GET /application` is about 1.2 KB on dev.
+
+## Application
+
+Paths are relative to `Core/API/Controllers/` unless they start with another directory. Restart and shutdown were
+observed on throwaway instances of the dev build and the 0.25.1 and 0.26.0 release binaries.
+
+- `PUT /application` restarts and `DELETE /application` shuts down. Both need a JWT (API keys can't call them),
+  return 204 at once, and aren't gated on any option or on relay mode (`ApplicationController.cs`).
+- **Restart re-executes slskd itself** (`Process.Start` with the same command line, then a graceful stop), and
+  **fails for good while slskd is still answering a request.** The new process checks the single-instance mutex
+  first thing, and the old one holds it until its graceful stop ends, which waits up to 30 s for open requests
+  (`Program.cs`). Observed:
+  - Idle, it came back every time (about 20 restarts), answering `/health` again in about 2 s. The new process won
+    the race by only 35–80 ms.
+  - With a slow 20 MB download open it never came back (3 of 3). The new process logged "An instance of slskd is
+    already running" and quit, and the old one exited when the request ended or 30 s passed. A 761 KB download
+    didn't block it, and open hub connections don't either.
+  - The release binary passes its own path again as an argument, so each restart adds one more
+    (`slskd slskd slskd --app-dir …`). slskd ignores them.
+  - The mutex is per Unix session (no `Global\` prefix), and the child stays in its parent's session.
+  - Nothing detects Docker or a supervisor. The image's entrypoint exits with slskd, which kills the child, so in
+    Docker a restart relies on the container's restart policy, and under `always` or `unless-stopped` a shutdown
+    comes back too (inferred).
+- Shutdown stops gracefully and calls `Environment.Exit(0)` 500 ms later regardless, so the process is gone within
+  0.2–0.75 s even with requests open. It then skips the Soulseek disconnect.
+- On the next start, unfinished transfers become `Completed, Errored` and downloads are re-enqueued without their
+  batch (see [Records](#records)).
+- Hidden and unused by stock: `POST /application/gc` (a blocking full collection), `GET /application/dump` (downloads
+  `dotnet-dump` and serves a full memory dump) and `POST /application/loopback`. None has a role check.
+
+### Version check
+
+- slskd asks `https://api.github.com/repos/slskd/slskd/releases/latest` once at startup unless `no_version_check`
+  is set, and never again on its own (`Application.cs`). `GET /application/version/latest?forceCheck=true` checks
+  again, ignoring `no_version_check`, and returns `state.version`. A failed check is a 500. Development and canary
+  builds never check, even when forced.
+- A check sets `version.latest` and `isUpdateAvailable` and pushes `STATE`. When up to date, `latest` is set to
+  `current`.
+- Release tags have no `v` (`0.26.0`), but release builds report a fourth part (`current: "0.26.0.0"`), so `latest`
+  is a valid tag for `releases/tag/<latest>` only when `isUpdateAvailable`. Canary builds end in `.65534`.
+
+### Pending states
+
+- `pendingRestart` is set when a changed option is marked restart-required (debug, instance name, directories,
+  logger, web, most flags and about 60 more in `Core/Options.cs`), or on `PUT /options/yaml` while
+  `no_config_watch` is on. Only a new process clears it. Observed: editing `instance_name` in the YAML set it.
+- `pendingReconnect` is set when the Soulseek address, port, username or password changes while connected, and any
+  disconnect clears it.
+- `shares.scanPending` is set when `shares.directories` or `shares.filters` change, or when a scan faults or is
+  cancelled, and a successful scan clears it. Observed: adding a directory in the YAML set it and a rescan cleared it.
+- `PUT /shares` rescans and always returns 200. Its 409 for a scan in progress can't happen, because the exception
+  lands in the returned task (`Shares/ShareService.cs`). `DELETE /shares` cancels (204, or 404 when none runs).
+
+### Privileges
+
+- `user.privileges.privilegesRemaining` is in **seconds**, although Soulseek.NET's docs say days: it passes the
+  server's integer through unchanged, and Nicotine+ and its protocol docs treat it as seconds. `isPrivileged` is
+  `> 0`.
+- It's fetched at login, after a share scan, and otherwise at most every 4 hours, so it doesn't count down and a
+  purchase only shows after the next login. The server's privilege notifications don't carry the time, and slskd
+  doesn't subscribe to them.
+- There's no endpoint to get privileges. The donation page SoulseekQt and Nicotine+ open is
+  `https://www.slsknet.org/qtlogin.php?username=<username>`, with the username percent-encoded.
+
+### Process metrics
+
+- `STATE` has no uptime, pid, OS or runtime. `GET /telemetry/metrics` has them, for any authenticated caller and
+  whether or not `metrics.enabled` is set: `process_start_time_seconds`, `process_working_set_bytes`, the
+  `dotnet_build_info` labels `runtime_version`, `os_version` and `process_architecture`, and free space per mount.
+  It's Prometheus text, or a JSON object keyed by metric name (`{name, help, type, samples: [{value, labels}]}`) when
+  `Accept` is exactly `application/json`. About 35 KB and 10 ms on dev.
+- 0.25.1 sometimes answers it with a 500 ("An item with the same key has already been added"). Observed twice in
+  about five minutes. 0.25.1 also has no metrics hub, so its negotiate is a 404.
 
 ## Metrics hub
 
@@ -461,6 +541,15 @@ Paths are relative to `slskd/src/web/src`.
   disconnected. There are no count badges; the footer shows transfer counts from the metrics hub.
 - Theme: localStorage `slskd-theme` (`dark`/`light`), falling back to `prefers-color-scheme`. It never sets
   `document.title`.
+- System (`components/System/`): `/system` redirects to `/system/info`, and every tab is always shown.
+  - Info is a read-only YAML dump of the whole `STATE` with four buttons. Check for Updates ignores the response and
+    shows no error. Get Privileges opens `http://www.slsknet.org/qtlogin.php?username=` with the name unencoded.
+    Shut Down and Restart confirm, then fire and forget. Restart turns yellow while `pendingRestart`.
+  - The nav reaches System through a cogs item on the right. A "Pending Action" item appears for `pendingRestart`,
+    `pendingReconnect` or `shares.scanPending` and links to `/system/info` even for a rescan. A "New Version!" item
+    opens a modal linking to the releases list.
+  - After Restart or Shut Down, the hub's reconnecting replaces the whole app with "Lost connection to slskd", and
+    after about 32 s of retries it asks for a refresh.
 - Transfers (`components/Transfers/`): one card per user, then one table per remote directory, all expanded,
   unsorted except by file name within a directory, with no filtering or virtualisation. Selection is per user
   card, with a select-all per directory. Per-file actions are a click on the state (retry when failed, queue
