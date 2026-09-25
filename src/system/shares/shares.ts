@@ -5,7 +5,7 @@ import { createAtom, createResource, load, type Resource } from '../../lib/store
 import { compareExactly } from '../../lib/text'
 import { buildTree, type InputDirectory, type Tree } from '../../lib/tree'
 import { type Application, application } from '../application'
-import { options } from '../options'
+import { options } from '../options/options'
 
 // GET /shares omits the counts until a scan has made them.
 type RawShare = {

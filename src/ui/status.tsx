@@ -154,11 +154,15 @@ export function Fetched({
   fetchedAt,
   error,
   loading,
+  label = 'Refresh',
+  gate,
   onRefresh,
 }: {
   fetchedAt?: number
   error: unknown
   loading: boolean
+  label?: string
+  gate?: string
   onRefresh: () => void
 }) {
   return (
@@ -175,7 +179,7 @@ export function Fetched({
           fetched <Ago time={fetchedAt} />
         </Text>
       )}
-      <ActionButton label="Refresh" busy="Refreshing" loading={loading} onClick={onRefresh} />
+      <ActionButton label={label} busy="Refreshing" loading={loading} gate={gate} onClick={onRefresh} />
     </Flex>
   )
 }

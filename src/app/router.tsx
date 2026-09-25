@@ -29,6 +29,8 @@ import { FilesPage } from '../system/files/FilesPage'
 import { type FilesSearch, filesSearch, filesSearchDefaults } from '../system/files/params'
 import { InfoPage } from '../system/InfoPage'
 import { type LogsSearch, LogsPage, logsSearch, logsSearchDefaults } from '../system/LogsPage'
+import { OptionsPage } from '../system/options/OptionsPage'
+import { type OptionsSearch, optionsSearch, optionsSearchDefaults } from '../system/options/params'
 import { type SharesSearch, sharesSearch, sharesSearchDefaults } from '../system/shares/params'
 import { SharesPage } from '../system/shares/SharesPage'
 import {
@@ -233,6 +235,22 @@ const systemInfoRoute = createRoute({
   component: InfoPage,
 })
 
+const systemOptionsRoute = createRoute({
+  getParentRoute: () => systemRoute,
+  path: 'options',
+  head: () => title('Options · System'),
+  validateSearch: optionsSearch,
+  search: { middlewares: [stripSearchParams(optionsSearchDefaults)] },
+  component: function Options() {
+    return (
+      <OptionsPage
+        search={systemOptionsRoute.useSearch()}
+        onSearchChange={useSearchChange<OptionsSearch>(systemOptionsRoute.useNavigate())}
+      />
+    )
+  },
+})
+
 const systemSharesRoute = createRoute({
   getParentRoute: () => systemRoute,
   path: 'shares',
@@ -310,6 +328,7 @@ export const router = createRouter({
     systemRoute.addChildren([
       systemIndexRoute,
       systemInfoRoute,
+      systemOptionsRoute,
       systemSharesRoute,
       systemFilesRoute,
       systemEventsRoute,
