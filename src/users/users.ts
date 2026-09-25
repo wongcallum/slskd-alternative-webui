@@ -37,7 +37,9 @@ export const lookedUpAt = (record: UserRecord) => Math.max(record.status?.fetche
 
 const kept = 100
 
-export const { list: userList, load: loadUserList, useList: useUserList } = createRecordList('users')
+const { list: userList, load: loadUserList, useList } = createRecordList('users')
+
+export const useUserList = useList
 
 // A picture that's been read, or null for none.
 export const pictures = createAtom<ReadonlyMap<string, string | null>>(new Map())
