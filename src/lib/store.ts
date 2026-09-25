@@ -3,7 +3,7 @@ import { useSyncExternalStore } from 'react'
 import { onSessionEnd } from '../session/session'
 import { createListeners } from './listeners'
 
-export type Snapshot<T> = { data?: T; error?: unknown }
+type Snapshot<T> = { data?: T; error?: unknown }
 
 export type Sink<T> = {
   set: (data: T) => void

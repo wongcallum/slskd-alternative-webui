@@ -29,7 +29,7 @@ export type Soulseek = {
   pendingReconnect: boolean
 }
 
-export const serverPollInterval = 2000
+const serverPollInterval = 2000
 
 function fromServer(via: Via, server: ServerState) {
   return {

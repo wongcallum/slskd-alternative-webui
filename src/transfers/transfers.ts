@@ -29,7 +29,7 @@ type RawUser = { username: string; directories: { directory: string; files: RawT
 
 export type Transfer = RawTransfer & { kind: 'file'; username: string; directory: string; name: string; search: string }
 
-export type Folder = { total: number; succeeded: number; failed: number }
+type Folder = { total: number; succeeded: number; failed: number }
 
 export type Group = {
   kind: 'group'
@@ -59,7 +59,7 @@ export type Transfers = {
 }
 
 export const isFinished = (state: string) => state.startsWith('Completed')
-export const isSucceeded = (state: string) => state === 'Completed, Succeeded'
+const isSucceeded = (state: string) => state === 'Completed, Succeeded'
 export const isFailed = (state: string) => isFinished(state) && !isSucceeded(state)
 export const isTransferring = (state: string) => state === 'InProgress' || state === 'Initializing'
 
