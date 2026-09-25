@@ -220,6 +220,45 @@ and we cache browsed share trees in IndexedDB), show when each result was fetche
   request (see the facts). Other tabs and clients can't be guarded, so the confirmation warns instead.
 - Check for updates is manual only: slskd's forced check ignores `no_version_check`, so a timer would override that
   opt-out.
+- `OPTIONS` is followed like `STATE`, falling back to `GET /options`, for remote file management, the two directories
+  and the share filters.
+
+### Folder trees
+
+- Browse, the shares' contents and Files share one tree and folder pane (`ui/tree`), built from a flat list of
+  folders. Each view adds its own columns, what can be selected, and what to do with a selection.
+
+### Shares
+
+- The list is the top of the contents: `/system/shares` lists the shares, and `?path=` opens what's shared as one
+  tree with the aliases as top folders, which is what peers browse. The per-share contents endpoint isn't used,
+  because it matches aliases with `LIKE` (see the facts).
+- The contents can be tens of MB, so only opening them fetches them. They're held for the session and fetched again
+  only once a scan has finished since, and a scan finishing while they're open reloads them.
+- The list is fetched as the page opens, when `shares.directories` changes in `OPTIONS`, and once a scan finishes,
+  which is when its counts change. A scan counts as finished when `ready` turns true, or when it stops faulted.
+- **A cancelled or faulted last scan counts as a pending rescan**, like `scanPending`, because slskd clears
+  `scanPending` after a cancel while searches miss what the scan found (see the facts). Nothing counts as pending while
+  a scan runs, since `scanPending` is unreliable then and the scan settles it anyway.
+- The gear goes to Shares when a rescan is the only thing pending, and Info's callout links there. Cancel doesn't ask
+  for confirmation, since a rescan undoes it.
+
+### Files
+
+- Both directories are listed whole, with `recursive=true`, as one tree with Downloads and Incomplete at the top. That
+  gives folder sizes and a filter over everything, and listing never needs a path encoded. They're listed on every
+  visit, after deleting and on Refresh, and never polled.
+- Deleting takes a selection and a confirmation, and sends one DELETE at a time. Deleted items leave the held tree in
+  batches as their DELETEs return, and then both directories are listed again.
+- slskd takes a path as base64 in a URL segment, where a `/` can't get through, so `./` or `//` is inserted to shift
+  the encoding off it (see the facts). A path that can't be encoded that way can't be deleted on its own, and the gate
+  says to delete its folder instead.
+- Deleting in Incomplete warns in the confirmation that a download still writing there carries on and most likely ends
+  as succeeded with no file. Nothing matches files to active downloads, which would mean reading the whole downloads
+  list.
+- When a delete touches a shared path, the outcome says the files stay in the shares until a rescan, with a Rescan
+  button. slskd never marks that as pending, and a flag held by one tab would be less reliable than slskd's own.
+- Until `OPTIONS` says `remote_file_management` is on, there are no checkboxes and Delete is disabled with the reason.
 
 ### Logs
 
@@ -239,6 +278,8 @@ and we cache browsed share trees in IndexedDB), show when each result was fetche
 
 - Each surface shows its freshness in its own toolbar ("updated 12s ago"). It turns amber once the data is older
   than `min(3 × interval, 20s)`. There are no global banners or toasts.
+- What's loaded on demand rather than polled (a browsed share, the shares' contents, Files) shows when it was fetched
+  instead, with a way to fetch it again.
 - Keep three things separate and never collapse them into one "connected" flag: REST poll health, hub
   health, and slskd's own connection to the Soulseek server.
 - Actions disable via `aria-disabled` and give a reason:
