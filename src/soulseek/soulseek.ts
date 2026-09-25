@@ -1,4 +1,6 @@
-import { api } from '../lib/api'
+import { isHTTPError } from 'ky'
+
+import { api, describeError } from '../lib/api'
 import { useFreshness } from '../lib/store'
 import { sessionSignal } from '../session/session'
 import { application, useApplication, waitForApplication } from '../system/application'
@@ -27,4 +29,16 @@ export async function reconnect() {
   await disconnect()
   await waitForApplication((data) => !data.isConnected && !data.isTransitioning, signal, 30_000)
   await connect()
+}
+
+// slskd answers a blacklisted user with an empty 404, before asking anyone.
+export function describePeerError(error: unknown) {
+  if (isHTTPError(error)) {
+    const message = typeof error.data === 'string' ? error.data : ''
+    if (error.response.status === 404) return message === '' ? 'On your blacklist' : 'Appears to be offline'
+    const timeout = /timed out after (\d+) milliseconds/.exec(message)
+    if (timeout !== null) return `Didn't respond within ${Number(timeout[1]) / 1000} s`
+    if (message.includes('Failed to establish a direct or indirect')) return "Couldn't connect to them"
+  }
+  return describeError(error)
 }

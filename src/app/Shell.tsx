@@ -26,6 +26,7 @@ export function Shell() {
             </NavTab>
             <NavTab to="/uploads">Uploads</NavTab>
             <NavTab to="/browse">Browse</NavTab>
+            <NavTab to="/users">Users</NavTab>
             <NavTab to="/chat" also={['/rooms']}>
               Chat
               <ChatBadge />

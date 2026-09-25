@@ -340,6 +340,11 @@ dashboard yet.
   with durations in whole seconds. `histogram` gives the same per bucket, keyed by the bucket start. Starts align to
   multiples of the width since 1970, so it can return `buckets + 1` entries, and a `start` before 2020-12-30 means
   the oldest record.
+- `GET /telemetry/reports/transfers/users/{u}` gives one user's history, all time by default: `{Upload, Download}`, each
+  `{summary, statistics: {total, successful, errored, cancelled}, exceptions}`. `summary` is keyed like the one
+  above, and `exceptions` is the top 25 of `exceptions/pareto`, `[{exception, count, distinctUsers}]`, cancellations
+  included. `errored` only counts the keys `Errored`, `TimedOut`, `Rejected` and `Aborted` exactly. The username
+  matches exactly, and one with a dot in it works (observed). Stock never calls it.
 - `summary` and `leaderboard` average each transfer's speed, while `histogram` divides total bytes by total seconds
   (observed 16.7 against 3.39 MB/s over one window).
 - `leaderboard` counts successes only, and its `sortBy` (`Count|TotalBytes|AverageSpeed`) and `sortOrder` are
@@ -476,8 +481,10 @@ Paths below are relative to `Search/` unless they start with another directory. 
 
 ## Users
 
-Paths are relative to `Users/`. Everything except `status` asks the peer, and all of them are Soulseek actions.
-Not being logged in to Soulseek gives a 500 with the message as a JSON string. A blacklisted user gets an empty 404.
+Paths are relative to `Users/`, and Soulseek.NET 10.0.2's source is `SN:`. `info` and `directory` ask the peer, `status`
+and `endpoint` ask the server, and all of them are Soulseek actions. Not being logged in to Soulseek gives a 500 with the
+message as a JSON string. A blacklisted user gets an empty 404 from all of them, `status` included, before anything is
+asked. The blacklist check is by name only.
 
 - `POST /users/{u}/directory {directory}` asks the peer for one folder. It waits up to 5 s, and that includes the
   endpoint lookup and connecting (a 500 when it expires). An offline user gets a 404 with a JSON string. It returns
@@ -485,11 +492,25 @@ Not being logged in to Soulseek gives a 500 with the message as a JSON string. A
   usually with one entry. The file names are bare, so the full path is `directory + '\' + filename`. There's no locked
   section, and slskd peers send exactly one directory with no subfolders (`Application.cs`, `Shares/ShareService.cs`),
   so it can't rebuild the tree beneath a folder.
-- `GET /users/{u}/info` connects to the peer and returns
-  `{description, hasFreeUploadSlot, hasPicture, picture?, queueLength, uploadSlots}`. `GET /users/{u}/endpoint` asks
-  the server (cached for 60 s). `GET /users/{u}/status` asks the server on every call, and returns `{isPrivileged, presence}`, with `presence: "Offline"` rather than a 404.
-  The server's pushed status changes aren't exposed, so a user's online state can't be shown without a Soulseek
-  action (`UserService.cs`).
+- `GET /users/{u}/info` returns `{description, hasFreeUploadSlot, hasPicture, picture?, queueLength, uploadSlots}`, and
+  nothing caches it.
+  - **One 5 s wait covers the endpoint lookup, connecting and the reply**: slskd never sets Soulseek.NET's 5 s message
+    timeout, and the wait starts before the lookup (`SN:SoulseekClient.cs`, `SN:Common/Waiter.cs`). Expiring is a 500,
+    `"The wait timed out after 5000 milliseconds"`.
+  - A peer neither side can connect to is a 500, `"Failed to retrieve information for user X: Failed to establish a
+direct or indirect message connection to X (ip:port)"`. An offline user is a 404 with a JSON string (observed:
+    `"User X appears to be offline"`).
+  - `picture` is the raw bytes as base64, with no type and no size limit, and is left out when there's none. Observed:
+    our own username answers, with an 800×800 JPEG that Chromium draws from `data:image;base64,…`.
+- `GET /users/{u}/endpoint` returns `{addressFamily, address, port}` (observed `"InterNetwork"`, always IPv4). A
+  successful lookup is cached for 60 s and shared with browsing and transfers (`Common/UserEndPointCache.cs`). An
+  offline user is a 404 with a JSON string.
+- `GET /users/{u}/status` asks the server on every call, and returns `{isPrivileged, presence}` with `presence`
+  `Online`, `Away` or `Offline`. An offline user is a 200 `Offline` rather than a 404, and so is a made-up name
+  (observed), so the server can't tell them apart.
+- Nothing else about other users is exposed. `UserService` has statistics, groups, watching and gifting privileges, but
+  no route calls them, and `STATE.users` is never populated. The server's pushed status changes aren't exposed either
+  (`Application.cs` leaves the handler a stub), so a user's online state can't be shown without a Soulseek action.
 
 ## Browse
 
@@ -753,6 +774,15 @@ Paths are relative to `slskd/src/web/src`.
   conversation if it has unread messages and then fetches it. Tabs show unread counts, and there's no nav badge.
   Starting a conversation takes a username and a first message together. The open conversation is kept in
   sessionStorage `slskd-active-chat`.
+- Users (`components/Users/`):
+  - It's reached from the nav, or from a Rooms message's User Profile through router state. The user is never in the
+    URL.
+  - A username box. Submitting sends `info`, `status` and `endpoint` together, and any one failing fails the whole
+    lookup with "Failed to retrieve information for X".
+  - It shows the picture (`data:image;base64,…`), presence, free slot, upload slots, queue length, IP, port and the
+    description. The free slot always shows a tick, because `hasFreeUploadSlot` is passed as a bare JSX prop, which
+    means `true`.
+  - The last user is kept in localStorage `slskd-active-user` and looked up again whenever the page mounts.
 
 ### Search filter syntax
 

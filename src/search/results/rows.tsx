@@ -8,6 +8,7 @@ import type { Mark } from '../../transfers/enqueue'
 import { MarkBadge } from '../../transfers/MarkBadge'
 import { type Detail, DetailList, DetailsButton, GatedIconButton } from '../../ui/controls'
 import { ActionsCell, Cell, CheckCell, GridRow, GroupNameCell } from '../../ui/table'
+import { UserMenu } from '../../users/UserMenu'
 import { download, type FolderFetch, fetchFolder, type ResultFile, type ResultGroup } from './results'
 import { template } from './table'
 
@@ -149,7 +150,9 @@ export const GroupRow = memo(function GroupRow({
       />
       <GroupNameCell expanded={expanded} name={group.name} title={group.directory} />
       <div className="table-cell" title={group.username}>
-        <Text size="2">{group.username}</Text>
+        <Text size="2">
+          <UserMenu username={group.username} />
+        </Text>
       </div>
       <Cell end title={hidden > 0 ? `${plural(hidden, 'file')} filtered out` : undefined}>
         {hidden > 0

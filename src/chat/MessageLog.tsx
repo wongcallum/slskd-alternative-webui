@@ -1,10 +1,9 @@
 import { ArrowDownIcon } from '@radix-ui/react-icons'
-import { Box, Button, Link } from '@radix-ui/themes'
-import Linkify from 'linkify-react'
-import type { Opts } from 'linkifyjs'
+import { Box, Button } from '@radix-ui/themes'
 import { memo, type ReactNode, type UIEvent, useEffect, useMemo, useRef, useState } from 'react'
 
 import { formatTime } from '../lib/format'
+import { LinkedText } from '../ui/LinkedText'
 import type { Message } from './messages'
 
 type PendingLine = { id: number; text: string; sentAt: number; unconfirmed: boolean }
@@ -14,16 +13,6 @@ const clock = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' })
 const dayFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'full' })
 
 const dayOf = (time: number) => new Date(time).toDateString()
-
-// Only explicit web links: bare names like "album.fm" are common in file talk.
-const linkOptions: Opts = {
-  validate: { url: (value) => /^(https?:\/\/|www\.)/i.test(value), email: false },
-  render: ({ attributes, content }) => (
-    <Link href={attributes.href as string} target="_blank" rel="noopener noreferrer">
-      {content}
-    </Link>
-  ),
-}
 
 type Props = {
   messages: readonly Message[]
@@ -140,7 +129,7 @@ const MessageRow = memo(function MessageRow({
         {message.self || renderName === undefined ? message.username : renderName(message.username)}
       </span>
       <span className="chat-text">
-        <Linkify options={linkOptions}>{message.text}</Linkify>
+        <LinkedText>{message.text}</LinkedText>
       </span>
     </div>
   )

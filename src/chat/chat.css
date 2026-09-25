@@ -62,15 +62,6 @@
   color: var(--accent-11);
 }
 
-.chat-name-button {
-  all: unset;
-  cursor: pointer;
-}
-
-.chat-name-button:hover {
-  text-decoration: underline;
-}
-
 .chat-text {
   white-space: pre-wrap;
   overflow-wrap: anywhere;

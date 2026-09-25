@@ -6,8 +6,8 @@ import { useResource } from '../lib/store'
 import { FilterField } from '../ui/controls'
 import { Polling } from '../ui/status'
 import { Cell, GridRow, VirtualTable } from '../ui/table'
+import { UserMenu } from '../users/UserMenu'
 import { type RoomUser, roomUsers } from './rooms'
-import { UserMenu } from './UserMenu'
 
 const regions = new Intl.DisplayNames(undefined, { type: 'region' })
 

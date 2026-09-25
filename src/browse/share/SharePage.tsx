@@ -1,4 +1,5 @@
-import { Flex, Heading, Text, Tooltip } from '@radix-ui/themes'
+import { DotsHorizontalIcon } from '@radix-ui/react-icons'
+import { Flex, Heading, IconButton, Text, Tooltip } from '@radix-ui/themes'
 import { type ReactNode, useEffect } from 'react'
 
 import { describeError } from '../../lib/api'
@@ -7,6 +8,7 @@ import { useAtom } from '../../lib/store'
 import { useSoulseekGate } from '../../soulseek/soulseek'
 import { ActionButton, toolbarStyle } from '../../ui/controls'
 import { Ago, Empty, ErrorCallout, Loading } from '../../ui/status'
+import { UserMenu } from '../../users/UserMenu'
 import { browse, browses, failures, loadedShares, reloadShare, viewShare } from '../browse'
 import { BrowseProgress, FailureLine } from '../BrowseStatus'
 import type { BrowseSearch } from '../params'
@@ -63,6 +65,11 @@ export function SharePage({ search, onSearchChange }: Props) {
     <Flex direction="column" height="100%">
       <Flex align="center" gap="4" px="4" py="3" flexShrink="0" style={toolbarStyle}>
         <UserBox current={username} />
+        <UserMenu username={username} here="browse">
+          <IconButton size="2" variant="ghost" color="gray" aria-label={`More for ${username}`}>
+            <DotsHorizontalIcon />
+          </IconButton>
+        </UserMenu>
         {top !== undefined && (
           <Text size="2" color="gray">
             {plural(top.fileCount, 'file')} · {formatBytes(top.size)}

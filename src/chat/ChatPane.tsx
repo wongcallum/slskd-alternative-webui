@@ -7,7 +7,7 @@ import { Freshness, Polling } from '../ui/status'
 import { Composer } from './Composer'
 import { type Target, targetKey } from './messages'
 
-export function ChatToolbar({ title, children }: { title: string; children?: ReactNode }) {
+export function ChatToolbar({ title, children }: { title: ReactNode; children?: ReactNode }) {
   return (
     <Flex align="center" gap="3" px="4" py="2" flexShrink="0" minHeight="45px" style={toolbarStyle}>
       <Text weight="bold" truncate>
@@ -20,6 +20,7 @@ export function ChatToolbar({ title, children }: { title: string; children?: Rea
 
 type Props = {
   target: Target
+  title?: ReactNode
   actions?: ReactNode
   resource: Resource<unknown>
   interval: number
@@ -29,11 +30,11 @@ type Props = {
   log?: ReactNode
 }
 
-export function ChatPane({ target, actions, resource, interval, error, send, log }: Props) {
+export function ChatPane({ target, title = target.name, actions, resource, interval, error, send, log }: Props) {
   const loaded = log !== undefined
   return (
     <Flex direction="column" flexGrow="1" minWidth="0">
-      <ChatToolbar title={target.name}>
+      <ChatToolbar title={title}>
         {actions}
         <Flex ml="auto" align="center" flexShrink="0">
           <Freshness resource={resource} interval={interval} error={loaded ? error : undefined} />

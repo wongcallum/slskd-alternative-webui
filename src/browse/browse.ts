@@ -1,9 +1,10 @@
-import { type DBSchema, type IDBPDatabase, openDB } from 'idb'
 import { isHTTPError } from 'ky'
 
 import { api, describeError, sleep } from '../lib/api'
-import { createAtom } from '../lib/store'
+import { announce as announceChange, createRecordList, type Database, db, onAnnounce } from '../lib/db'
+import { createAtom, without } from '../lib/store'
 import { sessionSignal } from '../session/session'
+import { describePeerError } from '../soulseek/soulseek'
 import { createDownloads, enqueueDownloads } from '../transfers/enqueue'
 import { buildShare, type Folder, type RawShare, relativePath, type Share, type ShareFile } from './shareTree'
 
@@ -18,13 +19,6 @@ export type ShareRecord = {
   bytes: number
 }
 
-interface Schema extends DBSchema {
-  shares: { key: string; value: ShareRecord }
-  trees: { key: string; value: Blob }
-}
-
-let opening: Promise<IDBPDatabase<Schema>> | undefined
-
 // Parsing, building and the first render are separate tasks, so the page can paint between them.
 async function parseShare(username: string, blob: Blob) {
   const raw = JSON.parse(await blob.text()) as RawShare
@@ -34,29 +28,9 @@ async function parseShare(username: string, blob: Blob) {
   return share
 }
 
-const db = () =>
-  (opening ??= openDB<Schema>('slskd-alt', 1, {
-    upgrade(database) {
-      database.createObjectStore('shares', { keyPath: 'username' })
-      database.createObjectStore('trees')
-    },
-  }))
-
 const capacity = 2 ** 30
 
-export type ShareList = { loaded: boolean; records: ReadonlyMap<string, ShareRecord>; error?: unknown }
-
-export const shareList = createAtom<ShareList>({ loaded: false, records: new Map() })
-
-export async function loadShareList() {
-  const signal = sessionSignal()
-  try {
-    const records = await (await db()).getAll('shares')
-    if (!signal.aborted) shareList.set({ loaded: true, records: new Map(records.map((each) => [each.username, each])) })
-  } catch (error) {
-    if (!signal.aborted) shareList.set((current) => ({ ...current, loaded: true, error }))
-  }
-}
+export const { list: shareList, load: loadShareList } = createRecordList('shares')
 
 export type Loaded =
   | { status: 'loading' }
@@ -69,12 +43,6 @@ export const loadedShares = createAtom<ReadonlyMap<string, Loaded>>(new Map())
 const kept = 2
 
 const viewing = new Map<string, number>()
-
-const without = <V>(map: ReadonlyMap<string, V>, key: string) => {
-  const next = new Map(map)
-  next.delete(key)
-  return next
-}
 
 function setLoaded(username: string, loaded: Loaded | undefined) {
   loadedShares.set((current) => {
@@ -136,7 +104,7 @@ async function touch(username: string) {
   }
 }
 
-async function evict(database: IDBPDatabase<Schema>) {
+async function evict(database: Database) {
   const records = await database.getAll('shares')
   let stored = records.reduce((sum, each) => sum + each.bytes, 0)
   const held = new Set([...viewing.keys(), ...loadedShares.get().keys(), ...browses.get().keys()])
@@ -148,7 +116,7 @@ async function evict(database: IDBPDatabase<Schema>) {
   }
 }
 
-async function remove(database: IDBPDatabase<Schema>, username: string) {
+async function remove(database: Database, username: string) {
   const transaction = database.transaction(['shares', 'trees'], 'readwrite')
   await Promise.all([
     transaction.objectStore('shares').delete(username),
@@ -168,12 +136,7 @@ async function store(record: ShareRecord, blob: Blob) {
   await evict(database)
 }
 
-const channel = typeof BroadcastChannel === 'undefined' ? undefined : new BroadcastChannel('slskd-alt')
-
-type Message = { type: 'share'; username: string }
-
-// oxlint-disable-next-line unicorn/require-post-message-target-origin -- BroadcastChannel has no target origin
-const announce = (username: string) => channel?.postMessage({ type: 'share', username } satisfies Message)
+const announce = (username: string) => announceChange({ type: 'share', username })
 
 // Another tab stored or deleted a share, so a copy here that came from the old cache is dropped and read again.
 async function resync(username: string) {
@@ -188,9 +151,7 @@ async function resync(username: string) {
   if (viewing.has(username)) void readShare(username)
 }
 
-channel?.addEventListener('message', (event: MessageEvent<Message>) => {
-  if (event.data.type === 'share') void resync(event.data.username)
-})
+onAnnounce('share', (username) => void resync(username))
 
 export async function deleteShare(username: string) {
   try {
@@ -238,17 +199,6 @@ const sameStatus = (a: Status | undefined, b: Status | undefined) =>
   a.bytesTransferred === b.bytesTransferred &&
   a.size === b.size &&
   a.percentComplete === b.percentComplete
-
-function describeBrowseError(error: unknown) {
-  if (isHTTPError(error)) {
-    const message = typeof error.data === 'string' ? error.data : ''
-    if (error.response.status === 404) {
-      return message === '' ? 'On your blacklist' : 'Appears to be offline'
-    }
-    if (message.includes('timed out after 60000 milliseconds')) return "Didn't respond within 60 s"
-  }
-  return describeError(error)
-}
 
 // slskd can't cancel a browse, and two of the same user at once can cross their results.
 export async function browse(username: string) {
@@ -316,7 +266,7 @@ export async function browse(username: string) {
     if (notCached === undefined) announce(username)
   } catch (error) {
     if (!signal.aborted) {
-      failures.set((current) => new Map(current).set(username, { error: describeBrowseError(error), at: Date.now() }))
+      failures.set((current) => new Map(current).set(username, { error: describePeerError(error), at: Date.now() }))
     }
   } finally {
     arrived = true

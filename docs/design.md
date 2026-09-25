@@ -17,6 +17,9 @@ stock slskd. Verified behaviour of slskd and the libraries we rely on is in [fac
 We share an origin with stock, so everything we persist (localStorage keys, the IndexedDB database and the
 `BroadcastChannel`) is prefixed `slskd-alt`.
 
+The one database holds each feature's stores, and a tab on an older build closes its connection when a newer one
+needs to upgrade it, which would otherwise wait for every tab to close.
+
 ### Live store
 
 **One hand-rolled live store**, with no TanStack Query, SWR or RTK Query. This is a deliberate exception to
@@ -85,6 +88,7 @@ That includes queue-position lookups and retries. Show stored results instead (s
 and we cache browsed share trees in IndexedDB), show when each result was fetched, and re-fetch only on request.
 
 - Browse user on a search result or transfer counts as the gesture, so it browses a user who isn't cached.
+- Profile in a name's menu counts as the gesture too, and always looks the user up (see [Users](#users)).
 - The one exception is acknowledging private messages while their conversation is on screen (see [Chat](#chat)).
 - slskd runs at most two enqueues at once and answers a third with a 429 having done nothing, so enqueues go one
   POST at a time and a 429 is resent every second for up to 30 s. Creating a search does the same, since a 429
@@ -154,6 +158,27 @@ and we cache browsed share trees in IndexedDB), show when each result was fetche
   the main thread in three tasks: about 250, 180 and 100 ms for 168k files.
 - There's no `navigator.storage.persist()`, because Firefox would prompt for it.
 - The cache survives the session ending.
+
+### Users
+
+- A lookup asks for `status`, `endpoint` and `info` at once. Status and address come from the server and the rest from
+  the user's own client, which fails far more often (firewalled or offline peers), so each part shows on its own.
+  **A part that fails keeps what the last lookup found**, with its own age, and the error shows beside it. Errors are
+  held in memory only.
+- Profile in a name's menu always looks the user up, unlike Browse, which opens a cached share. A lookup is one server
+  request and one small message to the peer, and a stale presence or queue length is what would mislead.
+- Opening a profile by link, reload or the landing list shows what's stored, and nothing is asked.
+- In IndexedDB, `users` holds the small record the landing page reads, and `pictures` holds each picture as base64, so
+  the list never reads the pictures. Only the newest 100 lookups are kept, since every Profile click stores one. They
+  survive the session ending, like the share cache.
+- Peers don't say what type a picture is, so it's shown as `data:image;base64,…` and the browser sniffs it.
+- The transfer history comes from slskd's own database, not Soulseek, so it loads with the page and after each lookup
+  (see the facts). Failed is everything that neither succeeded nor was cancelled, since slskd's own errored count takes
+  only four exact states.
+- Names have a menu (Profile, Message, Browse) wherever they appear: search results, transfers, rooms, the conversation
+  header, and Browse's share header, where the name is in the box so the menu is a ⋯ button beside it. It leaves out the
+  page it's on. The archive icon stays as a one-click Browse, and our own name in a room's user list has no menu.
+- The server answers a made-up name the same as an offline user (see the facts), so neither is called out.
 
 ### Chat
 

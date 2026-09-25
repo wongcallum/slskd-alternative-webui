@@ -1,10 +1,12 @@
-import { Box, Button, Callout, Flex, Spinner, Text, Tooltip } from '@radix-ui/themes'
+import { Cross2Icon } from '@radix-ui/react-icons'
+import { Box, Button, Callout, Flex, IconButton, Spinner, Text, Tooltip } from '@radix-ui/themes'
 import { type ReactNode, useEffect, useState } from 'react'
 
 import { describeError } from '../lib/api'
 import { formatAge, formatTime, useAgo } from '../lib/format'
 import { isStale, type Resource, useFreshness } from '../lib/store'
 import type { Color } from './controls'
+import { stop } from './table'
 
 export function StatusDot({ color }: { color: Color }) {
   return (
@@ -99,6 +101,49 @@ export function Freshness({
       )}
       <Text size="1" color={live || !stale ? 'gray' : 'amber'}>
         {live ? 'live' : age === undefined ? 'not loaded yet' : `updated ${formatAge(age)} ago`}
+      </Text>
+    </Flex>
+  )
+}
+
+export function DismissibleText({
+  color = 'red',
+  title,
+  onDismiss,
+  children,
+}: {
+  color?: Color
+  title: string
+  onDismiss: () => void
+  children: ReactNode
+}) {
+  return (
+    <Flex align="center" gap="1" minWidth="0">
+      <Text size="2" color={color} truncate title={title}>
+        {children}
+      </Text>
+      <IconButton
+        size="1"
+        variant="ghost"
+        color="gray"
+        aria-label="Dismiss"
+        onClick={(event) => {
+          stop(event)
+          onDismiss()
+        }}
+      >
+        <Cross2Icon />
+      </IconButton>
+    </Flex>
+  )
+}
+
+export function Busy({ children }: { children: ReactNode }) {
+  return (
+    <Flex align="center" gap="2" minWidth="0">
+      <Spinner size="1" />
+      <Text size="2" color="gray" truncate>
+        {children}
       </Text>
     </Flex>
   )

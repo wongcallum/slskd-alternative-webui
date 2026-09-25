@@ -1,0 +1,29 @@
+.user-name-button {
+  all: unset;
+  cursor: pointer;
+}
+
+.user-name-button:hover {
+  text-decoration: underline;
+}
+
+.user-picture {
+  display: block;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-3);
+  background: none;
+  cursor: zoom-in;
+}
+
+.user-picture img {
+  display: block;
+  max-width: 160px;
+  max-height: 160px;
+  border-radius: var(--radius-3);
+}
+
+.user-description {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

@@ -7,6 +7,7 @@ import { formatBytes, formatProgress, formatSpeed, formatTime, toTime } from '..
 import { type Color, type Detail, DetailList, DetailsButton, GatedIconButton } from '../ui/controls'
 import { Ago } from '../ui/status'
 import { ActionsCell, Cell, CheckCell, GridRow, GroupNameCell } from '../ui/table'
+import { UserMenu } from '../users/UserMenu'
 import { type Lookup, lookUpPositions, retry } from './actions'
 import { fraction, templates, timeOf } from './table'
 import {
@@ -219,7 +220,9 @@ export const GroupRow = memo(function GroupRow({
         </Text>
       </GroupNameCell>
       <div className="table-cell" title={group.username}>
-        <Text size="2">{group.username}</Text>
+        <Text size="2">
+          <UserMenu username={group.username} />
+        </Text>
       </div>
       <Flex className="table-cell" align="center" gap="2">
         {section === 'active' && <Bar value={fraction(group)} />}
