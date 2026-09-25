@@ -71,9 +71,9 @@ function toMessage(raw: RawPrivateMessage): Message {
 }
 
 // Acknowledging tells the server to stop delivering a message again at every login; the sender never learns of it.
-// It's done while the conversation is on screen, which the poll pausing in a hidden tab ensures.
+// It's done only while the conversation is on screen, so never in a hidden tab, whose poll pauses too.
 async function acknowledge(username: string, signal: AbortSignal) {
-  if (application.getSnapshot().data?.isLoggedIn !== true) return
+  if (document.hidden || application.getSnapshot().data?.isLoggedIn !== true) return
   try {
     await api.put(path(username), { signal })
     conversations.refresh()

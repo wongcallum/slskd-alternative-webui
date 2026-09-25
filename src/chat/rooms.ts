@@ -167,7 +167,16 @@ application.watch(() => {
   if (left.length !== current.size) overrides.set(new Map(left))
 })
 
-const setOverride = (room: string, joined: boolean) => overrides.set((current) => new Map(current).set(room, joined))
+// One that STATE already agrees with would linger until STATE next changes.
+function setOverride(room: string, joined: boolean) {
+  const agreed = application.getSnapshot().data?.rooms.includes(room) === joined
+  overrides.set((current) => {
+    const next = new Map(current)
+    if (agreed) next.delete(room)
+    else next.set(room, joined)
+    return next
+  })
+}
 
 // STATE lists a room being joined a moment before slskd answers for it, so this tab waits for its join to return.
 const joining = createAtom<ReadonlySet<string>>(new Set())
