@@ -21,6 +21,7 @@ export function SystemPage({ status, children }: { status?: ReactNode; children:
             </Flex>
           </NavTab>
           <NavTab to="/system/files">Files</NavTab>
+          <NavTab to="/system/events">Events</NavTab>
           <NavTab to="/system/logs">Logs</NavTab>
         </NavTabs>
         <Flex ml="auto" align="center" gap="4" flexShrink="0">
