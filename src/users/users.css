@@ -20,9 +20,16 @@
 
 .user-picture img {
   display: block;
-  max-width: 160px;
-  max-height: 160px;
+  max-width: 96px;
+  max-height: 96px;
   border-radius: var(--radius-3);
+}
+
+@media (min-width: 520px) {
+  .user-picture img {
+    max-width: 160px;
+    max-height: 160px;
+  }
 }
 
 .user-description {
