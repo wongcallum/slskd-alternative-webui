@@ -57,12 +57,13 @@ export function begin<K extends string, S extends Actions<K>>(
 
 export type Operation = ReturnType<typeof begin>
 
-// Acts on four items at a time and collects what failed. Returns undefined once the session has ended.
+// Acts on four items at a time, unless told otherwise, and collects what failed. Returns undefined once the session has ended.
 export async function actOnEach<T extends { id: string }>(
   operation: Operation,
   items: T[],
   name: (item: T) => string,
   act: (item: T, signal: AbortSignal) => Promise<unknown>,
+  concurrency = 4,
 ) {
   const errors: string[] = []
   try {
@@ -78,7 +79,7 @@ export async function actOnEach<T extends { id: string }>(
           operation.advance([item.id])
         }
       },
-      { concurrency: 4, signal: operation.signal },
+      { concurrency, signal: operation.signal },
     )
   } catch {
     return undefined
