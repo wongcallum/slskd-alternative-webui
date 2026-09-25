@@ -102,7 +102,7 @@ async function touch(username: string) {
     const record = await database.get('shares', username)
     if (record !== undefined) await database.put('shares', { ...record, openedAt: Date.now() })
   } catch {
-    // Recency only orders eviction.
+    // A failed touch only changes which share is evicted first.
   }
 }
 

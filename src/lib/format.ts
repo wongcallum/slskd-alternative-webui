@@ -60,7 +60,6 @@ const fullTime = new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 's
 
 const isToday = (time: number) => new Date(time).toDateString() === new Date().toDateString()
 
-// To the millisecond, with the date only when it isn't today.
 export const formatPreciseTime = (time: number) => (isToday(time) ? timeOnly : dayAndTime).format(time)
 
 export const formatFullPreciseTime = (time: number) => fullTime.format(time)
