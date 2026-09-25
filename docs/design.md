@@ -157,7 +157,8 @@ and we cache browsed share trees in IndexedDB), show when each result was fetche
   hook the rest, since row heights and markup change too.
 - Rows keep a fixed height per breakpoint. Below a table's breakpoint they stack into a title line and a line of
   details ending in the row's actions: below md for transfers and results, which have eight columns, and below sm for
-  the rest. The column header becomes a strip of sort labels. Between md and lg the widest tables drop a column rather
+  the rest. Folders of transfers and results take a third line, and a long username gives way along with the last
+  detail. The column header becomes a strip of sort labels. Between md and lg the widest tables drop a column rather
   than scroll sideways.
 - Below sm there's room for one pane:
   - Browse, Shares and Files show the folder, whose path leads up, and a Folders toggle swaps the tree in.
