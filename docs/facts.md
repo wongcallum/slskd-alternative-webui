@@ -606,7 +606,9 @@ and its bundled docs (`skills/`).
   (`isRowRangeSelectionEvent`). A Shift event selects the inclusive range from the table's last handled row in
   display order, and `selectChildren` (default true) includes collapsed children. `toggleAllRowsSelected` only
   adds or deletes the table's own row ids and leaves any other ids in the state alone.
-  `getIsSomeRowsSelected()` means "at least one", including when all are.
+  `getIsSomeRowsSelected()` means "at least one", including when all are. It counts the ids in the state, so it
+  stays true after the selected rows leave `data` (observed after deleting them), while `getSelectedRowModel()`
+  only returns rows still in the model.
 - `useTable` returns a new table object whenever its options object changes, which in practice is every render.
 
 ## TanStack Virtual
