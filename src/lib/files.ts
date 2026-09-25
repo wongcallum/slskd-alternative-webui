@@ -33,6 +33,13 @@ export function qualityOf(file: RawFile): [number, string] {
 
 type Rated = { quality: number; qualityLabel: string; bitRate?: number }
 
+// A file without attributes doesn't count.
+export function widenRange<F extends Rated>(range: { worst?: F; best?: F }, file: F | undefined) {
+  if (file === undefined || file.quality < 0) return
+  if (range.worst === undefined || file.quality < range.worst.quality) range.worst = file
+  if (range.best === undefined || file.quality > range.best.quality) range.best = file
+}
+
 export function describeRange(worst: Rated | undefined, best: Rated | undefined): [number, string] {
   if (worst === undefined || best === undefined) return [-1, '']
   if (worst.qualityLabel === best.qualityLabel) return [worst.quality, worst.qualityLabel]

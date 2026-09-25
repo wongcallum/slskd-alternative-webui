@@ -1,7 +1,15 @@
 import { api, describeError } from '../../lib/api'
-import { describeRange, lastSeparator, nameOf, qualityOf, type RawDirectory, type RawFile } from '../../lib/files'
+import {
+  describeRange,
+  lastSeparator,
+  nameOf,
+  qualityOf,
+  type RawDirectory,
+  type RawFile,
+  widenRange,
+} from '../../lib/files'
 import { createAtom } from '../../lib/store'
-import { byName, compareNames, parseQuery } from '../../lib/text'
+import { byName, compareNames, queryMatcher } from '../../lib/text'
 import { sessionSignal } from '../../session/session'
 import { createDownloads, enqueueDownloads } from '../../transfers/enqueue'
 
@@ -69,14 +77,9 @@ function folderName(directory: string) {
 
 // A folder is rated by its worst file, ignoring files without attributes such as cover art.
 function qualityRange(files: ResultFile[]): [number, string] {
-  let worst: ResultFile | undefined
-  let best: ResultFile | undefined
-  for (const file of files) {
-    if (file.quality < 0) continue
-    if (worst === undefined || file.quality < worst.quality) worst = file
-    if (best === undefined || file.quality > best.quality) best = file
-  }
-  return describeRange(worst, best)
+  const range: { worst?: ResultFile; best?: ResultFile } = {}
+  for (const file of files) widenRange(range, file)
+  return describeRange(range.worst, range.best)
 }
 
 function toFile(raw: RawFile, peer: Peer, locked: boolean, matched: boolean): ResultFile {
@@ -208,12 +211,9 @@ const countAttributed = (files: ResultFile[]) => files.reduce((count, file) => c
 // Groups whose files all pass keep their identity, so TanStack reuses what it can.
 export function viewGroups(results: Results, folders: ReadonlyMap<string, FolderFetch>, filter: ResultFilter) {
   const base = filter.locked ? results.all : results.unlocked
-  const { include, exclude } = parseQuery(filter.query)
-  const searching = include.length + exclude.length > 0
+  const matches = queryMatcher(filter.query)
   const judging = filter.quality > 0 || filter.size > 0 || filter.length > 0
-  if (!searching && !judging && filter.files === 0 && !filter.free && folders.size === 0) return base
-  const matches = (file: ResultFile) =>
-    include.every((term) => file.search.includes(term)) && !exclude.some((term) => file.search.includes(term))
+  if (matches === undefined && !judging && filter.files === 0 && !filter.free && folders.size === 0) return base
   const passes = (file: ResultFile) =>
     !hasAttributes(file) ||
     ((filter.quality === 0 || file.quality >= filter.quality) &&
@@ -223,7 +223,7 @@ export function viewGroups(results: Results, folders: ReadonlyMap<string, Folder
   for (const group of base) {
     if (filter.free && !group.peer.free) continue
     const extras = folders.get(group.id)?.files ?? []
-    let files = searching ? group.files.filter(matches) : group.files
+    let files = matches === undefined ? group.files : group.files.filter((file) => matches(file.search))
     if (judging) {
       files = files.filter(passes)
       if (countAttributed(files) + countAttributed(extras) === 0) files = []

@@ -1,6 +1,6 @@
 import { api, describeError } from '../lib/api'
-import { announce, createRecordList, type Database, db, onAnnounce } from '../lib/db'
-import { createAtom, createResource, createResourceMap, without } from '../lib/store'
+import { announce, createRecordList, type Database, db, onAnnounce, removeUser } from '../lib/db'
+import { createAtom, createResource, createResourceMap, load, without } from '../lib/store'
 import { sessionSignal } from '../session/session'
 import { describePeerError } from '../soulseek/soulseek'
 
@@ -37,7 +37,7 @@ export const lookedUpAt = (record: UserRecord) => Math.max(record.status?.fetche
 
 const kept = 100
 
-export const { list: userList, load: loadUserList } = createRecordList('users')
+export const { list: userList, load: loadUserList, useList: useUserList } = createRecordList('users')
 
 // A picture that's been read, or null for none.
 export const pictures = createAtom<ReadonlyMap<string, string | null>>(new Map())
@@ -62,14 +62,7 @@ export const lookupErrors = createAtom<ReadonlyMap<string, LookupErrors>>(new Ma
 
 export const dismissLookupErrors = (username: string) => lookupErrors.set((current) => without(current, username))
 
-async function remove(database: Database, username: string) {
-  const transaction = database.transaction(['users', 'pictures'], 'readwrite')
-  await Promise.all([
-    transaction.objectStore('users').delete(username),
-    transaction.objectStore('pictures').delete(username),
-    transaction.done,
-  ])
-}
+const remove = (database: Database, username: string) => removeUser(database, ['users', 'pictures'], username)
 
 async function evict(database: Database) {
   const records = await database.getAll('users')
@@ -200,19 +193,12 @@ const directionOf = (raw: RawDirection): DirectionHistory => ({
 
 // Read from slskd's own database, so it loads with the page rather than on a gesture.
 export const transferHistory = createResourceMap((username) =>
-  createResource<History>((sink) => {
-    const controller = new AbortController()
-    async function load() {
-      try {
-        const raw = await api
-          .get(`telemetry/reports/transfers/users/${encodeURIComponent(username)}`, { signal: controller.signal })
-          .json<{ Download: RawDirection; Upload: RawDirection }>()
-        sink.set({ download: directionOf(raw.Download), upload: directionOf(raw.Upload) })
-      } catch (error) {
-        if (!controller.signal.aborted) sink.fail(error)
-      }
-    }
-    void load()
-    return { stop: () => controller.abort(), refresh: () => void load() }
-  }),
+  createResource<History>((sink) =>
+    load(sink, async (signal) => {
+      const raw = await api
+        .get(`telemetry/reports/transfers/users/${encodeURIComponent(username)}`, { signal })
+        .json<{ Download: RawDirection; Upload: RawDirection }>()
+      return { download: directionOf(raw.Download), upload: directionOf(raw.Upload) }
+    }),
+  ),
 )

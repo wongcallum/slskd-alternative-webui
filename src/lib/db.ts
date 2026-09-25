@@ -1,9 +1,10 @@
-import { type DBSchema, type IDBPDatabase, openDB } from 'idb'
+import { type DBSchema, type IDBPDatabase, openDB, type StoreNames } from 'idb'
+import { useEffect } from 'react'
 
 import type { ShareRecord } from '../browse/browse'
 import { sessionSignal } from '../session/session'
 import type { UserRecord } from '../users/users'
-import { createAtom } from './store'
+import { createAtom, useAtom } from './store'
 
 interface Schema extends DBSchema {
   shares: { key: string; value: ShareRecord }
@@ -67,6 +68,12 @@ export function onAnnounce(type: Change['type'], listener: (username: string) =>
   })
 }
 
+// A user's record and whatever is stored beside it, in one transaction.
+export async function removeUser(database: Database, stores: StoreNames<Schema>[], username: string) {
+  const transaction = database.transaction(stores, 'readwrite')
+  await Promise.all([...stores.map((store) => transaction.objectStore(store).delete(username)), transaction.done])
+}
+
 export type RecordList<T> = { loaded: boolean; records: ReadonlyMap<string, T>; error?: unknown }
 
 // A store's small per-user records, which a landing page reads all of.
@@ -81,7 +88,14 @@ export function createRecordList<S extends 'shares' | 'users'>(store: S) {
       if (!signal.aborted) list.set((current) => ({ ...current, loaded: true, error }))
     }
   }
-  return { list, load }
+  // A page that shows the list reads it again as it opens.
+  function useList() {
+    useEffect(() => {
+      void load()
+    }, [])
+    return useAtom(list)
+  }
+  return { list, load, useList }
 }
 
 // A landing page's entries, one per user, from the stored records and whatever else knows of them.

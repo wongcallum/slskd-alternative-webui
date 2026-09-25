@@ -1,6 +1,6 @@
 import { api } from '../../lib/api'
-import { applicationHub, followHub, useLive, type Via } from '../../lib/hubs'
-import { createResource, load, useResource } from '../../lib/store'
+import { applicationHub, followHub, useLiveResource, type Via } from '../../lib/hubs'
+import { createResource, load, sameItems, useResource } from '../../lib/store'
 
 // Secrets arrive redacted. Only what's read here is typed, and the rest is shown as it is.
 type RawOptions = {
@@ -25,13 +25,6 @@ export type Options = {
 }
 
 export const optionsPollInterval = 10_000
-
-// Every push carries new arrays, which would count as a change.
-function same(previous: readonly string[] | undefined, next: string[]) {
-  return previous !== undefined && previous.length === next.length && previous.every((each, i) => each === next[i])
-    ? previous
-    : next
-}
 
 function withoutNulls(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(withoutNulls)
@@ -61,8 +54,8 @@ function fromOptions(via: Via, raw: RawOptions): Options {
     remoteFileManagement: raw.remoteFileManagement,
     downloads: raw.directories.downloads,
     incomplete: raw.directories.incomplete,
-    shareDirectories: same(previous?.shareDirectories, raw.shares.directories),
-    shareFilters: same(previous?.shareFilters, raw.shares.filters),
+    shareDirectories: sameItems(previous?.shareDirectories, raw.shares.directories),
+    shareFilters: sameItems(previous?.shareFilters, raw.shares.filters),
     settings: sameSettings(raw),
   }
 }
@@ -87,10 +80,7 @@ export const options = createResource<Options>((sink) => {
 
 export const useOptions = () => useResource(options).data
 
-export function useLiveOptions() {
-  const { data, error } = useResource(options)
-  return { data, error, ...useLive(data?.via, applicationHub, options, optionsPollInterval) }
-}
+export const useLiveOptions = () => useLiveResource(options, applicationHub, optionsPollInterval)
 
 // Only a new process changes these, so they're read again whenever the application hub connects.
 export const startupOptions = createResource<{ debug: boolean }>((sink) => {

@@ -3,8 +3,8 @@ import { isHTTPError } from 'ky'
 import { type Actions, actOnEach, begin, idle, summarise } from '../lib/actions'
 import { api, resendOn429 } from '../lib/api'
 import { toTime } from '../lib/format'
-import { followHub, searchHub, useLive, type Via } from '../lib/hubs'
-import { createAtom, createResource, shallowEqual, useResource } from '../lib/store'
+import { followHub, searchHub, useLiveResource, type Via } from '../lib/hubs'
+import { createAtom, createResource, shallowEqual, waitFor } from '../lib/store'
 import { sessionSignal } from '../session/session'
 
 type RawSearch = {
@@ -132,10 +132,7 @@ export const searches = createResource<Searches>((sink) => {
   }
 })
 
-export function useSearches() {
-  const { data, error } = useResource(searches)
-  return { data, error, ...useLive(data?.via, searchHub, searches, searchPollInterval) }
-}
+export const useSearches = () => useLiveResource(searches, searchHub, searchPollInterval)
 
 // Stop and Delete act on slskd's stored list, so they wait until it's known.
 export const listGate = (known: boolean) => (known ? undefined : 'The list is out of date')
@@ -185,31 +182,13 @@ export async function stopSearch(search: Search) {
   searches.refresh()
 }
 
-function saved(id: string, signal: AbortSignal) {
-  return new Promise<void>((resolve) => {
-    const timer = setTimeout(done, 5000)
-    const unwatch = searches.watch(check)
-    signal.addEventListener('abort', done)
-    check()
-    function check() {
-      if (searches.getSnapshot().data?.byId.get(id)?.endedAt !== undefined) done()
-    }
-    function done() {
-      clearTimeout(timer)
-      unwatch()
-      signal.removeEventListener('abort', done)
-      resolve()
-    }
-  })
-}
-
 // A DELETE alone leaves a running search running and holding one of slskd's two search slots, and its
 // finalisation then fails against the missing row. So an unsaved search is stopped and given time to save first.
 export const deleteSearches = (list: Search[]) =>
   each('delete', list, async (search, signal) => {
     if ((searches.getSnapshot().data?.byId.get(search.id) ?? search).endedAt === undefined) {
       await stopOne(search, signal)
-      await saved(search.id, signal)
+      await waitFor(searches, (data) => data.byId.get(search.id)?.endedAt !== undefined, signal, 5000)
     }
     try {
       await api.delete(`searches/${search.id}`, { signal })

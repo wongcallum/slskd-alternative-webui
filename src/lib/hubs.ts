@@ -4,7 +4,7 @@ import { useSyncExternalStore } from 'react'
 import { getSession } from '../session/session'
 import { api } from './api'
 import { createListeners } from './listeners'
-import { type Measure, poll, type Resource, type Sink, type Source, useStale } from './store'
+import { type Measure, poll, type Resource, type Sink, type Source, useResource, useStale } from './store'
 import { urlBase } from './urlBase'
 
 export type HubStatus = { state: 'stopped' | 'connecting' | 'connected' | 'reconnecting'; attempt: number }
@@ -181,9 +181,10 @@ export function followHub<T>(
 }
 
 // Pushed data is current while its hub is connected, and polled data while it's fresh.
-export function useLive(via: Via | undefined, hub: Hub, resource: Resource<unknown>, interval: number) {
+export function useLiveResource<T extends { via: Via }>(resource: Resource<T>, hub: Hub, interval: number) {
+  const { data, error } = useResource(resource)
   const status = useHub(hub)
   const polled = !useStale(resource, interval)
-  const live = via === 'hub' && status.state === 'connected'
-  return { live, known: live || (via === 'poll' && polled) }
+  const live = data?.via === 'hub' && status.state === 'connected'
+  return { data, error, live, known: live || (data?.via === 'poll' && polled) }
 }
