@@ -1,6 +1,6 @@
 import { Button, Callout, Card, Flex, Heading, Text, TextField } from '@radix-ui/themes'
 import { isHTTPError, isNetworkError, isTimeoutError } from 'ky'
-import { type FormEvent, useRef, useState } from 'react'
+import { type SubmitEvent, useRef, useState } from 'react'
 import { describeError } from './api'
 import { login } from './session'
 
@@ -9,13 +9,13 @@ export function Login({ ended }: { ended: boolean }) {
   const [error, setError] = useState<string>()
   const password = useRef<HTMLInputElement>(null)
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     const form = new FormData(event.currentTarget)
     setPending(true)
     setError(undefined)
     try {
-      await login(String(form.get('username')), String(form.get('password')))
+      await login(form.get('username') as string, form.get('password') as string)
     } catch (thrown) {
       if (isHTTPError(thrown) && thrown.response.status === 401) {
         setError('Wrong username or password')

@@ -68,8 +68,9 @@ function settle(via: Searches['via'], byId: Map<string, Search>, previous: Searc
 
 let upsertLocally: ((raw: RawSearch) => void) | undefined
 
+const current = () => searches.getSnapshot().data
+
 export const searches = createResource<Searches>((sink) => {
-  const current = () => searches.getSnapshot().data
   // A push for a search can still be in flight when its DELETE arrives.
   const deleted = new Set<string>()
 

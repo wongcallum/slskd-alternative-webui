@@ -10,9 +10,9 @@ import {
 } from '@tanstack/react-table'
 import { Link as RouterLink, useNavigate } from '@tanstack/react-router'
 import {
-  type FormEvent,
   memo,
   type ReactNode,
+  type SubmitEvent,
   useCallback,
   useDeferredValue,
   useEffect,
@@ -202,7 +202,7 @@ function NewSearch() {
     }
   }, [])
 
-  async function submit(event: FormEvent) {
+  async function submit(event: SubmitEvent) {
     event.preventDefault()
     const searchText = text.trim()
     if (gate !== undefined || busy || searchText === '') return

@@ -1,7 +1,3 @@
-declare global {
-  interface Window {
-    urlBase: string
-  }
+interface Window {
+  urlBase: string
 }
-
-export {}

@@ -132,7 +132,7 @@ export function SharePage({ search, onSearchChange }: Props) {
   } else if (loaded?.status === 'missing' && running !== undefined) {
     content = (
       <Flex justify="center" p="6">
-        <BrowseProgress username={username} browse={running} />
+        <BrowseProgress username={username} running={running} />
       </Flex>
     )
   } else if (loaded?.status === 'missing') {
@@ -181,7 +181,7 @@ export function SharePage({ search, onSearchChange }: Props) {
       </Flex>
       {ready !== undefined && running !== undefined ? (
         <Flex align="center" px="4" py="2" flexShrink="0" style={toolbarStyle}>
-          <BrowseProgress username={username} browse={running} />
+          <BrowseProgress username={username} running={running} />
         </Flex>
       ) : (
         failure !== undefined && (
@@ -368,7 +368,7 @@ function Tree({ share, selected, matches, onOpen }: TreeProps) {
     [share],
   )
   const getItemKey = useCallback((index: number) => rows[index]?.id ?? index, [rows])
-  const index = rows.findIndex((row) => row.id === selected.id)
+  const selectedIndex = rows.findIndex((row) => row.id === selected.id)
 
   if (rows.length === 0) {
     return (
@@ -386,7 +386,7 @@ function Tree({ share, selected, matches, onOpen }: TreeProps) {
       count={rows.length}
       getItemKey={getItemKey}
       rowSize={treeRowHeight}
-      reveal={{ key: `${selected.id}\n${matches === undefined}`, index }}
+      reveal={{ key: `${selected.id}\n${matches === undefined}`, index: selectedIndex }}
       role="tree"
       label="Folders"
       renderRow={(index) => {
@@ -433,6 +433,8 @@ const TreeRow = memo(function TreeRow({
 }: TreeRowProps) {
   const parent = folder.folders.length > 0
   return (
+    // TODO: keyboard handling (docs/plan.md, after the plan) makes tree items focusable.
+    // oxlint-disable-next-line jsx-a11y/interactive-supports-focus
     <div
       className="tree-row"
       role="treeitem"

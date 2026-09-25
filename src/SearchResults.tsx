@@ -464,9 +464,9 @@ function ResultsView({ searchId, results, folders, params, onSearchChange }: Vie
   // TanStack skips expansion entirely while the expanded state is empty, so "all expanded" has to be spelled out.
   const expanded = useMemo(() => {
     if (!expansion.all) return expansion.toggled
-    const expanded: ExpandedStateList = {}
-    for (const group of groups) expanded[group.id] = expansion.toggled[group.id] ?? true
-    return expanded
+    const all: ExpandedStateList = {}
+    for (const group of groups) all[group.id] = expansion.toggled[group.id] ?? true
+    return all
   }, [groups, expansion])
   const sorting = useMemo(() => parseSort(params.sort), [params.sort])
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
@@ -489,7 +489,7 @@ function ResultsView({ searchId, results, folders, params, onSearchChange }: Vie
   for (const row of table.getSelectedRowModel().flatRows) {
     if (row.original.kind === 'file' && !row.original.locked) selected.push(row.original)
   }
-  const selectedSize = selected.reduce((size, file) => size + file.size, 0)
+  const selectedSize = selected.reduce((sum, file) => sum + file.size, 0)
   const soulseekGate = useSoulseekGate()
   const downloads = useAtom(downloadsOf(searchId))
 

@@ -34,6 +34,8 @@ Radix Icons. Each dependency is added in the phase that first uses it.
   the hubs fell back to SSE after about 40 s each) until it was restarted. Its requests never reached Vite.
 - Real build: `pnpm build && dev/slskd restart --dist`, then open `http://localhost:5030/slskd/`.
   Scripted checks must send `-H 'Accept: text/html'`.
+- Before committing, run `pnpm fmt` (oxfmt, Markdown included) and `pnpm lint` (oxlint, type-aware through
+  `oxlint-tsgolint`). A disable comment names its rule and says why the code is right.
 
 ## Architecture
 

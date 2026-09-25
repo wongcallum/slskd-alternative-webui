@@ -149,6 +149,7 @@ export function OutcomeLine<S extends Actions<string>>({ atom }: { atom: Atom<S>
           <Popover.Content width="480px" maxHeight="360px">
             <Flex direction="column" gap="1">
               {outcome.details.map((detail, index) => (
+                // oxlint-disable-next-line react/no-array-index-key -- details can repeat and never reorder
                 <Text key={index} size="1" style={{ wordBreak: 'break-word' }}>
                   {detail}
                 </Text>
@@ -243,7 +244,7 @@ export function VirtualTable({
   // Rows moving because others opened or closed above them don't scroll.
   useLayoutEffect(() => {
     if (reveal !== undefined && reveal.index >= 0) virtualizer.scrollToIndex(reveal.index, { align: 'auto' })
-  }, [reveal?.key, found])
+  }, [reveal?.key, found]) // oxlint-disable-line react-hooks/exhaustive-deps
   return (
     <div ref={scrollRef} className="table-scroll" role={role} aria-label={label}>
       {header !== undefined && (
