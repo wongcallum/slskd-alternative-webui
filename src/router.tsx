@@ -8,8 +8,9 @@ import {
   stripSearchParams,
   useRouter,
 } from '@tanstack/react-router'
-import { useEffect } from 'react'
-import { NotFound, Placeholder, RouteError } from './pages'
+import { useCallback, useEffect } from 'react'
+import { BrowsePage, type BrowseSearch, browseSearch, browseSearchDefaults } from './Browse'
+import { NotFound, RouteError } from './pages'
 import { useResource } from './store'
 import {
   rememberedFilters,
@@ -21,6 +22,7 @@ import {
 import { type SearchesSearch, SearchesPage, searchesSearch, searchesSearchDefaults } from './Searches'
 import { searches } from './searches'
 import { SessionGate } from './SessionGate'
+import { SharePage } from './Share'
 import { Shell } from './Shell'
 import { TransfersPage, type TransfersSearch, transfersSearch, transfersSearchDefaults } from './Transfers'
 
@@ -146,9 +148,19 @@ const uploadsRoute = createRoute({
 const browseRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'browse',
-  head: () => title('Browse'),
-  // TODO: phase 6 replaces this placeholder with the browse pane.
-  component: () => <Placeholder title="Browse" />,
+  head: ({ match }) => title(match.search.user === '' ? 'Browse' : `${match.search.user} · Browse`),
+  validateSearch: browseSearch,
+  search: { middlewares: [stripSearchParams(browseSearchDefaults)] },
+  component: function Browse() {
+    const navigate = browseRoute.useNavigate()
+    const search = browseRoute.useSearch()
+    const onSearchChange = useCallback(
+      (patch: Partial<BrowseSearch>) => navigate({ search: (previous) => ({ ...previous, ...patch }), replace: true }),
+      [navigate],
+    )
+    if (search.user === '') return <BrowsePage />
+    return <SharePage key={search.user} search={search} onSearchChange={onSearchChange} />
+  },
 })
 
 export const router = createRouter({

@@ -27,7 +27,6 @@ import {
   Spinner,
   Text,
   TextField,
-  Tooltip,
 } from '@radix-ui/themes'
 import {
   createColumnHelper,
@@ -59,11 +58,13 @@ import {
 } from 'react'
 import * as v from 'valibot'
 import { describeError } from './api'
+import { BrowseUserButton } from './Browse'
 import {
   ActionButton,
   Ago,
   Freshness,
   GatedIconButton,
+  MarkBadge,
   OutcomeLine,
   preventShiftSelection,
   SortButton,
@@ -219,9 +220,9 @@ const columnLabels: Record<(typeof columnIds)[number], string> = {
 
 const endAligned = new Set<string>(['files', 'size', 'length', 'speed', 'queue'])
 
-const template = '40px minmax(280px, 1fr) 150px 90px 100px 160px 80px 110px 80px 96px'
+const template = '40px minmax(280px, 1fr) 150px 90px 100px 160px 80px 110px 80px 132px'
 
-const minWidth = 1186
+const minWidth = 1222
 
 type Expansion = { all: boolean; toggled: ExpandedStateList }
 
@@ -821,15 +822,6 @@ function DetailsButton({ rows }: { rows: [string, ReactNode][] }) {
   )
 }
 
-function MarkBadge({ mark }: { mark: Mark }) {
-  if (mark.ok) return <Badge color="green">Enqueued</Badge>
-  return (
-    <Tooltip content={mark.message}>
-      <Badge color="red">Failed</Badge>
-    </Tooltip>
-  )
-}
-
 type FileRowProps = {
   searchId: string
   file: ResultFile
@@ -906,6 +898,9 @@ const FileRow = memo(function FileRow({ searchId, file, selected, pending, mark,
             <DownloadIcon />
           </GatedIconButton>
         )}
+        <IconButton size="1" variant="ghost" aria-hidden tabIndex={-1} style={{ visibility: 'hidden' }}>
+          <CardStackPlusIcon />
+        </IconButton>
         <IconButton size="1" variant="ghost" aria-hidden tabIndex={-1} style={{ visibility: 'hidden' }}>
           <CardStackPlusIcon />
         </IconButton>
@@ -1050,6 +1045,7 @@ const GroupRow = memo(function GroupRow({
             <CardStackPlusIcon />
           </GatedIconButton>
         )}
+        <BrowseUserButton username={group.username} directory={group.directory} />
         <DetailsButton rows={details} />
       </Flex>
     </div>

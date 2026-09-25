@@ -43,6 +43,7 @@ import { defaultRangeExtractor, type Range, useVirtualizer } from '@tanstack/rea
 import { memo, type ReactNode, useCallback, useDeferredValue, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import * as v from 'valibot'
 import { describeError } from './api'
+import { BrowseUserButton } from './Browse'
 import {
   ActionButton,
   Ago,
@@ -911,6 +912,7 @@ const GroupRow = memo(function GroupRow({
             <ListBulletIcon />
           </GatedIconButton>
         )}
+        <BrowseUserButton username={group.username} directory={group.directory} />
       </Flex>
     </div>
   )

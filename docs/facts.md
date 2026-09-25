@@ -109,6 +109,22 @@ Error bodies are JSON strings. Encode the username segment with `encodeURICompon
   - **At most two enqueues run at once**, across the batch and the obsolete per-user POST. A third gets 429
     straight away with nothing done. Observed: a retry's POST got 429 twice while two other enqueues held the
     slots for about 2 s each, then succeeded on the next resend.
+  - It has no limit on the number of files. Kestrel's default 30 MB body limit applies, and behind nginx's default
+    1 MB limit a batch of roughly 7–10k files fails. Duplicate `filename`s within a request are compared exactly, and
+    give a 400. The work before it returns grows roughly with the square of the file count (one DbContext tracks
+    every insert), and files then reach the peer 5 at a time (`Downloads/DownloadService.cs`, not measured).
+- **Where a download lands.** It's written to `<directories.incomplete>/<username>/<remote directory without its
+  root>/<file>`, and on completion moved to `<directories.downloads>/<destination>/<basename>`. The destination is
+  worked out at completion, from the batch and the current config (`Downloads/DownloadService.cs`,
+  `Files/FileService.cs`).
+  - By default it's the YAML-only pattern `transfers.download.destination.subdirectory: ${SOURCE_DIRECTORY}`: the
+    last remote folder name. The pattern's variables are `SOURCE_USERNAME`, `SOURCE_PATH` (the remote directory
+    without an `@@abcde`, drive or UNC root), `SOURCE_DIRECTORY`, `BATCH_ID`, `BATCH_EXTERNAL_ID`, `SEARCH_ID` and
+    `SEARCH_TEXT` (`Core/Options.cs`). So `Album\CD1\01.flac` and `Album\CD2\01.flac` land in `CD1/` and `CD2/`, and
+    two albums' `CD1`s merge, with a clashing name renamed `01_<ticks>.flac` under the default `exists: rename`.
+  - A batch's `options.destination` replaces the pattern. It's one literal folder relative to the downloads
+    directory, with no template expansion, and `.` or `..` segments are rejected. `\` and `/` both work as
+    separators. Every file in the batch lands flat in it, so keeping a tree takes one batch per remote folder.
 - `GET downloads/batches/{id}` returns `{id, searchId?, username, direction, createdAt, options, transfers}`,
   including removed transfers. There's no endpoint that lists batches.
 - A batch's `searchId` is only used by the `SEARCH_ID` and `SEARCH_TEXT` destination template variables
@@ -323,22 +339,79 @@ Paths below are relative to `Search/` unless they start with another directory. 
 Paths are relative to `Users/`. Everything except `status` asks the peer, and all of them are Soulseek actions.
 Not being logged in to Soulseek gives a 500 with the message as a JSON string. A blacklisted user gets an empty 404.
 
-- `POST /users/{u}/directory {directory}` asks the peer for one folder, waiting up to Soulseek.NET's 5 s message
-  timeout (a 500 when it expires). An offline user gets a 404 with a JSON string. It returns
-  `[{name, fileCount, files: [{filename, size, code, extension, bitRate?, length?, ..., attributes}]}]`, usually with
-  one entry. The file names are bare, so the full path is `directory + '\' + filename`.
+- `POST /users/{u}/directory {directory}` asks the peer for one folder. It waits up to 5 s, and that includes the
+  endpoint lookup and connecting (a 500 when it expires). An offline user gets a 404 with a JSON string. It returns
+  `[{name, fileCount, files: [{filename, size, code, extension, bitRate?, length?, ..., attributeCount, attributes}]}]`,
+  usually with one entry. The file names are bare, so the full path is `directory + '\' + filename`. There's no locked
+  section, and slskd peers send exactly one directory with no subfolders (`Application.cs`, `Shares/ShareService.cs`),
+  so it can't rebuild the tree beneath a folder.
 - `GET /users/{u}/info` connects to the peer and returns `{description, hasFreeUploadSlot, hasPicture, picture?,
   queueLength, uploadSlots}`. `GET /users/{u}/endpoint` asks the server (cached for 60 s). `GET /users/{u}/status`
-  asks the server only, and returns `{isPrivileged, presence}`, with `presence: "Offline"` rather than a 404.
+  asks the server on every call, and returns `{isPrivileged, presence}`, with `presence: "Offline"` rather than a 404.
+  The server's pushed status changes aren't exposed, so a user's online state can't be shown without a Soulseek
+  action (`UserService.cs`).
 
 ## Browse
 
-- `GET /users/{u}/browse` is always a fresh network request for the peer's **entire** share (the server
-  has no cache) and returns `{directories, lockedDirectories}`. Progress comes from
-  `GET /users/{u}/browse/status` (stock polls every 500 ms). The protocol can't list folders lazily.
-- `POST /users/{u}/directory {directory}` returns the peer's listing for that directory. Stock uses
-  only element `[0]`. That its shape depends on the peer's client is Soulseek protocol behaviour, which
-  can't be verified from slskd's source.
+Paths are relative to `Users/` unless they start with `SN:` (Soulseek.NET 10.0.2) or another directory. The
+observations come from browsing one real peer: 168,159 files in 21,852 directories.
+
+### Records
+
+- `GET /users/{u}/browse` returns Soulseek.NET's `BrowseResponse` as is: `{directories, directoryCount,
+  lockedDirectories, lockedDirectoryCount}` (`API/Controllers/UsersController.cs`, `SN:BrowseResponse.cs`). Its
+  `ProducesResponseType` is wrong.
+  - A directory is `{name, fileCount, files}`. A file is `{filename, size, code, extension, bitRate?, bitDepth?,
+    sampleRate?, length?, isVariableBitRate?, attributeCount, attributes: [{type, value}]}`, the same attributes as a
+    search file but with no `isLocked`. A locked file is one inside `lockedDirectories`.
+  - The list is flat and in the peer's order, and Soulseek.NET adds nothing, so the tree is built client-side.
+  - slskd peers (`Shares/ShareService.cs`) send `name` as the full path joined with `\`, a bare `filename`, an entry
+    for every intermediate folder, an arbitrary order, and never any locked directories. Other clients can differ,
+    which can't be checked from source.
+- Observed:
+  - `extension` was `""` on every file, so file types come from `filename`. `code` was always 1.
+  - Directories, and the files within 2,232 of them, arrived unsorted.
+  - The 9 roots were plain names (`tidal rips`, `CD Rips`), not drive letters or `@@` aliases.
+  - One directory name ended in `\`, and its parent without the trailing `\` was missing.
+  - 2,813 directories have a path segment starting with a space. Their parents exist, so it's real nesting and
+    names mustn't be trimmed.
+  - 43 pairs of directories differ only by case, and one pair only by Unicode normalisation. Key nodes by exact path,
+    and give a collator sort a tie-break.
+  - 41% of files had no attributes (mostly lrc and jpg). Every flac had them.
+  - The biggest directory held 572 files, one held 1,489 subfolders, and the median held 3 files.
+
+### Behaviour
+
+- It's always a fresh request for the whole share. Nothing is cached or persisted server-side, no hub pushes anything
+  about it, and there's no concurrency limit. The protocol can't list folders lazily.
+- Errors:
+  - A blacklisted user gets an empty 404 before any network action.
+  - An offline user gets a 404 with the JSON string `"User X appears to be offline"`. For 60 s after a user goes
+    offline, the cached endpoint gives a 500 connect failure instead (`Common/UserEndPointCache.cs`).
+  - Not being logged in to Soulseek gives a 500.
+  - **A peer that doesn't start replying gives a 500, `"The wait timed out after 60000 milliseconds"`** (observed).
+    The 60 s `BrowseOptions.ResponseTimeout` covers the lookup, connecting and the peer composing its reply
+    (`SN:SoulseekClient.cs`). Once data flows there's no overall cap: only 15 s without data fails it.
+  - An slskd peer answers a blacklisted requester with an empty response, which looks the same as sharing nothing
+    (`Application.cs`).
+- **Aborting the request doesn't cancel the browse**: it's started without a cancellation token, and there's no cancel
+  endpoint. The whole share is still transferred.
+- **Two browses of the same user can cross results.** Soulseek.NET queues the waits per username, first in first
+  out, and a failure faults the head of the queue (`SN:Common/Waiter.cs`). They also share one status entry.
+- `GET /users/{u}/browse/status` returns Soulseek.NET's `{username, bytesTransferred, bytesRemaining,
+  percentComplete, size}`, keyed case-sensitively by username (`BrowseTracker.cs`).
+  - The bytes count the **zlib-compressed wire payload**. Observed: 3.0 MB on the wire became 38.9 MB of JSON.
+  - It's an empty 404 until the reply starts arriving: 2.5 s in the successful browse, and the whole 60 s for the peer
+    that never replied. It's a 404 again 5 s after success. **After a failure the entry is never removed**, so a later
+    browse of that user shows the stale status until its own first update.
+  - Progress events are raised on thread-pool tasks, so the percent can go backwards.
+- The response has no compression and no `Content-Length` (it's chunked). The JSON escapes every non-ASCII character
+  as `\uXXXX`, so the text is pure ASCII. An audio file costs about 240 bytes plus its name.
+- Observed timeline: a 404 for 2.5 s, 100% at 9.5 s, the headers within 0.4 s of that, and the 38.9 MB body 169 ms
+  later over localhost.
+- Measured in headless Chromium 153 on that share: `JSON.parse` takes 146 ms, and the parsed data takes 37 MiB of
+  heap (the text takes as much again while it's kept). Building the tree with recursive counts and sizes and a
+  collator sort takes 23 ms.
 - Stock caches browse results in IndexedDB (`slskd-browse` / `browse`) and `localStorage['slskd-browse-state']`.
   We share an origin with stock, so use different names.
 
@@ -377,6 +450,17 @@ Paths are relative to `../slskd/src/web/src`.
   - "Search for Additional Files in This Directory" sends `POST users/{u}/directory`, keeps element `[0]`, and
     prepends `directory\` to its bare file names. The fetched files bypass the filter.
   - Nothing is stored in localStorage.
+- Browse (`components/Browse/`):
+  - It's reached from the nav, or from a Rooms message's context menu through router state. The user is never in the
+    URL.
+  - Only the last user is cached, in IndexedDB under the key `current`, with no age shown. Refreshing means clearing
+    and typing the name again. There's no cancel, and leaving mid-browse loses the result.
+  - The tree takes its separator from the first unlocked directory name and makes orphans roots. It's virtualised
+    and unsorted. Its filter matches folder leaf names only.
+  - The file pane lists child folders (with recursive totals), then the folder's files. A selection is capped at
+    5,000 files.
+  - Download groups the selection by first-level subfolder, one batch each with `destination = <selected>/<child>`,
+    so deeper levels are flattened. The folder's own files go through the obsolete per-user POST.
 
 ### Search filter syntax
 
@@ -528,8 +612,50 @@ Checked against `@tanstack/react-virtual` 3.14.13 / `virtual-core` 3.17.11.
 
 - With fixed row heights, give exact sizes in `estimateSize` and don't use `measureElement`. Measurements are
   recomputed when `count` or `getItemKey`'s identity changes, not when `estimateSize` changes.
+- Observed in dev under StrictMode: a `scrollToIndex` in a layout effect on mount, guarded by a ref so it runs only
+  once, left the list at the top. Keyed on what it reveals, so StrictMode's second pass runs it again, it scrolls.
 - `rangeExtractor` can force extra indexes into the rendered range, which is how a sticky header is kept
   rendered after it scrolls past (render it `position: sticky` instead of absolutely positioned).
+
+## IndexedDB
+
+Measured in headless Chromium 153 with an on-disk profile (Playwright's `launchPersistentContext`) on a synthetic
+share of 200k files in 15k directories (54 MB of JSON), with `idb` 8.0.3. "Blocks" is the longest main-thread task.
+
+- Chromium Snappy-compresses values of 64 KB or more synchronously inside `put()`, but not Blobs
+  (`idb_value_wrapping.cc`).
+
+  | Stored as | Write blocks | Read (with parse) blocks | On disk |
+  |---|---|---|---|
+  | The parsed object graph | 330 ms | ~400 ms, one task | 7.7 MB |
+  | A Latin-1 JSON string | 102 ms | 214–239 ms | 8.4 MB |
+  | A Blob, read with `blob.text()` + `JSON.parse` | 0 ms | 174–319 ms | 54 MB |
+  | One record per directory | ~1 s (3 s to commit) | 254–275 ms | 21 MB |
+
+  Building a Blob from a string costs 200–290 ms, but `response.blob()` doesn't block.
+- Private windows (and Playwright's default `newContext()`) keep IndexedDB in SQLite in memory: nothing is compressed,
+  and `put()` fails above 133,169,152 bytes (`idb_transaction.cc`). Chromium is also rolling SQLite out on disk
+  (`IdbSqliteOnDiskRollout`). Firefox caps a structured clone at 1042 MB.
+- Quota ([MDN](https://developer.mozilla.org/en-US/docs/Web/API/Storage_API/Storage_quotas_and_eviction_criteria)):
+  Chrome allows 60% of the disk, and Firefox's best effort is 10% of the disk or 10 GiB. Eviction deletes an origin's
+  data all at once, least recently used first, so it takes stock's data with ours. `navigator.storage.persist()` is
+  decided by engagement in Chrome (it returned `false` headless), prompts in Firefox, and is decided automatically
+  in Safari.
+- `idb` 8.0.3 (May 2025) is 1.4 KB, with a typed `DBSchema` and manual upgrades. `idb-keyval` allows only one store
+  per database. Dexie 4.4.6 is 32.6 KB.
+
+## Browser APIs
+
+- Web Locks (`navigator.locks`) needs a secure context
+  ([MDN](https://developer.mozilla.org/en-US/docs/Web/API/Web_Locks_API)), so a plain-HTTP LAN install can't use it.
+  `BroadcastChannel` doesn't.
+
+## Headless Tree
+
+Checked against `@headless-tree/core`/`react` 1.7.0 (May 2026). It has no virtualiser of its own and is built to sit
+on `@tanstack/react-virtual`. It provides the ARIA tree pattern with keys. With proxied instances it rebuilds its flat
+list on every expand or collapse: 36 ms at 17k nodes in Node 24. It declares any React version, but its own docs
+run React 18.
 
 ## filesize
 

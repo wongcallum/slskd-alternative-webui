@@ -1,10 +1,11 @@
 import { ArrowDownIcon, ArrowUpIcon, Cross2Icon } from '@radix-ui/react-icons'
-import { AlertDialog, Button, Flex, IconButton, Popover, Text, Tooltip } from '@radix-ui/themes'
+import { AlertDialog, Badge, Button, Flex, IconButton, Popover, Text, Tooltip } from '@radix-ui/themes'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { type Key, type ReactNode, useRef, useState } from 'react'
+import { type Key, type ReactNode, useLayoutEffect, useRef, useState } from 'react'
 import { type Actions, dismissOutcome, type Progress } from './actions'
 import { describeError } from './api'
 import { formatAge, formatTime, useAgo } from './format'
+import type { Mark } from './results'
 import { type Atom, isStale, type Resource, useAtom, useFreshness } from './store'
 
 // Clicks on controls inside a row mustn't also select or expand it, and React bubbles clicks out of portals too.
@@ -163,6 +164,15 @@ export function OutcomeLine<S extends Actions<string>>({ atom }: { atom: Atom<S>
   )
 }
 
+export function MarkBadge({ mark }: { mark: Mark }) {
+  if (mark.ok) return <Badge color="green">Enqueued</Badge>
+  return (
+    <Tooltip content={mark.message}>
+      <Badge color="red">Failed</Badge>
+    </Tooltip>
+  )
+}
+
 export function Freshness({
   resource,
   interval,
@@ -197,33 +207,50 @@ export const rowHeight = 36
 export const columnsHeight = 32
 
 // Rows have a fixed height, and the column header sticks to the top while scrolling with the rows sideways.
+// A new reveal key scrolls its row into view once the row exists, which may be a render or two later.
 export function VirtualTable({
   minWidth,
   header,
   count,
   getItemKey,
   renderRow,
+  rowSize = rowHeight,
+  reveal,
+  role,
+  label,
 }: {
   minWidth: number
-  header: ReactNode
+  header?: ReactNode
   count: number
   getItemKey: (index: number) => Key
   renderRow: (index: number) => ReactNode
+  rowSize?: number
+  reveal?: { key: unknown; index: number }
+  role?: string
+  label?: string
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
+  const headHeight = header === undefined ? 0 : columnsHeight
   const virtualizer = useVirtualizer({
     count,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => rowHeight,
+    estimateSize: () => rowSize,
     getItemKey,
     overscan: 10,
-    scrollMargin: columnsHeight,
+    scrollMargin: headHeight,
   })
+  const found = reveal !== undefined && reveal.index >= 0
+  // Rows moving because others opened or closed above them don't scroll.
+  useLayoutEffect(() => {
+    if (reveal !== undefined && reveal.index >= 0) virtualizer.scrollToIndex(reveal.index, { align: 'auto' })
+  }, [reveal?.key, found])
   return (
-    <div ref={scrollRef} className="table-scroll">
-      <div className="table-head" style={{ minWidth, height: columnsHeight }}>
-        {header}
-      </div>
+    <div ref={scrollRef} className="table-scroll" role={role} aria-label={label}>
+      {header !== undefined && (
+        <div className="table-head" style={{ minWidth, height: columnsHeight }}>
+          {header}
+        </div>
+      )}
       <div style={{ height: virtualizer.getTotalSize(), position: 'relative', minWidth }}>
         {virtualizer.getVirtualItems().map((virtual) => (
           <div
@@ -234,7 +261,7 @@ export function VirtualTable({
               left: 0,
               width: '100%',
               height: virtual.size,
-              transform: `translateY(${virtual.start - columnsHeight}px)`,
+              transform: `translateY(${virtual.start - headHeight}px)`,
               contain: 'strict',
             }}
           >

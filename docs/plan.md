@@ -5,8 +5,8 @@ stock slskd. `../slskd` is read-only. We reimplement the stock UI's functionalit
 Verified behaviour of slskd and the libraries we rely on is in [facts.md](facts.md).
 
 Stack (fixed): React, strict TypeScript, Vite, Radix Themes, ky, `@microsoft/signalr`, TanStack Table v9,
-TanStack Virtual v3, TanStack Router. Smaller helpers: Valibot (search params), `filesize`, `p-map` and Radix
-Icons. Each dependency is added in the phase that first uses it.
+TanStack Virtual v3, TanStack Router. Smaller helpers: Valibot (search params), `filesize`, `p-map`, `idb` and
+Radix Icons. Each dependency is added in the phase that first uses it.
 
 ## Dev setup
 
@@ -48,7 +48,8 @@ Icons. Each dependency is added in the phase that first uses it.
 ### Storage
 
 - We share an origin with stock, so everything we persist is prefixed `slskd-alt`: the localStorage keys
-  `slskd-alt-token` and `slskd-alt-result-filters`, and the IndexedDB database `slskd-alt`.
+  `slskd-alt-token` and `slskd-alt-result-filters`, the IndexedDB database `slskd-alt` (see [Browse](#browse)), and
+  the `BroadcastChannel` `slskd-alt`.
 
 ### Live store
 
@@ -200,7 +201,7 @@ Downloads and Uploads are one page component, parameterised by direction.
   status counts the whole folder ("8/12 done · 1 failed"). Active groups start expanded and finished ones
   collapsed, and toggles are kept in memory.
 - **Columns.** Checkbox, Name, User, Status, Size, Speed (Active only), Requested or Ended, then per-row actions
-  and an ⓘ popover with every field. States are coloured like stock (blue in progress, green succeeded, gray
+  and an ⓘ popover with every field. Group rows add Browse user. States are coloured like stock (blue in progress, green succeeded, gray
   queued, amber once retried, red failed), with the exception on hover. Sizes are IEC (KiB, MiB).
 - **Sorting.** Clicking a header sorts in the column's natural direction first (text A→Z, numbers and times
   largest or newest first), then reversed, then back to the default order: newest group first, files by name.
@@ -245,7 +246,7 @@ Downloads and Uploads are one page component, parameterised by direction.
   An unknown id shows "No such search" once the list is known.
 - **Table.** One virtualised TanStack table grouped by folder · user, collapsed by default, with Expand all.
   Columns: checkbox, Name (a group shows its folder's last two segments), User, Files, Size, Quality, Length, Speed
-  and Queue, then Download, Get full folder and ⓘ.
+  and Queue, then Download, Get full folder, Browse user (groups only) and ⓘ.
 - **Sorting** works like Transfers: groups sort by their value and files within their group, so groups never
   interleave. A group's Quality is its worst file's among those with attributes (cover art has none), lossless
   ranks above lossy, and a file with no attributes ranks lowest. Queue reads "free" for a free upload slot,
@@ -277,6 +278,80 @@ Downloads and Uploads are one page component, parameterised by direction.
 - **Get full folder** sends `POST users/{u}/directory` on click. The folder's other files join its group marked "not
   matched". They bypass the filter but count towards min files, and they're kept with the search's cached results. A
   failure shows on the group row.
+
+### Browse
+
+`/browse` is the landing page. `/browse?user=X` is one user's share, with `path` (the selected folder's full remote
+path), `q` and `sort`.
+
+- **The landing page** has the username box, Browse and the bytes stored. Running browses come first with their
+  progress, then the cached shares, newest fetch first: User (a link), Folders, Files, Size, Locked and Fetched, with
+  Re-browse and Delete (no confirmation, no bulk). A failed browse of a user with no cache stays as a row with its
+  error and Browse again until it's dismissed. The Browse tab always lands here.
+- **Opening a user.** Enter or Browse opens the cached share at once, and only browses when there's no cache. Re-browse
+  is the only way to refetch. A share page loaded from the URL without a cache (a reload, Back, a pasted link) shows
+  "Not browsed yet" and a Browse button. Changing user pushes a history entry, and folder, filter and sort changes
+  replace it. The title is "X · Browse · slskd".
+- **Browse user** is an icon on the group rows of search results and both transfer pages. It opens the share at the
+  row's folder, and the click counts as the gesture, so it browses a user who isn't cached. The icon is never gated;
+  the page's Browse button is.
+- **Browsing.** A browse runs at module level, so it survives navigation, and ending the session abandons it. There's
+  no Cancel, because aborting doesn't stop slskd (see the facts). A tab runs at most one browse per user ("Already
+  browsing X"), and different users run in parallel. Two tabs browsing the same user at once is an accepted gap,
+  although slskd can cross their results. Browsing is gated on Soulseek; viewing a cached share isn't.
+- **Progress** has four phases: waiting for the peer (while `browse/status` is a 404, up to 60 s), receiving from the
+  peer (compressed bytes with a bar, polled every 500 ms), loading from slskd (bytes so far, since there's no
+  `Content-Length`) and processing. A status equal to the one read just before starting is ignored, because a failed
+  browse leaves its last status behind. Progress replaces the tree when nothing is cached, sits above a cached tree
+  while re-browsing (the tree stays usable), and shows on the landing page's row.
+- **Outcomes.** A success replaces the cache and any open page. `path` stays (or falls back to its nearest ancestor),
+  expansion stays where the folders still exist, the filter stays, and the selection is dropped. A failure keeps the
+  old tree and shows the error inline: "X appears to be offline" (404) or "X didn't respond within 60 s" (the timeout
+  500). An empty share reads "X shares nothing (or has blocked you)".
+- **The tree** is built from the flat list. The separator is `\` unless the share's paths use `/`. Missing parents are
+  synthesised, where stock makes orphans roots. Locked directories join the same tree, dimmed with a lock icon, and
+  their files can't be selected. Nodes are keyed by exact path and names are never trimmed (see the facts for why).
+  Folders sort naturally by name with an exact tie-break. Files are sorted only where they're shown, because sorting
+  all of them took longer than the rest of the build. File types come from the file name. Each folder carries
+  its recursive file count, size, total length and worst quality (as for search groups), computed once.
+- **Layout.** The toolbar has the username box and Browse, "N files · size · N locked", and on the right the fetch age
+  and Re-browse. Below it:
+  - A fixed-width tree pane (long names end in an ellipsis, with the full name on hover) with the filter, expand all
+    and collapse all over a tree of folders showing their recursive file counts. Each root opens down through any
+    single-child chain, everything else starts collapsed, and expansion is kept in memory per user. It's TanStack
+    Table's expanding rows in `VirtualTable`, with `role="tree"`, `treeitem`, `aria-level` and `aria-expanded` added
+    by hand.
+  - The folder pane: a breadcrumb (starting with the user, for the share's top) with "· N files" and Download N
+    (size), over a table of checkbox, Name, Files, Size, Quality and Length. Subfolder rows come first with their
+    recursive totals.
+- **Navigating.** Clicking a subfolder row opens it, and its checkbox selects its subtree. Clicking a file row toggles
+  it, and Shift-click selects ranges. The breadcrumb goes up. An unknown `path` selects its nearest ancestor, and the
+  folder pane says "Not in this share as fetched X ago" by Re-browse.
+- **Sorting.** The tree always sorts by name. The folder pane defaults to subfolders, then files, both by name. Headers
+  cycle like Transfers', and subfolders stay above files, sorted by their totals.
+- **Filtering** is text only. Terms work like the results filter: ANDed, `-term` excludes, each a case-insensitive
+  substring of the full path. The tree prunes to folders that lead to a match, fully expanded, and its counts become
+  matching files. Clearing the filter restores the previous expansion. The folder pane flattens every match under the
+  selected folder, with a relative Folder column, so at the share's top it lists every match.
+- **Selection** lasts while you stay in the folder. A filter change keeps it, but only shown rows count. Changing
+  folder or user drops it. There's no cap.
+- **Downloading** sends one batch per remote folder, without `searchId`, one POST at a time with the 429 resend, gated
+  on Soulseek. Each batch's `destination` is the folder's path from the folder you're in, inclusive: from `Album` it's
+  `Album/CD1`, from `Artist` it's `Artist/Album/CD1`. That overrides slskd's own pattern, which keeps only the last
+  folder name (see the facts). There's no confirmation. It leaves one outcome line, and file rows show Enqueued or
+  Failed, kept per user until the next Re-browse.
+- **Storage.** `idb` over the `slskd-alt` database. `shares` holds a small record per user (fetched and opened times,
+  counts, size and stored bytes), which is all the landing page reads. `trees` holds the raw response Blob from
+  `response.blob()`, which costs the main thread nothing to write. Opening reads `blob.text()`, parses, builds and
+  renders on the main thread, split into three tasks: about 250, 180 and 100 ms for 168k files.
+  - Stored bytes are capped at 1 GiB, evicting the least recently opened share first, but never one that's open or in
+    memory.
+  - There's no `navigator.storage.persist()`, because Firefox would prompt for it.
+  - The cache survives the session ending.
+  - If a write fails (the quota, or a private window's cap), the share opens from memory with "Not cached: reason",
+    and the landing page lists it only while it's in memory.
+  - A `BroadcastChannel` tells other tabs the cache changed, and their open pages re-read it.
+- **Memory.** The two most recently opened parsed shares stay in memory, plus any running browse.
 
 ### Health
 
@@ -378,10 +453,32 @@ Downloads and Uploads are one page component, parameterised by direction.
      them, and invalid params stripped
 
    Filters combined with Get full folder went untested, because fetching a folder needs Soulseek.
-6. **Browse.** A tree pane plus a folder grid, with subfolders listed at the top of the grid, ↵ to go in and
-   ⌫ to go up, and a filter that flattens to matching files across the whole share. Share trees are
-   cached in the `slskd-alt` IndexedDB database, and each shows when it was fetched. Search results' group rows
-   gain a Browse user action.
+6. **Browse.** *Done:* the landing page and the share page (see [Browse](#browse)), the IndexedDB cache, and Browse
+   user on search-result and transfer group rows. We checked these in headless Chromium against `pnpm dev`, and URLs,
+   reloads and the session against the `--dist` build, on a cache seeded with a real 168k-file share:
+   - the tree, breadcrumb and folder navigation, deep links and reloads revealing their folder, and an unknown path
+     falling back to its nearest ancestor
+   - the filter pruning the tree and flattening matches, and clearing it restoring the expansion
+   - sorting with subfolders kept on top, Shift ranges, and the download label
+   - an uncached user never browsing by itself
+   - logging out and in with the cache kept, the Browse tab, and Back
+   - deleting in one tab emptying the other's page, and a share stored in one tab showing up in the other
+   - Browse user from a stored search result opening the share at the result's folder
+
+   With a real account we checked:
+   - a browse going through waiting, receiving, loading and processing (10 s for 168k files)
+   - Re-browse over a cached tree that stayed usable, keeping a folder chosen while it ran
+   - downloading a folder with a nested subfolder: one batch per folder (`DOWNFORCE/Airfoil e.p_` and
+     `DOWNFORCE/Airfoil e.p_/Scans`), and a finished file landing in the first. The peer failed the other six ("Download
+     reported as failed by remote client").
+
+   Opening a 168k-file share that isn't in memory costs about 500 ms of main-thread work in three tasks, and
+   reopening one that is costs nothing. The 60 s timeout message went untested, because the peer that had timed out
+   answered this time.
 
 Later: dashboard, rooms, chat, users, then the config editor. Once the dashboard exists, decide whether `/`
-redirects there instead. After the plan: proper responsiveness.
+redirects there instead. After the plan:
+- proper responsiveness
+- keyboard handling: ↵ into a folder and ⌫ up in Browse, `/` to focus a filter, `d` to download, `?` for the keys.
+  Weigh `@headless-tree` for Browse's tree then, since it brings an ARIA tree with keys.
+- filter criteria (quality, size) for Browse
