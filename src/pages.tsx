@@ -12,15 +12,6 @@ export function DelayedSpinner() {
   return visible && <Spinner size="3" />
 }
 
-export function Placeholder({ title }: { title: string }) {
-  return (
-    <Box p="5">
-      <Heading mb="2">{title}</Heading>
-      <Text color="gray">Not built yet.</Text>
-    </Box>
-  )
-}
-
 export function NotFound() {
   return (
     <Box p="5">

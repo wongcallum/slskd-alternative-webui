@@ -29,6 +29,9 @@ importers:
       filesize:
         specifier: ^11.0.24
         version: 11.0.24
+      idb:
+        specifier: ^8.0.3
+        version: 8.0.3
       ky:
         specifier: ^2.1.0
         version: 2.1.0
@@ -1146,6 +1149,9 @@ packages:
   get-nonce@1.0.1:
     resolution: {integrity: sha512-FJhYRoDaiatfEkUK8HKlicmu/3SGFD51q3itKDGoSTysQJBnfOcxU5GxnhE1E6soB76MbT0MBtnKJuXyAx+96Q==}
     engines: {node: '>=6'}
+
+  idb@8.0.3:
+    resolution: {integrity: sha512-LtwtVyVYO5BqRvcsKuB2iUMnHwPVByPCXFXOpuU96IZPPoPN6xjOGxZQ74pgSVVLQWtUOYgyeL4GE98BY5D3wg==}
 
   isbot@5.2.2:
     resolution: {integrity: sha512-iQcBXcd+Rv/pkubRyGh2utW2j1oPG5hZY6TUhVPpqK4G+o3IbxpJNx04hgksjc/N7GK5pEorUxDeg31cFgEk/w==}
@@ -2482,6 +2488,8 @@ snapshots:
     optional: true
 
   get-nonce@1.0.1: {}
+
+  idb@8.0.3: {}
 
   isbot@5.2.2: {}
 

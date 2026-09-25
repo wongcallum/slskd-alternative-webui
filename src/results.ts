@@ -6,7 +6,7 @@ import { type Atom, createAtom } from './store'
 import { enqueue } from './transferActions'
 import { compareNames } from './transfers'
 
-type RawFile = {
+export type RawFile = {
   filename: string
   size: number
   bitRate?: number
@@ -90,13 +90,15 @@ export const losslessQuality = (bitDepth: number, sampleRate = 0) => 100_000 + b
 
 const lossless = losslessQuality(0)
 
-function qualityOf(file: RawFile): [number, string] {
+export function qualityOf(file: RawFile): [number, string] {
   if (file.bitDepth && file.sampleRate) {
     return [losslessQuality(file.bitDepth, file.sampleRate), `${file.bitDepth}/${file.sampleRate / 1000} kHz`]
   }
   if (file.bitRate) return [file.bitRate, `${file.bitRate} kbps${file.isVariableBitRate ? ' VBR' : ''}`]
   return [-1, '']
 }
+
+export type Rated = { quality: number; qualityLabel: string; bitRate?: number }
 
 // A folder is rated by its worst file, ignoring files without attributes such as cover art.
 function qualityRange(files: ResultFile[]): [number, string] {
@@ -107,6 +109,10 @@ function qualityRange(files: ResultFile[]): [number, string] {
     if (worst === undefined || file.quality < worst.quality) worst = file
     if (best === undefined || file.quality > best.quality) best = file
   }
+  return describeRange(worst, best)
+}
+
+export function describeRange(worst: Rated | undefined, best: Rated | undefined): [number, string] {
   if (worst === undefined || best === undefined) return [-1, '']
   if (worst.qualityLabel === best.qualityLabel) return [worst.quality, worst.qualityLabel]
   if (best.quality >= lossless) return [worst.quality, `${worst.qualityLabel} – ${best.qualityLabel}`]
@@ -240,7 +246,7 @@ const hasAttributes = (file: ResultFile) => file.quality >= 0 || file.length !==
 
 const countAttributed = (files: ResultFile[]) => files.reduce((count, file) => count + (hasAttributes(file) ? 1 : 0), 0)
 
-function parseQuery(query: string) {
+export function parseQuery(query: string) {
   const include: string[] = []
   const exclude: string[] = []
   for (const term of query.toLowerCase().split(/\s+/)) {

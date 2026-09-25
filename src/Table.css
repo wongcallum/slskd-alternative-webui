@@ -78,3 +78,39 @@
   font-weight: var(--font-weight-medium);
   color: var(--gray-11);
 }
+
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 100%;
+  padding-right: var(--space-3);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tree-row:hover {
+  background-color: var(--gray-a2);
+}
+
+.tree-row[data-selected] {
+  background-color: var(--accent-a4);
+}
+
+.tree-row[data-dimmed] > * {
+  opacity: 0.55;
+}
+
+.tree-row > * {
+  min-width: 0;
+}
+
+.tree-toggle {
+  all: unset;
+  display: flex;
+  flex-shrink: 0;
+  justify-content: center;
+  width: 16px;
+  color: var(--gray-11);
+  cursor: pointer;
+}
