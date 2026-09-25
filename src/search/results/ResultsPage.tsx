@@ -6,17 +6,17 @@ import { type ReactNode, useEffect } from 'react'
 import { describeError } from '../../lib/api'
 import { formatAge } from '../../lib/format'
 import { useAtom } from '../../lib/store'
+import { useRun } from '../../lib/useRun'
 import { useSoulseekGate } from '../../soulseek/soulseek'
 import { ActionButton, toolbarStyle } from '../../ui/controls'
 import { Ago, Empty, ErrorCallout, Freshness, Loading, Polling } from '../../ui/status'
 import {
   deleteSearches,
-  listActions,
   listGate,
   type Search,
   searches,
   searchPollInterval,
-  stopSearches,
+  stopSearch,
   useSearches,
 } from '../searches'
 import { describeCounts, SearchState } from '../SearchState'
@@ -98,8 +98,9 @@ function Header({ search, known, live, error }: { search: Search; known: boolean
   const navigate = useNavigate()
   const soulseekGate = useSoulseekGate()
   const gate = listGate(known)
-  const { running } = useAtom(listActions)
+  const stop = useRun()
   const again = useCreateSearch()
+  const failure = stop.error === undefined ? again.error : `Couldn't stop: ${stop.error}`
 
   // Below md the title, the summary and the actions each take a line.
   return (
@@ -133,18 +134,18 @@ function Header({ search, known, live, error }: { search: Search; known: boolean
         </Text>
       </Flex>
       <Flex ml="auto" align="center" gap="2" flexShrink="0">
-        {again.error !== undefined && (
+        {failure !== undefined && (
           <Text size="2" color="red">
-            {again.error}
+            {failure}
           </Text>
         )}
         {!search.isComplete && (
           <ActionButton
             label="Stop"
             busy="Stopping"
-            progress={running.stop}
+            loading={stop.running}
             gate={gate}
-            onClick={() => stopSearches([search])}
+            onClick={() => stop.run(() => stopSearch(search))}
           />
         )}
         <ActionButton

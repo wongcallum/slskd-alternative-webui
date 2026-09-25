@@ -179,6 +179,12 @@ const stopOne = async (search: Search, signal: AbortSignal) => {
 
 export const stopSearches = (list: Search[]) => each('stop', list, stopOne)
 
+// For the one search on screen, where the outcome shows beside it.
+export async function stopSearch(search: Search) {
+  await stopOne(search, sessionSignal())
+  searches.refresh()
+}
+
 function saved(id: string, signal: AbortSignal) {
   return new Promise<void>((resolve) => {
     const timer = setTimeout(done, 5000)
