@@ -4,7 +4,7 @@ import { type ReactNode, useEffect, useState } from 'react'
 
 import { describeError } from '../lib/api'
 import { formatAge, formatTime, useAgo } from '../lib/format'
-import { isStale, type Resource, useFreshness } from '../lib/store'
+import { type Atom, isStale, type Resource, useAtom, useFreshness, useResource } from '../lib/store'
 import { ActionButton, type Color } from './controls'
 import { stop } from './table'
 
@@ -154,11 +154,15 @@ export function Fetched({
   fetchedAt,
   error,
   loading,
+  label = 'Refresh',
+  gate,
   onRefresh,
 }: {
   fetchedAt?: number
   error: unknown
   loading: boolean
+  label?: string
+  gate?: string
   onRefresh: () => void
 }) {
   return (
@@ -175,7 +179,28 @@ export function Fetched({
           fetched <Ago time={fetchedAt} />
         </Text>
       )}
-      <ActionButton label="Refresh" busy="Refreshing" loading={loading} onClick={onRefresh} />
+      <ActionButton label={label} busy="Refreshing" loading={loading} gate={gate} onClick={onRefresh} />
     </Flex>
+  )
+}
+
+export function FetchedResource({
+  resource,
+  loading,
+  label,
+}: {
+  resource: Resource<{ fetchedAt: number }>
+  loading: Atom<boolean>
+  label?: string
+}) {
+  const { data, error } = useResource(resource)
+  return (
+    <Fetched
+      fetchedAt={data?.fetchedAt}
+      error={data === undefined ? undefined : error}
+      loading={useAtom(loading)}
+      label={label}
+      onRefresh={resource.refresh}
+    />
   )
 }

@@ -43,3 +43,24 @@ export function formatDuration(seconds: number) {
   const rest = String(whole % 60).padStart(2, '0')
   return hours > 0 ? `${hours}:${String(minutes).padStart(2, '0')}:${rest}` : `${minutes}:${rest}`
 }
+
+const clock = {
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  fractionalSecondDigits: 3,
+  hourCycle: 'h23',
+} as const
+
+const timeOnly = new Intl.DateTimeFormat(undefined, clock)
+
+const dayAndTime = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', ...clock })
+
+const fullTime = new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'short', day: 'numeric', ...clock })
+
+const isToday = (time: number) => new Date(time).toDateString() === new Date().toDateString()
+
+// To the millisecond, with the date only when it isn't today.
+export const formatPreciseTime = (time: number) => (isToday(time) ? timeOnly : dayAndTime).format(time)
+
+export const formatFullPreciseTime = (time: number) => fullTime.format(time)

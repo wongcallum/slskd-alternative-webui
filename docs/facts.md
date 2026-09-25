@@ -18,14 +18,14 @@ are relative to `slskd/src/slskd`, and line numbers drift over time.
   loaded instance). Stock polls it at 1 Hz per tab while the Downloads/Uploads page is mounted
   (`web/src/components/Transfers/Transfers.jsx:36`). Under load, stock saturates the main thread,
   starves the SignalR keepalive and shows "Lost connection". Avoiding that is the main reason this
-  project exists. (Events and telemetry reports do paginate with `offset`/`limit`, but they're irrelevant here.)
+  project exists. Events and telemetry reports do paginate with `offset`/`limit`.
 - Pushed:
   - application hub: `STATE` on every change, and `OPTIONS` (redacted). See [Application hub](#application-hub).
   - search hub: `LIST` on connect, then `CREATE`/`UPDATE`/`DELETE` without responses. A `RESPONSE` method is
     declared but never sent. See [Search hub](#search-hub).
   - logs hub: `BUFFER` on connect, then `LOG`. See [Logs](#logs).
   - metrics hub: `Update` every second, carrying aggregate transfer counts. See [Metrics hub](#metrics-hub).
-- Poll-only: transfers, browse, search response bodies, rooms and conversations.
+- Poll-only: transfers, browse, search response bodies, rooms, conversations and events.
 - REST JSON omits nulls (`WhenWritingNull`, `Program.cs:981`), but hub payloads keep them. Both use
   camelCase and string enums.
 
@@ -327,6 +327,42 @@ observed on throwaway instances of the dev build and the 0.25.1 and 0.26.0 relea
 - Pushes can be frequent. Observed: 54 a second on the dev instance while logged in to Soulseek with no share scan,
   each one a `no such table: filenames` warning with a 7-line stack trace (see [Endpoints](#endpoints-1) under Search).
 
+## Events
+
+Paths are relative to `Events/` unless they start with another directory.
+
+- `GET /events?offset=&limit=` (`API/EventsController.cs`) returns records **newest first by `timestamp`, with no
+  tiebreaker** (`EventService.cs`), and the total in an `X-Total-Count` header, counted in a second query.
+  - `offset` defaults to 0 and `limit` to 100, with no maximum. A negative offset or a limit below 1 is a 400 with a
+    JSON string. A value that isn't an integer silently becomes the default, and an offset past the end is `[]`.
+  - There's no filter by type or time, no single-event GET and no way to delete one. Nothing pushes events.
+- A record is `{timestamp, type, data, id}`: a GUID, the type's name, and UTC with 7 fractional digits and the `Z`.
+  **`data` is a JSON string** of the event's own fields plus `version`, with nulls kept and non-ASCII unescaped
+  (`Types/EventRecord.cs`).
+- The types and what `data` holds (`Types/Events.cs`):
+  - `SoulseekClientConnected`: nothing. `SoulseekClientDisconnected`: `message`, and `exception` as a whole .NET
+    exception object (`message`, `stackTrace`, `innerException` and so on).
+  - `DownloadFileComplete` and `UploadFileComplete`: `localFilename`, `remoteFilename` and the whole `transfer` record.
+    Only successes raise them, a download's after it's moved into place.
+  - `DownloadDirectoryComplete`: `localDirectoryName`, `remoteDirectoryName` and `username`. It's raised once the user
+    has no other download left from that remote folder, so a single-file download raises one too.
+  - `PrivateMessageReceived`: `message {timestamp, id, username, direction, message, isAcknowledged, wasReplayed}`,
+    raised again for every replay at login.
+  - `RoomMessageReceived`: `message {timestamp, username, message, roomName, direction}`, including our own echoed
+    messages. `direction` is always `Out`, because `RoomMessage.FromEventArgs` never sets it
+    (`Messaging/Types/RoomMessage.cs`).
+  - `Noop`: only raised through `POST /events/{type}`.
+- A transfer event's timestamp is the transfer's `endedAt`, not when the row was written, and a
+  `DownloadDirectoryComplete` has exactly its last file's timestamp (observed 7 of 7). So offset pages can overlap, and
+  a download's event can land below rows written before it.
+- **Nothing is ever pruned**, and there's no retention option for events. Observed on dev: 117 rows in about 29 hours,
+  about 770 B each on the wire (a file event's `data` alone is about 900 B), so 100 rows are about 76 KB.
+- `POST /events/{type}` (a JSON string body, which may be empty) raises a sample and returns 201. It's buggy: the
+  sample is declared as the base `Event`, so the stored copy is only `{"version":0}` and webhooks and scripts get it
+  twice (from the source and a serialisation check; only `Noop` was raised). `SoulseekClientConnected` and
+  `SoulseekClientDisconnected` are listed as valid but are a 500.
+- Webhooks and scripts (`Integrations/`) are the only subscribers, and are configured in YAML only.
+
 ## Shares
 
 Paths are relative to `Shares/` unless they start with another directory. Scans were observed on a throwaway instance
@@ -341,8 +377,9 @@ of the dev build sharing up to 64k files.
 - An entry is an absolute path, optionally prefixed with `[Alias]`; otherwise the alias is the last segment. A leading
   `-` or `!` makes it an exclusion. Aliases must be unique (case-sensitive, exclusions included) and contain no
   separator, and a path can't have two aliases (`Core/Options.cs`).
-- Filters are regexes, case-insensitive unless `flags.case_sensitive_regex` is set, tested against the full local path
-  of every directory and file.
+- Filters are regexes, case-insensitive unless `flags.case_sensitive_reg_ex` is set, tested against the full local path
+  of every directory and file. The documented `case_sensitive_regex` works at startup, but slskd's validator rejects
+  it (see [Remote configuration](#remote-configuration)).
 - `directories` and `filters` apply without a restart (unless `no_config_watch`). `cache.storage_mode` (`memory` by
   default, or `disk`) and `cache.workers` need one.
 
@@ -471,6 +508,73 @@ in relay agent mode.
   `<username>/…` folders pile up. On dev, 13 of the 49 folders in incomplete held no files.
 - Nothing serves a file's contents to a browser.
 
+## Options
+
+Paths are relative to `Core/API/Controllers/OptionsController.cs` unless they start with a directory. Remote
+configuration and the debug view were checked on the dev build with `SLSKD_REMOTE_CONFIGURATION` and `SLSKD_DEBUG`.
+
+### Reading
+
+- `GET /options` is the current options, redacted, with nulls omitted (3.3 KB on dev). The application hub pushes the
+  same object as `OPTIONS` (see [Application hub](#application-hub)), with nulls kept and four placeholder keys that
+  are always null: `permissions`, `global`, `groups` and `integration`. `GET /options/startup` is the object bound once
+  at startup, so it only differs after a live reload.
+- Keys are camelCase, while the file's are snake_case.
+- Redaction (`Common/Redactor.cs`) replaces every non-null `[Secret]` string with `"*****"`, so `*****` means set and a
+  missing key means unset. Webhook headers and URLs, `logger.loki` and usernames aren't secrets.
+- The keys of `relay.agents`, `transfers.groups.user_defined`, `web.authentication.api_keys`, `integrations.webhooks`
+  and `integrations.scripts` are names the user chose. They come back lowercased with `_` and `-` dropped, like every
+  key slskd reads from YAML (observed: a group `My_Group` came back as `mygroup`), and JSON leaves them alone, since no
+  `DictionaryKeyPolicy` is set.
+- `2147483647` (`int.MaxValue`) is the default of `transfers.upload.speed_limit`, `transfers.download.slots` and
+  `speed_limit`, and each group's `upload.slots` and `speed_limit`, where it means no limit (`Core/Options.cs`).
+  Elsewhere it's only a range maximum, so a value there means what it says.
+
+### Remote configuration
+
+- `GET /options/yaml`, `GET /options/yaml/location`, `POST /options/yaml/validate`, `PUT /options/yaml` and
+  `PATCH /options` need **the current `remote_configuration`** (`SLSKD_REMOTE_CONFIGURATION`,
+  `--remote-configuration`), and are otherwise a 403 with an empty body.
+- `GET /options/debug` also needs `debug` on **at startup** (`SLSKD_DEBUG`, `-d`, the YAML, or an attached debugger),
+  which `GET /options/startup` shows. Stock checks the current `debug` instead.
+- YAML travels as a JSON string both ways: `text/plain` is a 415, and a body that isn't a JSON string is a 400
+  `"Value cannot be null. (Parameter 's')"`. `GET /options/yaml` is the file's text, unredacted, and
+  `GET /options/yaml/location` its path. A missing or unreadable file is a 500 with the message.
+- `POST /options/yaml/validate` is a 200 either way: an empty body with no content type when valid, and a JSON string
+  when not. **It never gives a line or column.** A parse error is one line, such as
+  `While scanning a plain scalar value, found invalid mapping.`, and rule failures are an indented tree under
+  `Invalid configuration:`. slskd logs each failure as a warning that does carry YamlDotNet's line and column
+  (observed).
+- **The validator and the runtime disagree** (observed). The validator is YamlDotNet with `UnderscoredNamingConvention`
+  (`Common/CommonExtensions.cs`), which puts `_` before every capital of the property's name:
+  - It wants `log_s_q_l` and `case_sensitive_reg_ex`, and rejects the documented `log_sql` and `case_sensitive_regex`,
+    as well as camelCase and hyphenated keys. The runtime lowercases keys and drops `_` and `-`, so it takes them all.
+    A file with a rejected spelling can't be saved through `PUT`, which validates too.
+  - It passes duplicate keys, `yes`/`no`/`on`/`off` for booleans, and a document that's empty or only comments.
+- `PUT /options/yaml` validates the text alone (env and the command line aren't merged in), copies the file to
+  `<file>.bak` (replacing the last one and keeping its mode), writes the text verbatim and not atomically, and returns
+  200 with an empty body, or 400 with the validator's message. There's no check that the file changed since it was
+  read.
+  - With the config watch on, slskd reloads about 250 ms later. It sets `pendingRestart`, `pendingReconnect` or
+    `scanPending`, and pushes `OPTIONS`, only if an effective value changed. Observed: a comments-only edit pushed
+    nothing, and a new `instance_name` was pushed within 300 ms and set `pendingRestart`.
+  - With `no_config_watch` it sets `pendingRestart` whatever changed, and nothing reloads.
+- **What the validator lets through breaks slskd** (observed):
+  - Duplicate keys: the reload fails silently and every YAML value is dropped (`instanceName` went back to `default`
+    and `soulseek.username` disappeared), while running services keep their old options.
+  - `debug: yes`: every request that reads the options is a 500 (`"Failed to convert configuration value 'yes' at
+'slskd:Debug' to type 'System.Boolean'."`), `GET` and `PUT /options/yaml` included, so the file can only be fixed
+    on disk. slskd won't start with it (`Program.cs`).
+  - An empty document drops every YAML setting, the Soulseek login included.
+- `GET /options/debug` is a JSON string of `IConfigurationRoot.GetDebugView()`: an indented `key=value (Provider)` line
+  per key, such as `username=… (YamlConfigurationProvider for 'slskd.yml' (Optional))`, with the keys lowercased and
+  `_` and `-` dropped, **secrets in plain text**, and the provider whose value won. 9.4 KB and 179 lines on dev.
+- Sources layer defaults < env < YAML < command line < the `PATCH /options` overlay (`Program.cs`). A YAML value the
+  command line also sets has no effect, and lists merge by index across sources, so a YAML list can't shorten one
+  from env (checked against the dev build's binder). Only the debug view shows where a value came from.
+- `PATCH /options` takes only `{soulseek: {listenIpAddress, listenPort}}`. It goes into an in-memory overlay that a
+  restart loses and that never drops a key once set (`Core/OptionsOverlay.cs`).
+
 ## Telemetry reports
 
 Paths are relative to `Telemetry/`. Stock's dashboard (`components/Dashboard/`) is built on these; we have no
@@ -545,6 +649,8 @@ dashboard yet.
 - SPA deep links work, but **only for paths without a file extension**. If the last segment contains a
   dot (`/browse/foo.bar`) the response is 404. Unmatched `/api/*` returns an empty 404. `index.html` is sent
   with `Cache-Control: no-cache`.
+- A dynamic `import()` becomes its own chunk in `static/`, and loads from beside the main chunk, so it follows the url
+  base with nothing rewritten (observed: `/slskd/static/YamlEditor-….js`).
 - A non-root `url_base` is additive: slskd answers at both `/api/...` and `/slskd/api/...`. At root,
   `GET /slskd/api/...` returns the SPA HTML with a 200 (other methods get 404), so a hardcoded path can hide.
 
@@ -890,6 +996,15 @@ Paths are relative to `slskd/src/web/src`.
     - Paths are encoded with `btoa` and not URL-encoded. So a character above U+00FF throws and the loader spins
       forever, Latin-1 accents send the wrong bytes (a 404), and a `/` in the base64 breaks the request.
     - After deleting it calls `window.fetch()` instead of refreshing, which throws.
+  - Options shows `YAML.stringify` (`yaml` 1.10) of the hub's `OPTIONS` in a read-only CodeMirror, so its camelCase
+    keys can't be pasted into the file.
+    - Edit is disabled unless `remoteConfiguration`. It opens the file in a modal and validates on every keystroke,
+      with no debounce and nothing against out-of-order answers. Save validates, PUTs and closes.
+    - Debug View shows while the current `debug` and `remoteConfiguration` are on, although slskd checks `debug` at
+      startup.
+  - Data has two buttons that clear completed uploads or completed downloads.
+  - Events shows 10 rows a page, counted from `X-Total-Count`, with the page in component state. The data is
+    `JSON.stringify(…, null, 2)` in a cell that collapses its whitespace. There's no polling, filter or error handling.
 - Transfers (`components/Transfers/`): one card per user, then one table per remote directory, all expanded,
   unsorted except by file name within a directory, with no filtering or virtualisation. Selection is per user
   card, with a select-all per directory. Per-file actions are a click on the state (retry when failed, queue
@@ -1063,6 +1178,10 @@ Checked against the `@radix-ui/themes` 3.3.0 package source.
 - The root `Theme` provides a `Tooltip.Provider` with a 200 ms delay.
 - `DropdownMenu.Trigger` and `Dialog.Trigger` always render with `asChild`, so their child must be one element that
   takes a ref.
+- `SegmentedControl.Item` always passes `disabled: false`, so an item can't be disabled, and its label renders twice
+  like `TabNav.Link`'s. **A `Tooltip` around an item breaks the selection**: the trigger's own `data-state` replaces
+  the item's `on`, so no item looks selected (observed). The tooltip has to go inside.
+- A `DropdownMenu.CheckboxItem` closes the menu when toggled unless its `onSelect` calls `preventDefault()`.
 - next-themes 0.4.6, which the Radix docs recommend, is mostly unmaintained. Its anti-flash script does nothing
   when rendered client-side only (React 19 doesn't run rendered `<script>`s) and logs a warning in dev.
 
@@ -1145,6 +1264,35 @@ Checked against `@headless-tree/core`/`react` 1.7.0 (May 2026). It has no virtua
 on `@tanstack/react-virtual`. It provides the ARIA tree pattern with keys. With proxied instances it rebuilds its flat
 list on every expand or collapse: 36 ms at 17k nodes in Node 24. It declares any React version, but its own docs
 run React 18.
+
+## yaml
+
+Checked against `yaml` 2.9.1.
+
+- `parseDocument` collects every error in `document.errors` without throwing. Each has a `code` and `pos: [start, end]`
+  offsets. `prettyErrors: false` keeps the message to one line, and a `LineCounter` gives 1-based lines and columns.
+  A repeated key is a `DUPLICATE_KEY` error by default.
+- `visit` walks nodes in document order and says whether a scalar is a pair's `'key'` or `'value'`. A parsed scalar's
+  `range` is `[start, valueEnd, nodeEnd]`, and its `type` is `'PLAIN'` when it's unquoted.
+- With `version: '1.1'`, stringify quotes strings that YAML 1.1 would read as something else, such as `"on"` and
+  timestamps. `lineWidth: 0` stops long strings from folding. A comment set on a node's `comment` is written after its
+  value on the same line.
+- Stringify and parse together added about 34 kB gzipped to the main chunk.
+
+## CodeMirror
+
+Checked against `@codemirror/view` 6.43.13, `lang-yaml` 6.1.3, `lint` 6.9.7 and `search` 6.7.2.
+
+- **Only the lines near the viewport are in the DOM**, so the browser's own find can't reach the rest. Observed: 54
+  lines of a 335-line file were rendered, and `window.find` missed the last one. `@codemirror/search` searches the
+  document.
+- CodeMirror leaves Tab to the browser unless it's bound. With `indentWithTab`, Escape then Tab still moves focus out
+  (the Tab example in its docs).
+- `lang-yaml` tags keys `definition(propertyName)`, quoted strings `string` and every unquoted value `content`, so
+  numbers and booleans can't be coloured apart from plain strings.
+- `setDiagnostics` sets lint results from outside the editor, with no `linter` source.
+- `EditorView.theme` takes CSS variables, so the editor can use Radix's tokens.
+- The editor, the YAML mode, lint and search come to about 123 kB gzipped.
 
 ## filesize
 

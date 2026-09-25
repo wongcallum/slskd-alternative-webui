@@ -2,7 +2,7 @@ import { type Actions, actOnEach, begin, idle, summarise } from '../../lib/actio
 import { api } from '../../lib/api'
 import { createAtom, createResource, load, type Resource, type Sink } from '../../lib/store'
 import { buildTree, type InputDirectory, type Item, type Tree } from '../../lib/tree'
-import { options } from '../options'
+import { options } from '../options/options'
 import { fetchShares, type Share } from '../shares/shares'
 
 type RawEntry = { name: string; fullName: string; attributes: string; modifiedAt: string; length?: number }

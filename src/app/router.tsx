@@ -24,10 +24,13 @@ import { ResultsPage } from '../search/results/ResultsPage'
 import { searches } from '../search/searches'
 import { type SearchesSearch, SearchesPage, searchesSearch, searchesSearchDefaults } from '../search/SearchesPage'
 import { SessionGate } from '../session/SessionGate'
+import { type EventsSearch, EventsPage, eventsSearch, eventsSearchDefaults } from '../system/EventsPage'
 import { FilesPage } from '../system/files/FilesPage'
 import { type FilesSearch, filesSearch, filesSearchDefaults } from '../system/files/params'
 import { InfoPage } from '../system/InfoPage'
 import { type LogsSearch, LogsPage, logsSearch, logsSearchDefaults } from '../system/LogsPage'
+import { OptionsPage } from '../system/options/OptionsPage'
+import { type OptionsSearch, optionsSearch, optionsSearchDefaults } from '../system/options/params'
 import { type SharesSearch, sharesSearch, sharesSearchDefaults } from '../system/shares/params'
 import { SharesPage } from '../system/shares/SharesPage'
 import {
@@ -232,6 +235,22 @@ const systemInfoRoute = createRoute({
   component: InfoPage,
 })
 
+const systemOptionsRoute = createRoute({
+  getParentRoute: () => systemRoute,
+  path: 'options',
+  head: () => title('Options · System'),
+  validateSearch: optionsSearch,
+  search: { middlewares: [stripSearchParams(optionsSearchDefaults)] },
+  component: function Options() {
+    return (
+      <OptionsPage
+        search={systemOptionsRoute.useSearch()}
+        onSearchChange={useSearchChange<OptionsSearch>(systemOptionsRoute.useNavigate())}
+      />
+    )
+  },
+})
+
 const systemSharesRoute = createRoute({
   getParentRoute: () => systemRoute,
   path: 'shares',
@@ -264,6 +283,22 @@ const systemFilesRoute = createRoute({
   },
 })
 
+const systemEventsRoute = createRoute({
+  getParentRoute: () => systemRoute,
+  path: 'events',
+  head: () => title('Events · System'),
+  validateSearch: eventsSearch,
+  search: { middlewares: [stripSearchParams(eventsSearchDefaults)] },
+  component: function Events() {
+    return (
+      <EventsPage
+        search={systemEventsRoute.useSearch()}
+        onSearchChange={useSearchChange<EventsSearch>(systemEventsRoute.useNavigate())}
+      />
+    )
+  },
+})
+
 const systemLogsRoute = createRoute({
   getParentRoute: () => systemRoute,
   path: 'logs',
@@ -290,7 +325,15 @@ export const router = createRouter({
     browseRoute,
     usersRoute,
     chatRoute.addChildren([roomsRoute, conversationRoute]),
-    systemRoute.addChildren([systemIndexRoute, systemInfoRoute, systemSharesRoute, systemFilesRoute, systemLogsRoute]),
+    systemRoute.addChildren([
+      systemIndexRoute,
+      systemInfoRoute,
+      systemOptionsRoute,
+      systemSharesRoute,
+      systemFilesRoute,
+      systemEventsRoute,
+      systemLogsRoute,
+    ]),
   ]),
   basepath: window.urlBase,
   // A route with children and no notFoundComponent of its own renders this one for its unmatched paths.

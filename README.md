@@ -2,7 +2,7 @@
 
 An alternative web UI for [slskd](https://github.com/slskd/slskd), run against stock slskd as a drop-in
 replacement for its `wwwroot`. It covers Search, Downloads, Uploads, Browse, Users, Chat (rooms and private
-messages), and System info, shares, files and logs so far.
+messages), and System info, options, shares, files, events and logs so far.
 
 Build it with `pnpm build` and serve `dist` as slskd's `web.content_path`. The path must be relative to the slskd
 binary's directory.
@@ -27,9 +27,7 @@ Install Nix and devenv (`nix profile add nixpkgs#devenv`), then enter the enviro
 
 What's left of the stock UI, in order:
 
-1. System events: the paginated event list.
-2. System options: the redacted config, and the YAML editor when remote configuration is on.
-3. The rest of the shell: upload and download speeds and counts, the slskd version, and light theme with a toggle.
+1. The rest of the shell: upload and download speeds and counts, the slskd version, and light theme with a toggle.
 
 After that:
 

@@ -5,17 +5,17 @@ import type { ReactNode } from 'react'
 
 import { describeError } from '../../lib/api'
 import { plural } from '../../lib/format'
-import { useAtom, useResource } from '../../lib/store'
+import { useResource } from '../../lib/store'
 import { useRun } from '../../lib/useRun'
 import { ActionButton, toolbarStyle } from '../../ui/controls'
-import { Busy, Empty, ErrorCallout, Fetched, Freshness, Loading } from '../../ui/status'
+import { Busy, Empty, ErrorCallout, FetchedResource, Freshness, Loading } from '../../ui/status'
 import { Cell, ColumnHeader, GridRow, HeaderRow, rowHeight } from '../../ui/table'
 import { audioColumns } from '../../ui/tree/columns'
 import type { FolderLinkProps, TreeConfig } from '../../ui/tree/FolderPane'
 import { TreeView } from '../../ui/tree/TreeView'
 import { type Application, application, applicationPollInterval, rescanNeeded, useApplication } from '../application'
-import { useOptions } from '../options'
-import { PendingCallout } from '../PendingCallout'
+import { useOptions } from '../options/options'
+import { PendingCallout } from '../PendingCallouts'
 import { SystemPage } from '../SystemPage'
 import type { SharesSearch } from './params'
 import { cancelScan, contents, contentsLoading, notScanned, rescan, type Share, shareList } from './shares'
@@ -40,7 +40,7 @@ export function SharesPage({ search, onSearchChange }: Props) {
             live={live}
           />
         ) : (
-          <ContentsFetched />
+          <FetchedResource resource={contents} loading={contentsLoading} />
         )
       }
     >
@@ -269,17 +269,4 @@ function ContentsView({ search, onSearchChange }: Props) {
   if (error === undefined) return <Loading />
   if (notScanned(error)) return <Empty>Nothing has been scanned yet.</Empty>
   return <ErrorCallout onRetry={contents.refresh}>Can't load what's shared: {describeError(error)}</ErrorCallout>
-}
-
-function ContentsFetched() {
-  const { data, error } = useResource(contents)
-  const loading = useAtom(contentsLoading)
-  return (
-    <Fetched
-      fetchedAt={data?.fetchedAt}
-      error={data === undefined ? undefined : error}
-      loading={loading}
-      onRefresh={contents.refresh}
-    />
-  )
 }
