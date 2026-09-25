@@ -15,49 +15,47 @@ import {
 import { tags } from '@lezer/highlight'
 import { useEffect, useLayoutEffect, useRef } from 'react'
 
+import { useAppearance } from '../../app/theme'
 import { yamlColors } from '../../ui/YamlView'
 import type { Problem } from './check'
 
-const theme = EditorView.theme(
-  {
-    '&': { height: '100%', color: 'var(--gray-12)', backgroundColor: 'transparent', fontSize: 'var(--font-size-2)' },
-    '&.cm-focused': { outline: 'none' },
-    '.cm-scroller': { fontFamily: 'var(--code-font-family)', lineHeight: 'var(--line-height-2)' },
-    '.cm-content': { caretColor: 'var(--accent-11)' },
-    '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--accent-11)' },
-    '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground': {
-      backgroundColor: 'var(--accent-a5)',
-    },
-    '.cm-activeLine, .cm-activeLineGutter': { backgroundColor: 'var(--gray-a2)' },
-    '.cm-gutters': { backgroundColor: 'var(--color-background)', color: 'var(--gray-9)', border: 'none' },
-    '.cm-tooltip': {
-      backgroundColor: 'var(--color-panel-solid)',
-      border: '1px solid var(--gray-a6)',
-      borderRadius: 'var(--radius-2)',
-      color: 'var(--gray-12)',
-    },
-    '.cm-diagnostic': { fontFamily: 'var(--default-font-family)' },
-    '.cm-panels': { backgroundColor: 'var(--color-panel-solid)', color: 'var(--gray-12)' },
-    '.cm-panels-top': { borderBottom: '1px solid var(--gray-a5)' },
-    '.cm-textfield': {
-      backgroundColor: 'var(--color-surface)',
-      border: '1px solid var(--gray-a7)',
-      borderRadius: 'var(--radius-2)',
-      color: 'var(--gray-12)',
-    },
-    '.cm-button': {
-      backgroundImage: 'none',
-      backgroundColor: 'var(--gray-a3)',
-      border: 'none',
-      borderRadius: 'var(--radius-2)',
-      color: 'var(--gray-12)',
-    },
-    '.cm-searchMatch': { backgroundColor: 'var(--amber-a5)' },
-    '.cm-searchMatch-selected': { backgroundColor: 'var(--amber-a8)' },
-    '.cm-diagnostic-error': { borderLeftColor: 'var(--red-9)' },
+const theme = EditorView.theme({
+  '&': { height: '100%', color: 'var(--gray-12)', backgroundColor: 'transparent', fontSize: 'var(--font-size-2)' },
+  '&.cm-focused': { outline: 'none' },
+  '.cm-scroller': { fontFamily: 'var(--code-font-family)', lineHeight: 'var(--line-height-2)' },
+  '.cm-content': { caretColor: 'var(--accent-11)' },
+  '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--accent-11)' },
+  '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground': {
+    backgroundColor: 'var(--accent-a5)',
   },
-  { dark: true },
-)
+  '.cm-activeLine, .cm-activeLineGutter': { backgroundColor: 'var(--gray-a2)' },
+  '.cm-gutters': { backgroundColor: 'var(--color-background)', color: 'var(--gray-9)', border: 'none' },
+  '.cm-tooltip': {
+    backgroundColor: 'var(--color-panel-solid)',
+    border: '1px solid var(--gray-a6)',
+    borderRadius: 'var(--radius-2)',
+    color: 'var(--gray-12)',
+  },
+  '.cm-diagnostic': { fontFamily: 'var(--default-font-family)' },
+  '.cm-panels': { backgroundColor: 'var(--color-panel-solid)', color: 'var(--gray-12)' },
+  '.cm-panels-top': { borderBottom: '1px solid var(--gray-a5)' },
+  '.cm-textfield': {
+    backgroundColor: 'var(--color-surface)',
+    border: '1px solid var(--gray-a7)',
+    borderRadius: 'var(--radius-2)',
+    color: 'var(--gray-12)',
+  },
+  '.cm-button': {
+    backgroundImage: 'none',
+    backgroundColor: 'var(--gray-a3)',
+    border: 'none',
+    borderRadius: 'var(--radius-2)',
+    color: 'var(--gray-12)',
+  },
+  '.cm-searchMatch': { backgroundColor: 'var(--amber-a5)' },
+  '.cm-searchMatch-selected': { backgroundColor: 'var(--amber-a8)' },
+  '.cm-diagnostic-error': { borderLeftColor: 'var(--red-9)' },
+})
 
 // The YAML mode tags every unquoted value the same, so they all take the colour of strings.
 const highlighting = HighlightStyle.define([
@@ -80,6 +78,8 @@ export function YamlEditor({ value, readOnly, problems, onChange, onSave }: Prop
   const parent = useRef<HTMLDivElement>(null)
   const view = useRef<EditorView>(null)
   const editable = useRef(new Compartment())
+  const dark = useRef(new Compartment())
+  const appearance = useAppearance()
   const handlers = useRef({ onChange, onSave })
   useLayoutEffect(() => {
     handlers.current = { onChange, onSave }
@@ -119,6 +119,7 @@ export function YamlEditor({ value, readOnly, problems, onChange, onSave }: Prop
           lintGutter(),
           theme,
           editable.current.of(EditorState.readOnly.of(readOnly)),
+          dark.current.of(EditorView.darkTheme.of(appearance === 'dark')),
           EditorView.updateListener.of((update) => {
             if (update.docChanged) handlers.current.onChange(update.state.doc.toString())
           }),
@@ -143,6 +144,10 @@ export function YamlEditor({ value, readOnly, problems, onChange, onSave }: Prop
   useEffect(() => {
     view.current?.dispatch({ effects: editable.current.reconfigure(EditorState.readOnly.of(readOnly)) })
   }, [readOnly])
+
+  useEffect(() => {
+    view.current?.dispatch({ effects: dark.current.reconfigure(EditorView.darkTheme.of(appearance === 'dark')) })
+  }, [appearance])
 
   useEffect(() => {
     const current = view.current

@@ -5,14 +5,21 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
 import { router } from './app/router'
+import { useAppearance } from './app/theme'
 import { startSession } from './session/session'
 
 startSession()
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <Theme appearance="dark">
+function App() {
+  return (
+    <Theme appearance={useAppearance()}>
       <RouterProvider router={router} />
     </Theme>
+  )
+}
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <App />
   </StrictMode>,
 )
