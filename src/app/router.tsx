@@ -24,6 +24,7 @@ import { type ResultsSearch, resultsSearch, resultsSearchDefaults } from '../sea
 import { ResultsPage } from '../search/results/ResultsPage'
 import { searches } from '../search/searches'
 import { type SearchesSearch, SearchesPage, searchesSearch, searchesSearchDefaults } from '../search/SearchesPage'
+import { onSessionEnd } from '../session/session'
 import { SessionGate } from '../session/SessionGate'
 import { FilesPage } from '../system/files/FilesPage'
 import { type FilesSearch, filesSearch, filesSearchDefaults } from '../system/files/params'
@@ -323,6 +324,9 @@ export const router = createRouter({
   parseSearch: (search) => Object.fromEntries(new URLSearchParams(search)),
   stringifySearch: stringifySearchWith(String),
 })
+
+// Titles come from snapshots the session's end has just cleared, like a search's text.
+onSessionEnd(() => void router.invalidate())
 
 declare module '@tanstack/react-router' {
   interface Register {
