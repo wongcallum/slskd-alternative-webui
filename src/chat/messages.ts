@@ -4,6 +4,7 @@ import { createStoredAtom } from '../lib/stored'
 export type Message = {
   key: string
   time: number
+  // Our own messages are named by the log, from our username as it is now.
   username: string
   text: string
   self: boolean

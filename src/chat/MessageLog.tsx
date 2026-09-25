@@ -17,7 +17,7 @@ const dayOf = (time: number) => new Date(time).toDateString()
 type Props = {
   messages: readonly Message[]
   pending?: readonly PendingLine[]
-  username?: string
+  ownName?: string
   newFrom?: string
   note?: string
   empty: string
@@ -27,7 +27,7 @@ type Props = {
 const none: readonly PendingLine[] = []
 
 // The log sticks to the newest message at the bottom. Once scrolled up it holds still, and counts what arrives.
-export function MessageLog({ messages, pending = none, username, newFrom, note, empty, renderName }: Props) {
+export function MessageLog({ messages, pending = none, ownName, newFrom, note, empty, renderName }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   // The key of the newest message when the log was scrolled up, or undefined while it follows the bottom.
@@ -63,6 +63,7 @@ export function MessageLog({ messages, pending = none, username, newFrom, note, 
   }, [messages, away])
 
   const rows = useMemo(() => {
+    const name = ownName ?? 'You'
     const list: ReactNode[] = []
     let day = ''
     for (const message of messages) {
@@ -82,13 +83,13 @@ export function MessageLog({ messages, pending = none, username, newFrom, note, 
           </div>,
         )
       }
-      list.push(<MessageRow key={message.key} message={message} renderName={renderName} />)
+      list.push(<MessageRow key={message.key} message={message} ownName={name} renderName={renderName} />)
     }
     for (const line of pending) {
-      list.push(<PendingRow key={`pending ${line.id}`} line={line} username={username ?? 'You'} />)
+      list.push(<PendingRow key={`pending ${line.id}`} line={line} username={name} />)
     }
     return list
-  }, [messages, pending, newFrom, username, renderName])
+  }, [messages, pending, newFrom, ownName, renderName])
 
   return (
     <Box position="relative" flexGrow="1" minHeight="0">
@@ -115,18 +116,21 @@ export function MessageLog({ messages, pending = none, username, newFrom, note, 
 
 const MessageRow = memo(function MessageRow({
   message,
+  ownName,
   renderName,
 }: {
   message: Message
+  ownName: string
   renderName?: (username: string) => ReactNode
 }) {
+  const name = message.self ? ownName : message.username
   return (
     <div className="chat-line" data-self={message.self || undefined} data-mention={message.mention || undefined}>
       <span className="chat-time" title={formatTime(message.time)}>
         {clock.format(message.time)}
       </span>
-      <span className="chat-name" title={message.username}>
-        {message.self || renderName === undefined ? message.username : renderName(message.username)}
+      <span className="chat-name" title={name}>
+        {message.self || renderName === undefined ? name : renderName(name)}
       </span>
       <span className="chat-text">
         <LinkedText>{message.text}</LinkedText>
