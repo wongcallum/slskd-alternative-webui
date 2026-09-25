@@ -36,7 +36,6 @@ const preventShiftSelection = (event: MouseEvent) => {
 
 export const sortByName = constructSortFn({ sort: compareNames })
 
-// Folders of files, which sort, expand and select.
 export const groupFeatures = tableFeatures({
   rowSortingFeature,
   sortedRowModel: createSortedRowModel(),
@@ -64,7 +63,6 @@ export function expandedState(expansion: Expansion, rows: Iterable<{ id: string 
   return all
 }
 
-// A folder's row shows whether it's open, and whether all or some of its files are selected.
 export const groupState = (row: {
   getIsExpanded: () => boolean
   getIsAllSubRowsSelected: () => boolean

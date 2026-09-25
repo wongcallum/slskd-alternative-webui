@@ -17,7 +17,6 @@ import type { Item } from '../../lib/tree'
 
 const paneColumnIds = ['name', 'folder', 'files', 'size'] as const
 
-// A tree view's place in the URL, sortable by the view's own columns too.
 export const treeSearch = <const T extends string>(extraIds: readonly T[]) => ({
   path: textParam,
   q: textParam,

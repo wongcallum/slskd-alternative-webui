@@ -26,7 +26,6 @@ type Column = { label: string; end?: boolean; wide?: boolean }
 
 const entryKey = (entry: { username: string }) => entry.username
 
-// A page about one user or all of them, whose toolbar leads with a box to ask for a user.
 export function UserPage({ toolbar, children }: { toolbar: ReactNode; children: ReactNode }) {
   return (
     <Flex direction="column" height="100%">

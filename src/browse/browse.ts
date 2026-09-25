@@ -32,7 +32,9 @@ async function parseShare(username: string, blob: Blob) {
 
 const capacity = 2 ** 30
 
-export const { list: shareList, load: loadShareList, useList: useShareList } = createRecordList('shares')
+const { list: shareList, load: loadShareList, useList } = createRecordList('shares')
+
+export const useShareList = useList
 
 export type Loaded =
   | { status: 'loading' }
