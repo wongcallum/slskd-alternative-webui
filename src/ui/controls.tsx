@@ -21,6 +21,7 @@ import { type CSSProperties, type ReactElement, type ReactNode, useDeferredValue
 import { type Actions, dismissOutcome, type Progress } from '../lib/actions'
 import { useFrom, useTouch } from '../lib/media'
 import { type Atom, useAtom } from '../lib/store'
+import { stop } from './table'
 
 export type Color = NonNullable<TextProps['color']>
 
@@ -64,8 +65,8 @@ export function Tip({ content, children }: { content: ReactNode; children: React
   if (!touch) return <Tooltip content={content}>{children}</Tooltip>
   return (
     <Popover.Root>
-      <Popover.Trigger>{children}</Popover.Trigger>
-      <Popover.Content size="1" maxWidth="320px">
+      <Popover.Trigger onClick={stop}>{children}</Popover.Trigger>
+      <Popover.Content size="1" maxWidth="320px" onClick={stop}>
         <Text as="p" size="2" style={{ whiteSpace: 'pre-line', overflowWrap: 'anywhere' }}>
           {content}
         </Text>
