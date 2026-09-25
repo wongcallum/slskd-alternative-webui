@@ -314,7 +314,8 @@ and we cache browsed share trees in IndexedDB), show when each result was fetche
 - Rows have a fixed height and show the message's first line, with a count of the lines after it (usually a stack
   trace). Clicking a row shows the whole record in a pane below the list, or over it (see
   [Responsiveness](#responsiveness)).
-- Times are in the browser's time zone, to the millisecond, with the date when it isn't today.
+- Times are in the browser's time zone, to the millisecond, with the date when it isn't today and the year when it isn't
+  this year. A row drawn yesterday gains its date at midnight.
 
 ### Events
 
