@@ -32,7 +32,8 @@ structural sharing deep-allocates over the whole payload every tick) or assume t
   nothing.
 - **The poll interval is floored at 10× the last tick's main-thread cost** (parse plus merge). That keeps it to
   about 10% of the main thread, where stock polls at 1 Hz whatever the cost. Freshness thresholds use the
-  effective interval.
+  effective interval, which counts the request's own time too, so a list that takes seconds to download isn't stale
+  every cycle.
 - The work stays on the main thread; a one-off check at 20k rows didn't justify more. If it ever does, a worker
   fetches, parses and diffs, and posts only the changes.
 - List polls have no timeout: uncompressed, a heavy list takes about 10 s over a 3 Mbit/s link. Other requests
