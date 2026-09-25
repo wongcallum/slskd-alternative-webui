@@ -64,6 +64,13 @@ export function expandedState(expansion: Expansion, rows: Iterable<{ id: string 
   return all
 }
 
+// A folder's row shows whether it's open, and whether all or some of its files are selected.
+export const groupState = (row: {
+  getIsExpanded: () => boolean
+  getIsAllSubRowsSelected: () => boolean
+  getIsSomeSelected: () => boolean
+}) => ({ expanded: row.getIsExpanded(), selected: row.getIsAllSubRowsSelected(), partial: row.getIsSomeSelected() })
+
 type SelectableRow = {
   subRows: readonly unknown[]
   getIsSelected: () => boolean

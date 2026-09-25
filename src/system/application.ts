@@ -164,6 +164,8 @@ application.watch(() => {
   if (username !== undefined && username !== ownUsername.get()) ownUsername.set(username)
 })
 
+export const stateGate = (known: boolean) => (known ? undefined : "slskd's state is out of date")
+
 export const releaseNotes = (version: string) => `https://github.com/slskd/slskd/releases/tag/${version}`
 
 // slskd clears scanPending after a cancelled scan, although searches then miss what it added. During a scan, scanPending
