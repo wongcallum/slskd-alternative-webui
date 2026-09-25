@@ -27,9 +27,9 @@ export function ConversationView({ user }: { user: string }) {
 // The Chat tab lands here, and returns to whatever was open last, if it's still there.
 function ChatIndex() {
   const { known, rooms } = useJoinedRooms()
-  const list = useResource(conversations).data?.list
-  if (!known || list === undefined) return <Loading />
-  return <Resume rooms={rooms} users={list.map((each) => each.username)} />
+  const { data, error } = useResource(conversations)
+  if (!known || (data === undefined && error === undefined)) return <Loading />
+  return <Resume rooms={rooms} users={data?.list.map((each) => each.username) ?? []} />
 }
 
 function Resume({ rooms, users }: { rooms: readonly string[]; users: readonly string[] }) {
