@@ -78,7 +78,7 @@ export const columnLabels: Record<Section, Record<ColumnId, string>> = {
 
 export const templates: Record<Exclude<Layout, 'stacked'>, Record<Section, string>> = {
   wide: {
-    active: '40px minmax(240px, 1fr) 160px 280px 170px 110px 90px 76px',
+    active: '40px minmax(240px, 1fr) 160px 280px 170px 110px 100px 76px',
     finished: '40px minmax(240px, 1fr) 160px 280px 170px 200px 76px',
   },
   medium: {
@@ -87,7 +87,7 @@ export const templates: Record<Exclude<Layout, 'stacked'>, Record<Section, strin
   },
 }
 
-export const minWidths: Record<Layout, number> = { stacked: 0, wide: 1166, medium: 946 }
+export const minWidths: Record<Layout, number> = { stacked: 0, wide: 1176, medium: 946 }
 
 export const columnsOf = (section: Section, layout: Layout) =>
   layout === 'medium' ? columnIds[section].filter((id) => id !== 'time') : columnIds[section]
