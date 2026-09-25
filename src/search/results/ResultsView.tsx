@@ -1,9 +1,10 @@
-import { Button, Flex, Text } from '@radix-ui/themes'
+import { Button, Text } from '@radix-ui/themes'
 import { type RowSelectionState, useTable } from '@tanstack/react-table'
 import { useDeferredValue, useMemo, useState } from 'react'
 
 import { countFiles } from '../../lib/files'
 import { formatBytes } from '../../lib/format'
+import { useFrom } from '../../lib/media'
 import { useSortParam } from '../../lib/params'
 import { useAtom } from '../../lib/store'
 import { useSoulseekGate } from '../../soulseek/soulseek'
@@ -13,7 +14,8 @@ import {
   FilterField,
   OutcomeLine,
   SelectionActions,
-  toolbarStyle,
+  Toolbar,
+  ToolbarEnd,
   useFilterText,
 } from '../../ui/controls'
 import { Empty } from '../../ui/status'
@@ -84,22 +86,27 @@ export function ResultsView({ searchId, results, folders, params, onSearchChange
   const selectedSize = selected.reduce((sum, file) => sum + file.size, 0)
   const soulseekGate = useSoulseekGate()
   const downloads = useAtom(downloadsOf(searchId))
+  const sm = useFrom('sm')
+  const lockedField = results.locked > 0 && (
+    <CheckboxField checked={locked} onChange={(checked) => onSearchChange({ locked: checked ? 'show' : 'hide' })}>
+      Locked ({results.locked.toLocaleString()})
+    </CheckboxField>
+  )
 
   return (
     <>
-      <Flex align="center" gap="4" px="4" py="2" flexShrink="0" style={toolbarStyle}>
+      <Toolbar gap={{ initial: '3', sm: '4' }}>
         <FilterField
           placeholder="Filter by user or path, -word to exclude"
           value={filter.text}
           onChange={filter.change}
-          style={{ width: 330 }}
+          width="330px"
         />
-        <FiltersButton filters={params} onChange={onSearchChange} />
-        {results.locked > 0 && (
-          <CheckboxField checked={locked} onChange={(checked) => onSearchChange({ locked: checked ? 'show' : 'hide' })}>
-            Locked ({results.locked.toLocaleString()})
-          </CheckboxField>
-        )}
+        {/* Below sm, Locked joins the other filters in the popover, so the toolbar keeps to two lines. */}
+        <FiltersButton filters={params} onChange={onSearchChange}>
+          {!sm && lockedField}
+        </FiltersButton>
+        {sm && lockedField}
         <Button
           size="1"
           variant="soft"
@@ -121,15 +128,15 @@ export function ResultsView({ searchId, results, folders, params, onSearchChange
             />
           </SelectionActions>
         )}
-        <Flex ml="auto" align="center" gap="4" flexShrink="0">
+        <ToolbarEnd>
           <OutcomeLine atom={downloadsOf(searchId)} />
           <Text size="1" color="gray">
             {shown === total
               ? `${total.toLocaleString()} files in ${groups.length.toLocaleString()} folders`
               : `${shown.toLocaleString()} of ${total.toLocaleString()} files`}
           </Text>
-        </Flex>
-      </Flex>
+        </ToolbarEnd>
+      </Toolbar>
       {groups.length === 0 ? (
         <NothingShown
           total={total}

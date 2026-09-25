@@ -1,15 +1,15 @@
 import { MixerHorizontalIcon } from '@radix-ui/react-icons'
 import { Button, Flex, Grid, Popover, Select, Text, TextField } from '@radix-ui/themes'
-import { useId, useState } from 'react'
+import { type ReactNode, useId, useState } from 'react'
 import * as v from 'valibot'
 
 import { positiveDecimal, positiveInteger } from '../../lib/params'
 import { CheckboxField } from '../../ui/controls'
 import { countFilters, type FilterSearch, noFilters, qualities } from './params'
 
-type FiltersProps = { filters: FilterSearch; onChange: (patch: Partial<FilterSearch>) => void }
+type FiltersProps = { filters: FilterSearch; onChange: (patch: Partial<FilterSearch>) => void; children?: ReactNode }
 
-export function FiltersButton({ filters, onChange }: FiltersProps) {
+export function FiltersButton({ filters, onChange, children }: FiltersProps) {
   const active = countFilters(filters)
   const qualityId = useId()
   return (
@@ -60,13 +60,16 @@ export function FiltersButton({ filters, onChange }: FiltersProps) {
             onChange={(files) => onChange({ files })}
           />
         </Grid>
-        <Flex justify="between" align="center" mt="4">
-          <CheckboxField
-            checked={filters.free === 'only'}
-            onChange={(checked) => onChange({ free: checked ? 'only' : 'all' })}
-          >
-            Free slot only
-          </CheckboxField>
+        <Flex justify="between" align="center" gap="3" mt="4">
+          <Flex direction="column" gap="3">
+            <CheckboxField
+              checked={filters.free === 'only'}
+              onChange={(checked) => onChange({ free: checked ? 'only' : 'all' })}
+            >
+              Free slot only
+            </CheckboxField>
+            {children}
+          </Flex>
           <Button size="1" variant="soft" color="gray" disabled={active === 0} onClick={() => onChange(noFilters)}>
             Clear
           </Button>

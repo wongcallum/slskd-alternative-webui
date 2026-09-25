@@ -28,7 +28,7 @@ export function NewSearch() {
             autoFocus
             value={text}
             onChange={(event) => setText(event.target.value)}
-            style={{ width: 520 }}
+            style={{ flexGrow: 1, maxWidth: 520 }}
           >
             <TextField.Slot>
               <MagnifyingGlassIcon />

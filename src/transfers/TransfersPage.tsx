@@ -6,7 +6,15 @@ import * as v from 'valibot'
 import { oneOf, sortOf, textParam } from '../lib/params'
 import { type Resource, useAtom, useResource, useStale } from '../lib/store'
 import { useSoulseekGate } from '../soulseek/soulseek'
-import { ActionButton, FilterField, OutcomeLine, SelectionActions, toolbarStyle, useFilterText } from '../ui/controls'
+import {
+  ActionButton,
+  FilterField,
+  OutcomeLine,
+  SelectionActions,
+  Toolbar,
+  ToolbarEnd,
+  useFilterText,
+} from '../ui/controls'
 import { Empty, Freshness, Polling } from '../ui/status'
 import { actions, cancel, remove, retry } from './actions'
 import { columnIds, expansions, type Gates, useSectionTable } from './table'
@@ -111,7 +119,7 @@ export function TransfersPage({ direction, search, onSearchChange }: Props) {
 
   return (
     <Flex direction="column" height="100%">
-      <Toolbar
+      <TransfersToolbar
         direction={direction}
         resource={resource}
         error={data === undefined ? undefined : error}
@@ -129,7 +137,7 @@ export function TransfersPage({ direction, search, onSearchChange }: Props) {
   )
 }
 
-type ToolbarProps = {
+type TransfersToolbarProps = {
   direction: Direction
   resource: Resource<Transfers>
   error: unknown
@@ -140,14 +148,23 @@ type ToolbarProps = {
   gates: Gates
 }
 
-function Toolbar({ direction, resource, error, text, onTextChange, selected, onClearSelection, gates }: ToolbarProps) {
+function TransfersToolbar({
+  direction,
+  resource,
+  error,
+  text,
+  onTextChange,
+  selected,
+  onClearSelection,
+  gates,
+}: TransfersToolbarProps) {
   const { running } = useAtom(actions[direction])
   const retryable = direction === 'download' ? selected.filter((file) => isRetryable(file.state)) : []
   const cancellable = selected.filter((file) => !isFinished(file.state))
   const removable = selected.filter((file) => isFinished(file.state))
   return (
-    <Flex align="center" gap="3" px="4" py="2" flexShrink="0" style={toolbarStyle}>
-      <FilterField placeholder="Filter by user or path" value={text} onChange={onTextChange} style={{ width: 280 }} />
+    <Toolbar>
+      <FilterField placeholder="Filter by user or path" value={text} onChange={onTextChange} width="280px" />
       {selected.length > 0 && (
         <SelectionActions count={selected.length} onClear={onClearSelection}>
           {direction === 'download' && (
@@ -176,10 +193,10 @@ function Toolbar({ direction, resource, error, text, onTextChange, selected, onC
           />
         </SelectionActions>
       )}
-      <Flex ml="auto" align="center" gap="4" flexShrink="0">
+      <ToolbarEnd>
         <OutcomeLine atom={actions[direction]} />
         <Freshness resource={resource} interval={pollInterval} error={error} />
-      </Flex>
-    </Flex>
+      </ToolbarEnd>
+    </Toolbar>
   )
 }
