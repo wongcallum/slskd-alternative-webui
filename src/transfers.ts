@@ -155,7 +155,7 @@ const byName = (a: Transfer, b: Transfer) => compareNames(a.name, b.name)
 const byNewest = (a: Group, b: Group) => b.time - a.time || compareNames(a.name, b.name)
 
 // Everything that didn't change keeps its identity: files, groups, both section arrays, and the whole
-// snapshot when nothing changed at all. See "Array identity" in docs/plan.md.
+// snapshot when nothing changed at all. See "Array identity" in docs/design.md.
 function merge(previous: Transfers | undefined, users: RawUser[]): Transfers {
   const byId = new Map<string, Transfer>()
   const previousGroups = new Map<string, Group>()
