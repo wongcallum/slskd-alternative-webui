@@ -85,6 +85,7 @@ That includes queue-position lookups and retries. Show stored results instead (s
 and we cache browsed share trees in IndexedDB), show when each result was fetched, and re-fetch only on request.
 
 - Browse user on a search result or transfer counts as the gesture, so it browses a user who isn't cached.
+- The one exception is acknowledging private messages while their conversation is on screen (see [Chat](#chat)).
 - slskd runs at most two enqueues at once and answers a third with a 429 having done nothing, so enqueues go one
   POST at a time and a 429 is resent every second for up to 30 s. Creating a search does the same, since a 429
   there means another POST held slskd's lock.
@@ -153,6 +154,40 @@ and we cache browsed share trees in IndexedDB), show when each result was fetche
   the main thread in three tasks: about 250, 180 and 100 ms for 168k files.
 - There's no `navigator.storage.persist()`, because Firefox would prompt for it.
 - The cache survives the session ending.
+
+### Chat
+
+- Rooms and private conversations share one page behind the Chat tab. `/rooms?room=` and `/chat?user=` both render
+  it, so stock's paths still work, and its sidebar is a layout route, so it stays mounted while switching. The tab
+  goes back to whatever was open last.
+- Only the joined room names are pushed (`STATE.rooms`), so the rest is polled:
+  - The open room's messages every 2 s, and the other joined rooms' every 10 s while the page is open, for their
+    unread marks. The open room's users every 30 s, since they only change as people join and leave, and a busy
+    room's list is hundreds of KB.
+  - The conversation list every 10 s wherever the app is open, for the unread count on the Chat tab and at the start
+    of the page title. The open conversation every 2 s.
+- `STATE.rooms` lists a room being joined before slskd can answer for it, and keeps a left room for a few seconds
+  (see the facts). So a room this tab is joining shows once the join returns, and a room it leaves goes at once.
+- slskd has no read state for rooms, so the newest message time seen in each room is kept in localStorage, in slskd's
+  clock. A room seen for the first time starts from what it already holds, so joining a busy room isn't 250 unread
+  messages. A dot marks news, and a count marks messages that mention our username as a whole word.
+- **Private messages are acknowledged while their conversation is on screen**, although that sends a packet to the
+  Soulseek server. No peer sees it, and without it the server delivers every message again at each login. It
+  acknowledges all at once, because acknowledging by id fails for sent messages. A "New" divider marks what was
+  unread when the conversation opened.
+- Our room messages only arrive when the server echoes them, a second or so after sending. So a sent message shows
+  dimmed until its echo, and is marked "not confirmed" if none comes within 10 s.
+- Opening a conversation sends nothing. It shows empty until the first message, and is in the sidebar only while
+  it's open.
+- The log sticks to the bottom, through a resize observer on its content, with scroll anchoring off meanwhile, so
+  lines slskd drops from the top don't pull it up. Scrolled up, it holds still and counts what arrives.
+- Only explicit web links (`http://`, `https://`, `www.`) are linked, because file talk is full of names like
+  `album.fm`.
+- A room's user list shows names, countries and file counts, but not status or speed: slskd takes those as a user
+  joins and never updates them.
+- Opening Join a room fetches the server's room list, which counts as the gesture. A typed name that isn't listed
+  can be joined too, which creates the room.
+- Leaving a room and closing a conversation don't ask for confirmation.
 
 ### System
 
