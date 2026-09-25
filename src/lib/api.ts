@@ -3,7 +3,7 @@ import ky, { isHTTPError } from 'ky'
 import { endSession, getSession } from '../session/session'
 import { urlBase } from './urlBase'
 
-export class SessionEndedError extends Error {
+class SessionEndedError extends Error {
   override name = 'SessionEndedError'
 }
 
