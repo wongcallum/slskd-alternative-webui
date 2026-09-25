@@ -1,4 +1,4 @@
-import { Button, DataList, Flex, Popover, Text } from '@radix-ui/themes'
+import { Button, DataList, Flex, IconButton, Popover, Text } from '@radix-ui/themes'
 import { useState } from 'react'
 
 import { describeError } from '../lib/api'
@@ -61,18 +61,33 @@ function describeSource(data: Application | undefined, known: boolean, age: numb
   return age === undefined ? 'Not polled yet' : `Polled, updated ${formatAge(age)} ago`
 }
 
-export function SoulseekIndicator() {
+// Compact, the bar shows only the dot and the popover says what it means.
+export function SoulseekIndicator({ compact }: { compact: boolean }) {
   const soulseek = useSoulseek()
   const { color, label } = describeSoulseek(soulseek.data, soulseek.known)
   return (
     <Popover.Root>
       <Popover.Trigger>
-        <Button variant="ghost" color="gray">
-          <StatusDot color={color} />
-          {label}
-        </Button>
+        {compact ? (
+          <IconButton variant="ghost" color="gray" aria-label={label}>
+            <StatusDot color={color} />
+          </IconButton>
+        ) : (
+          <Button variant="ghost" color="gray">
+            <StatusDot color={color} />
+            {label}
+          </Button>
+        )}
       </Popover.Trigger>
       <Popover.Content width="300px">
+        {compact && (
+          <Flex align="center" gap="2" mb="3">
+            <StatusDot color={color} />
+            <Text size="2" weight="medium">
+              {label}
+            </Text>
+          </Flex>
+        )}
         <SoulseekPanel {...soulseek} />
       </Popover.Content>
     </Popover.Root>

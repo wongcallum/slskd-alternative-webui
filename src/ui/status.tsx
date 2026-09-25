@@ -23,6 +23,15 @@ export function StatusDot({ color }: { color: Color }) {
   )
 }
 
+// Marks an icon button, which must be positioned, as having something to look at.
+export function CornerDot({ color }: { color: Color }) {
+  return (
+    <Box position="absolute" top="0" right="0" style={{ lineHeight: 0 }}>
+      <StatusDot color={color} />
+    </Box>
+  )
+}
+
 export function DelayedSpinner() {
   const [visible, setVisible] = useState(false)
   useEffect(() => {
