@@ -2,7 +2,7 @@ import { Badge, Box, Button, Dialog, Flex, Grid, Heading, Link, Spinner, Text } 
 import { Link as RouterLink, useNavigate } from '@tanstack/react-router'
 import { type ReactNode, useEffect } from 'react'
 
-import { loadShareList, shareList } from '../browse/browse'
+import { useShareList } from '../browse/browse'
 import { useBrowseUser } from '../browse/useBrowseUser'
 import { describeError } from '../lib/api'
 import { formatBytes, plural } from '../lib/format'
@@ -16,7 +16,6 @@ import { LookupErrorLine, PresenceLabel } from './LookupStatus'
 import {
   type DirectionHistory,
   loadPicture,
-  loadUserList,
   lookedUpAt,
   lookUp,
   type LookupErrors,
@@ -25,14 +24,11 @@ import {
   pictures,
   transferHistory,
   type UserRecord,
-  userList,
+  useUserList,
 } from './users'
 
 export function ProfilePage({ username }: { username: string }) {
-  useEffect(() => {
-    void loadUserList()
-  }, [])
-  const list = useAtom(userList)
+  const list = useUserList()
   const record = list.records.get(username)
   const startedAt = useAtom(lookups).get(username)
   const errors = useAtom(lookupErrors).get(username)
@@ -175,10 +171,7 @@ function Picture({ username, picture }: { username: string; picture: string }) {
 }
 
 function CachedShare({ username }: { username: string }) {
-  useEffect(() => {
-    void loadShareList()
-  }, [])
-  const share = useAtom(shareList).records.get(username)
+  const share = useShareList().records.get(username)
   if (share === undefined) return null
   return (
     <Text size="2" color="gray">

@@ -1,5 +1,5 @@
 import { Text } from '@radix-ui/themes'
-import { type ReactNode, useEffect, useMemo } from 'react'
+import { type ReactNode, useMemo } from 'react'
 
 import { entriesByUser } from '../lib/db'
 import { formatBytes, plural } from '../lib/format'
@@ -8,17 +8,7 @@ import { useSoulseekGate } from '../soulseek/soulseek'
 import { Ago } from '../ui/status'
 import { Cell, type Layout } from '../ui/table'
 import { UserListPage, UserListRow } from '../ui/UserList'
-import {
-  type Browse,
-  browse,
-  browses,
-  deleteShare,
-  type Failure,
-  failures,
-  loadedShares,
-  loadShareList,
-  shareList,
-} from './browse'
+import { type Browse, browse, browses, deleteShare, type Failure, failures, loadedShares, useShareList } from './browse'
 import { BrowseProgress, FailureLine } from './BrowseStatus'
 import { UserBox } from './UserBox'
 
@@ -42,10 +32,7 @@ const columns = [
 ]
 
 export function BrowsePage() {
-  useEffect(() => {
-    void loadShareList()
-  }, [])
-  const list = useAtom(shareList)
+  const list = useShareList()
   const running = useAtom(browses)
   const failed = useAtom(failures)
   const memory = useAtom(loadedShares)

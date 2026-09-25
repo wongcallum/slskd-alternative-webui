@@ -1,6 +1,6 @@
 import { api } from '../lib/api'
 import { createAtom, createResource, type Measure, poll, type Sink } from '../lib/store'
-import { parseQuery } from '../lib/text'
+import { queryMatcher } from '../lib/text'
 import { sessionSignal } from '../session/session'
 
 type RawEvent = { timestamp: string; type: string; data: string; id: string }
@@ -178,10 +178,7 @@ export async function loadOlder() {
 }
 
 export function eventMatcher(query: string, hidden: ReadonlySet<string>) {
-  const { include, exclude } = parseQuery(query)
-  if (hidden.size === 0 && include.length + exclude.length === 0) return undefined
-  return (record: EventRecord) =>
-    !hidden.has(record.type) &&
-    include.every((term) => record.search.includes(term)) &&
-    !exclude.some((term) => record.search.includes(term))
+  const matches = queryMatcher(query)
+  if (hidden.size === 0 && matches === undefined) return undefined
+  return (record: EventRecord) => !hidden.has(record.type) && (matches?.(record.search) ?? true)
 }

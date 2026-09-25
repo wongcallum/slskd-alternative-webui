@@ -1,7 +1,7 @@
 import { isHTTPError } from 'ky'
 
 import { api, describeError, sleep } from '../lib/api'
-import { announce as announceChange, createRecordList, type Database, db, onAnnounce } from '../lib/db'
+import { announce as announceChange, createRecordList, type Database, db, onAnnounce, removeUser } from '../lib/db'
 import { createAtom, without } from '../lib/store'
 import { buildTree, type Folder, type InputDirectory, relativePath, type Tree, type TreeFile } from '../lib/tree'
 import { sessionSignal } from '../session/session'
@@ -32,7 +32,7 @@ async function parseShare(username: string, blob: Blob) {
 
 const capacity = 2 ** 30
 
-export const { list: shareList, load: loadShareList } = createRecordList('shares')
+export const { list: shareList, load: loadShareList, useList: useShareList } = createRecordList('shares')
 
 export type Loaded =
   | { status: 'loading' }
@@ -125,14 +125,7 @@ async function evict(database: Database) {
   }
 }
 
-async function remove(database: Database, username: string) {
-  const transaction = database.transaction(['shares', 'trees'], 'readwrite')
-  await Promise.all([
-    transaction.objectStore('shares').delete(username),
-    transaction.objectStore('trees').delete(username),
-    transaction.done,
-  ])
-}
+const remove = (database: Database, username: string) => removeUser(database, ['shares', 'trees'], username)
 
 async function store(record: ShareRecord, blob: Blob) {
   const database = await db()

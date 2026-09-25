@@ -4,7 +4,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { type ReactNode, useDeferredValue, useMemo, useState } from 'react'
 
 import { api, describeError } from '../lib/api'
-import { compareExactly } from '../lib/text'
+import { byName } from '../lib/text'
 import { FilterField, GateTip } from '../ui/controls'
 import { ErrorCallout, Loading } from '../ui/status'
 import { ColumnHeader, GridRow, HeaderRow, VirtualTable } from '../ui/table'
@@ -72,9 +72,7 @@ function RoomPicker({ listing, onRetry, onJoined }: { listing: Listing; onRetry:
     const matching = needle === '' ? available : available.filter((room) => room.name.toLowerCase().includes(needle))
     const direction = sort.desc ? -1 : 1
     return matching.toSorted((a, b) =>
-      sort.id === 'name'
-        ? direction * compareExactly(a.name, b.name)
-        : direction * (a.userCount - b.userCount) || compareExactly(a.name, b.name),
+      sort.id === 'name' ? direction * byName(a, b) : direction * (a.userCount - b.userCount) || byName(a, b),
     )
   }, [available, needle, sort])
 
