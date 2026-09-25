@@ -26,19 +26,18 @@ Install Nix and devenv (`nix profile add nixpkgs#devenv`), then enter the enviro
 
 What's left of the stock UI, in order:
 
-1. Dashboard. Once it exists, decide whether `/` redirects there instead of `/searches`. The nav grows to nine
-   destinations with the pages below, so settle its layout here too.
-2. System info: the application state, Restart, Shut down, Check for updates and Get privileges. The shell then gets
-   a marker for a pending restart, reconnect or share rescan that links there, and a new-version notice.
-3. System logs, from the logs hub.
-4. Rooms
-5. Chat
-6. Users
-7. System shares: the shares and exclusions, each share's contents, and rescanning with progress.
-8. System files: browsing the downloads and incomplete directories, and deleting when remote file management is on.
-9. System events: the paginated event list.
-10. System options: the redacted config, and the YAML editor when remote configuration is on.
-11. The rest of the shell: upload and download speeds and counts, the slskd version, and light theme with a toggle.
+1. System info: the application state, Restart, Shut down, Check for updates and Get privileges. The shell then gets
+   a marker for a pending restart, reconnect or share rescan that links there, and a new-version notice. The nav
+   grows to eight destinations with the pages below, so settle its layout here too.
+2. System logs, from the logs hub.
+3. Rooms
+4. Chat
+5. Users
+6. System shares: the shares and exclusions, each share's contents, and rescanning with progress.
+7. System files: browsing the downloads and incomplete directories, and deleting when remote file management is on.
+8. System events: the paginated event list.
+9. System options: the redacted config, and the YAML editor when remote configuration is on.
+10. The rest of the shell: upload and download speeds and counts, the slskd version, and light theme with a toggle.
 
 After that:
 
@@ -46,3 +45,4 @@ After that:
 - Keyboard handling: ↵ into a folder and ⌫ up in Browse, `/` to focus a filter, `d` to download, `?` for the keys.
   Weigh `@headless-tree` for Browse's tree then, since it brings an ARIA tree with keys.
 - Filter criteria (quality, size) for Browse.
+- Dashboard
