@@ -4,7 +4,7 @@ import { Link as RouterLink, useNavigate } from '@tanstack/react-router'
 import { type ReactNode, useEffect } from 'react'
 
 import { describeError } from '../../lib/api'
-import { formatDuration } from '../../lib/format'
+import { formatAge } from '../../lib/format'
 import { useAtom } from '../../lib/store'
 import { useSoulseekGate } from '../../soulseek/soulseek'
 import { ActionButton, toolbarStyle } from '../../ui/controls'
@@ -117,9 +117,8 @@ function Header({ search, known, live, error }: { search: Search; known: boolean
           {describeCounts(search)}
         </Text>
         <Text size="2" color="gray">
-          started <Ago time={search.startedAt} />
-          {search.endedAt !== undefined &&
-            ` · took ${formatDuration(Math.max(0, (search.endedAt - search.startedAt) / 1000))}`}
+          Started <Ago time={search.startedAt} />
+          {search.endedAt !== undefined && `, took ${formatAge(search.endedAt - search.startedAt)}`}
         </Text>
       </Flex>
       <Flex ml="auto" align="center" gap="2" flexShrink="0">

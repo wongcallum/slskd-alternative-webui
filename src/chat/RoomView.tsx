@@ -110,7 +110,7 @@ function JoinedRoom({ room }: { room: string }) {
               username={username}
               note={
                 data.messages.length >= roomMessageLimit
-                  ? `slskd keeps the last ${roomMessageLimit} messages.`
+                  ? `slskd keeps only the newest ${roomMessageLimit} messages.`
                   : undefined
               }
               empty="No messages since slskd joined."

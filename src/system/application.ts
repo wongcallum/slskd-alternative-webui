@@ -184,7 +184,6 @@ export function useApplication() {
   return { data, error, ...useLive(data?.via, applicationHub, application, applicationPollInterval) }
 }
 
-// Resolves once the application state satisfies the predicate, whether pushed or polled.
 export function waitForApplication(predicate: (data: Application) => boolean, signal: AbortSignal, timeout: number) {
   return new Promise<void>((resolve, reject) => {
     const timer = setTimeout(() => finish(new Error('Timed out waiting for slskd')), timeout)

@@ -143,7 +143,7 @@ function FileStatus({
             #{place}
             {lookup?.at !== undefined && (
               <>
-                {' · '}
+                {' as of '}
                 <Ago time={lookup.at} />
               </>
             )}
@@ -152,7 +152,7 @@ function FileStatus({
       {lookup?.error !== undefined && !lookup.pending && file.state === 'Queued, Remotely' && (
         <Tooltip content={lookup.error}>
           <Text size="1" color="red">
-            lookup failed
+            position check failed
           </Text>
         </Tooltip>
       )}

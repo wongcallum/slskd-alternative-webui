@@ -61,7 +61,7 @@ export function UsersPage() {
       toolbar={<LookUpBox />}
       list={list}
       what="the stored profiles"
-      empty="No one looked up yet. Look a user up by name, or from the menu on their name anywhere else."
+      empty="No one looked up yet. Look up a user by name, or from the menu on their name elsewhere."
       template={template}
       minWidth={minWidth}
       columns={columns}

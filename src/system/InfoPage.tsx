@@ -66,12 +66,12 @@ function SlskdCard({ data, known }: { data: Application; known: boolean }) {
   let latest: ReactNode = 'Not checked'
   if (data.updateAvailable && data.latest !== undefined) {
     latest = (
-      <span>
-        {data.latest} is available ·{' '}
+      <Flex as="span" gap="3" wrap="wrap">
+        <span>{data.latest} is available</span>
         <Link href={releaseNotes(data.latest)} target="_blank" rel="noreferrer">
           Release notes
         </Link>
-      </span>
+      </Flex>
     )
   } else if (data.latest !== undefined && data.build === undefined) latest = 'Up to date'
 
@@ -80,9 +80,8 @@ function SlskdCard({ data, known }: { data: Application; known: boolean }) {
     ['Latest', latest],
   ]
   if (process?.startedAt !== undefined) rows.push(['Uptime', <Uptime key="uptime" startedAt={process.startedAt} />])
-  if (process?.runtime !== undefined) {
-    rows.push(['Runtime', [process.runtime, process.architecture].filter(Boolean).join(' · ')])
-  }
+  if (process?.runtime !== undefined) rows.push(['Runtime', process.runtime])
+  if (process?.architecture !== undefined) rows.push(['Architecture', process.architecture])
   if (process?.os !== undefined) rows.push(['OS', process.os])
   if (process?.memory !== undefined) rows.push(['Memory', formatBytes(process.memory)])
   if (process === undefined && processError !== undefined) {
