@@ -12,7 +12,7 @@ import { useFilterText } from '../ui/controls'
 import { DetailsPane } from '../ui/details'
 import { HeldList, HeldToolbar, useHold } from '../ui/hold'
 import { Busy, Empty, Freshness, Polling } from '../ui/status'
-import { Cell, GridRow, rowHeight } from '../ui/table'
+import { Cell, GridRow, type Layout, Parts, rowHeight, StackedRow } from '../ui/table'
 import { YamlView } from '../ui/YamlView'
 import { UserMenu } from '../users/UserMenu'
 import {
@@ -107,13 +107,15 @@ export function EventsPage({ search, onSearchChange }: Props) {
   } else {
     content = (
       <HeldList
-        template={template}
+        templates={templates}
         labels={labels}
         records={shown}
         itemKey={eventId}
         selected={selected?.id}
         onSelect={setSelected}
-        renderRow={(record, isSelected, toggle) => <EventRow record={record} selected={isSelected} onSelect={toggle} />}
+        renderRow={(record, layout, isSelected, toggle) => (
+          <EventRow record={record} layout={layout} selected={isSelected} onSelect={toggle} />
+        )}
         hold={hold}
         onScroll={(element) => {
           if (automatic && nearEnd(element)) void loadOlder()
@@ -241,18 +243,69 @@ function ListEnd({ data, filtered, replaced }: { data: Events; filtered: boolean
   )
 }
 
-const template = '170px 160px 180px minmax(300px, 1fr)'
+const templates = {
+  wide: '170px 160px 180px minmax(300px, 1fr)',
+  medium: '140px 150px 130px minmax(300px, 1fr)',
+}
 
 const labels = ['Time', 'Type', 'User', 'Details']
 
 const eventId = (record: EventRecord) => record.id
 
-type EventRowProps = { record: EventRecord; selected: boolean; onSelect: (record: EventRecord) => void }
+type EventRowProps = {
+  record: EventRecord
+  layout: Layout
+  selected: boolean
+  onSelect: (record: EventRecord) => void
+}
 
-const EventRow = memo(function EventRow({ record, selected, onSelect }: EventRowProps) {
+const EventRow = memo(function EventRow({ record, layout, selected, onSelect }: EventRowProps) {
   const { user, room, text, replayed } = record.summary
+  const details = (
+    <>
+      {room !== undefined && (
+        <Text size="2" color="gray" truncate style={{ flexShrink: 0, maxWidth: '40%' }}>
+          {room}
+        </Text>
+      )}
+      <Text size="2" truncate>
+        {text}
+      </Text>
+      {replayed === true && (
+        <Badge size="1" color="gray" style={{ flexShrink: 0 }}>
+          Replayed
+        </Badge>
+      )}
+    </>
+  )
+  if (layout === 'stacked') {
+    // An event with nothing to say, such as a connect, is titled by its type.
+    const titled = text === undefined || text === ''
+    return (
+      <StackedRow
+        selected={selected}
+        title={titled ? <Text size="2">{typeLabel(record.type)}</Text> : details}
+        meta={
+          <Parts
+            items={[
+              formatPreciseTime(record.time),
+              !titled && typeLabel(record.type),
+              user !== undefined && <UserMenu key="user" username={user} />,
+            ]}
+          />
+        }
+        style={{ cursor: 'pointer' }}
+        onClick={() => onSelect(record)}
+      />
+    )
+  }
   return (
-    <GridRow template={template} selected={selected} style={{ cursor: 'pointer' }} onClick={() => onSelect(record)}>
+    <GridRow
+      template={templates[layout]}
+      selected={selected}
+      style={{ cursor: 'pointer' }}
+      onClick={() => onSelect(record)}
+    >
       <Cell title={formatFullPreciseTime(record.time)}>{formatPreciseTime(record.time)}</Cell>
       <Cell title={record.type}>{typeLabel(record.type)}</Cell>
       <div className="table-cell" title={user}>
@@ -263,19 +316,7 @@ const EventRow = memo(function EventRow({ record, selected, onSelect }: EventRow
         )}
       </div>
       <Flex className="table-cell" align="center" gap="2" title={text}>
-        {room !== undefined && (
-          <Text size="2" color="gray" truncate style={{ flexShrink: 0, maxWidth: '40%' }}>
-            {room}
-          </Text>
-        )}
-        <Text size="2" truncate>
-          {text}
-        </Text>
-        {replayed === true && (
-          <Badge size="1" color="gray" style={{ flexShrink: 0 }}>
-            Replayed
-          </Badge>
-        )}
+        {details}
       </Flex>
     </GridRow>
   )
