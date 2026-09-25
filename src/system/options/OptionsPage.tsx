@@ -209,7 +209,7 @@ function saveGate(file: ConfigFile, gate: string | undefined, known: boolean, ch
   if (check.problems.length > 0) return 'Fix the problems marked in the file first'
   if (file.conflict !== undefined) return 'The file changed on disk'
   if (slskd === undefined) return 'Checking the file with slskd'
-  if (slskd.error !== undefined) return `slskd couldn't check the file: ${slskd.error}`
+  // A check that failed doesn't hold a save back, which slskd validates again anyway.
   if (slskd.message !== undefined) return 'slskd rejects the file'
   return undefined
 }
