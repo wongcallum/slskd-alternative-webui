@@ -46,11 +46,12 @@ export function ErrorCallout({ onRetry, children }: { onRetry?: () => void; chil
   )
 }
 
-export function Empty({ children }: { children: ReactNode }) {
+export function Empty({ children, actions }: { children: ReactNode; actions?: ReactNode }) {
   return (
-    <Box p="5">
+    <Flex align="center" gap="3" p="5" wrap="wrap">
       <Text color="gray">{children}</Text>
-    </Box>
+      {actions}
+    </Flex>
   )
 }
 

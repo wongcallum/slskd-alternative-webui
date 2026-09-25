@@ -32,31 +32,10 @@ export type ResultsSearch = v.InferOutput<typeof resultsSearch>
 
 const filterKeys = ['quality', 'size', 'length', 'files', 'free'] as const
 
-const filterSearch = v.pick(resultsSearch, filterKeys)
-
-export type FilterSearch = v.InferOutput<typeof filterSearch>
+export type FilterSearch = Pick<ResultsSearch, (typeof filterKeys)[number]>
 
 export const noFilters: FilterSearch = { quality: 'any', size: '', length: '', files: '', free: 'all' }
 
 export const resultsSearchDefaults = { q: '', locked: 'hide', ...noFilters } as const
 
-const filtersKey = 'slskd-alt-result-filters'
-
 export const countFilters = (search: FilterSearch) => filterKeys.filter((key) => search[key] !== noFilters[key]).length
-
-export function saveFilters(search: FilterSearch) {
-  if (countFilters(search) === 0) localStorage.removeItem(filtersKey)
-  else localStorage.setItem(filtersKey, JSON.stringify(search, [...filterKeys]))
-}
-
-// A results page opened without any filters gets the last ones used, so a quality preference carries over.
-export function rememberedFilters(search: FilterSearch) {
-  const saved = countFilters(search) === 0 ? localStorage.getItem(filtersKey) : null
-  if (saved === null) return undefined
-  try {
-    const filters = v.parse(filterSearch, JSON.parse(saved))
-    return countFilters(filters) > 0 ? filters : undefined
-  } catch {
-    return undefined
-  }
-}

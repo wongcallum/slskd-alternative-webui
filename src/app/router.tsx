@@ -14,7 +14,7 @@ import { BrowsePage } from '../browse/BrowsePage'
 import { type BrowseSearch, browseSearch, browseSearchDefaults } from '../browse/params'
 import { SharePage } from '../browse/share/SharePage'
 import { useResource } from '../lib/store'
-import { rememberedFilters, type ResultsSearch, resultsSearch, resultsSearchDefaults } from '../search/results/params'
+import { type ResultsSearch, resultsSearch, resultsSearchDefaults } from '../search/results/params'
 import { ResultsPage } from '../search/results/ResultsPage'
 import { searches } from '../search/searches'
 import { type SearchesSearch, SearchesPage, searchesSearch, searchesSearchDefaults } from '../search/SearchesPage'
@@ -93,10 +93,6 @@ const searchRoute = createRoute({
   head: ({ params }) => title(searches.getSnapshot().data?.byId.get(params.id)?.text ?? 'Search'),
   validateSearch: resultsSearch,
   search: { middlewares: [stripSearchParams(resultsSearchDefaults)] },
-  beforeLoad: ({ search, params }) => {
-    const filters = rememberedFilters(search)
-    if (filters !== undefined) throw redirect({ to: '/searches/$id', params, search: { ...search, ...filters } })
-  },
   component: function SearchResults() {
     const { id } = searchRoute.useParams()
     const router = useRouter()
