@@ -2,7 +2,7 @@ import { Badge, Box, Button, DataList, Flex, Popover, TabNav, Text, Tooltip } fr
 import { Link, Outlet, useMatchRoute } from '@tanstack/react-router'
 import { type CSSProperties, type ReactNode, useState } from 'react'
 import { describeError } from './api'
-import { applicationHub, type HubStatus, metricsHub, useHub } from './hubs'
+import { applicationHub, type HubStatus, metricsHub, searchHub, useHub, useWatchedHub } from './hubs'
 import { unfinishedDownloads } from './metrics'
 import { logout, useSession } from './session'
 import { connect, disconnect, type Soulseek, useSoulseek } from './soulseek'
@@ -99,7 +99,8 @@ function StatusDot({ color }: { color: DotColor }) {
   )
 }
 
-const describeHub = ({ state, attempt }: HubStatus) => (attempt === 0 ? state : `${state} (retry ${attempt})`)
+const describeHub = ({ state, attempt }: HubStatus) =>
+  state === 'stopped' ? 'not in use' : attempt === 0 ? state : `${state} (retry ${attempt})`
 
 function describeSoulseek(data: Soulseek | undefined, known: boolean): { color: DotColor; label: string } {
   if (!data || !known) return { color: 'gray', label: 'Soulseek: unknown' }
@@ -157,6 +158,7 @@ function SoulseekPanel({ data, error, known, age }: ReturnType<typeof useSoulsee
   const [actionError, setActionError] = useState<string>()
   const applicationHubStatus = useHub(applicationHub)
   const metricsHubStatus = useHub(metricsHub)
+  const searchHubStatus = useWatchedHub(searchHub)
   const actions = actionsFor(data)
 
   async function run(action: Action) {
@@ -200,6 +202,10 @@ function SoulseekPanel({ data, error, known, age }: ReturnType<typeof useSoulsee
         <DataList.Item>
           <DataList.Label>Metrics hub</DataList.Label>
           <DataList.Value>{describeHub(metricsHubStatus)}</DataList.Value>
+        </DataList.Item>
+        <DataList.Item>
+          <DataList.Label>Search hub</DataList.Label>
+          <DataList.Value>{describeHub(searchHubStatus)}</DataList.Value>
         </DataList.Item>
       </DataList.Root>
       {data?.pendingReconnect && (

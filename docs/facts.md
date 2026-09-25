@@ -21,7 +21,8 @@ are relative to `../slskd/src/slskd`, and line numbers drift over time.
   project exists. (Events and telemetry reports do paginate with `offset`/`limit`, but they're irrelevant here.)
 - Pushed:
   - application hub: `STATE` on every change, and `OPTIONS` (redacted). See [Application hub](#application-hub).
-  - search hub: `CREATE`/`UPDATE`/`DELETE` with `responses: null`. A `RESPONSE` method is declared but never sent.
+  - search hub: `LIST` on connect, then `CREATE`/`UPDATE`/`DELETE` without responses. A `RESPONSE` method is
+    declared but never sent. See [Search hub](#search-hub).
   - logs hub: `BUFFER` on connect, then `LOG`
   - metrics hub: `Update` every second, carrying aggregate transfer counts. See [Metrics hub](#metrics-hub).
 - Poll-only: transfers, browse, search response bodies, rooms and conversations.
@@ -110,6 +111,8 @@ Error bodies are JSON strings. Encode the username segment with `encodeURICompon
     slots for about 2 s each, then succeeded on the next resend.
 - `GET downloads/batches/{id}` returns `{id, searchId?, username, direction, createdAt, options, transfers}`,
   including removed transfers. There's no endpoint that lists batches.
+- A batch's `searchId` is only used by the `SEARCH_ID` and `SEARCH_TEXT` destination template variables
+  (`Downloads/DownloadService.cs`).
 - **There's no retry endpoint.** Retrying means enqueueing the same `username` + `filename` + `size` again.
   Stock's retry uses the obsolete `POST downloads/{username}` one file at a time, so it loses the batch and
   its destination, and runs into the 429.
@@ -240,15 +243,88 @@ Error bodies are JSON strings. Encode the username segment with `encodeURICompon
 
 ## Search
 
-- `GET /searches/{id}/responses` (or `GET /searches/{id}?includeResponses=true`) returns
-  `[{username, fileCount, files, lockedFileCount, lockedFiles, hasFreeUploadSlot, queueLength, uploadSpeed, token}]`,
-  **but only after the search finishes. While it's running, the endpoint returns `[]`.**
-- `POST /searches {searchText}` while not logged in to Soulseek returns 409 with a JSON string, but the search
-  is still stored, as `Completed, Errored` with no responses (observed).
+Paths below are relative to `Search/` unless they start with another directory. `SN:` paths are Soulseek.NET
+10.0.2, the version slskd pins.
+
+### Records
+
+- A search is `{id, searchText, token, state, isComplete, startedAt, endedAt?, responseCount, fileCount,
+  lockedFileCount, responses}` (`Types/Search.cs`). Both dates are UTC **with** the `Z`. REST omits `endedAt` while
+  it's null. `searchText` is stored normalised, with exclusions moved to the end (`"a -b c"` becomes `"a c -b"`).
+- The states written are `Requested`, `Queued`, `InProgress` and `Completed, TimedOut|ResponseLimitReached|
+  FileLimitReached|Cancelled|Errored` (`SN:SearchStates.cs`). A search ends:
+  - when it goes idle: the timeout restarts on every accepted response, and total duration has no cap
+    (`SN:SearchInternal.cs`)
+  - at the response limit, or at the unlocked-file limit. Both are checked after a response is added, so the last
+    one can overshoot. Locked files aren't capped.
+  - on `PUT` (`Cancelled`), on any exception (`Errored`), and on a Soulseek disconnect (also `Errored`)
+- A response is `{username, fileCount, files, lockedFileCount, lockedFiles, hasFreeUploadSlot, queueLength,
+  uploadSpeed, token}`, with nothing null. A file is `{filename (full remote path), size, code, extension, bitRate?,
+  bitDepth?, sampleRate?, length?, isVariableBitRate?, isLocked}` (`Types/File.cs`).
+  - **`isLocked` is always `false`**, even in `lockedFiles`. Whether a file is locked is which list it's in.
+  - The optional attributes are omitted when the peer didn't send them. `length` is seconds, `bitRate` kbps, and
+    `sampleRate` the peer's raw value (Hz in practice). `uploadSpeed` is the peer's raw number, which stock
+    shows as bytes per second.
+  - Results aren't checked against the blacklist.
+
+### Endpoints
+
+- `POST /searches` takes `{id?, searchText, searchTimeout?, responseLimit?, fileLimit?, filterResponses?,
+  minimumResponseFileCount?, minimumPeerUploadSpeed?, maximumPeerQueueLength?}`. A missing field gets
+  Soulseek.NET's default, **not** what slskd's doc comments say: `searchTimeout` 15000 (**milliseconds**, idle),
+  `responseLimit` 250, `fileLimit` 25000, `filterResponses` true, `minimumResponseFileCount` 1,
+  `minimumPeerUploadSpeed` 0 and `maximumPeerQueueLength` `int.MaxValue` (`SN:Options/SearchOptions.cs`).
+  - With `filterResponses`, a response is dropped before it's counted or stored if it has fewer files than the
+    minimum, is slower than the minimum speed, or has a queue at or above the maximum.
+  - It returns the record at once (usually `Queued` or `InProgress`) and runs the search in the background.
+  - The errors are JSON strings: 400 for validation, including `"Search query must contain at least one
+    non-exclusion term"`; 409 when not logged in to Soulseek; and **429 while another POST is being handled**
+    (`API/Controllers/SearchesController.cs`, a `SemaphoreSlim(1,1)` held for the whole request). Observed: three
+    POSTs sent at once got three 429s between them before all three were created.
+  - On a 400 or 409 the search is still stored and broadcast, as `Completed, Errored` with `endedAt = startedAt`
+    and no responses (observed for 409).
+- **At most two searches run at once** (`maximumConcurrentSearches: 2`, `Program.cs`). The rest wait in `Queued`,
+  where the timeout isn't running yet.
+- `GET /searches` returns every stored search with `responses: []`, with no pagination, filter or `ORDER BY`.
+- `GET /searches/{id}/responses` (or `GET /searches/{id}?includeResponses=true`) returns the responses, **but only
+  once the search has been finalised. Until then it returns `[]`.** They're held in memory while the search runs
+  and written as one JSON blob at the end, so there are no partial results, except that stopping keeps
+  what arrived. There's no pagination or compression, so a search at the limits is several MB.
+- `PUT /searches/{id}` stops the search: 200 with an empty body, or 404.
+- **`DELETE /searches/{id}` doesn't stop a running search** (`SearchService.cs`, `DeleteAsync`). It deletes the row
+  and broadcasts `DELETE`, but the search keeps running and holds a slot until it goes idle, and its finalisation
+  then fails. Stop first. Observed: a PUT, then waiting for the update that sets `endedAt`, then a DELETE logs no
+  error, and the search is gone. There's no bulk delete.
+- Searches persist across restarts in SQLite. Any that were running become `Completed, TimedOut` with zero
+  counts, with no broadcast. `retention.search` (YAML only, minutes, minimum 5, off by default) prunes them every
+  5 minutes by `endedAt`, broadcasting a `DELETE` for each. With it off, the list grows forever.
 - Once logged in, other peers' searches arrive constantly. If no share scan has ever run (`no_share_scan`), each
   one logs a `no such table: filenames` warning, about 3,600 in the first two minutes (observed).
-- Searches persist across restarts in SQLite. Any that were running become `Completed, TimedOut` with zero
-  counts. `retention.search` prunes old searches.
+
+### Search hub
+
+- On connect the caller gets `LIST`: every stored search, with `responses: []`. `CREATE`, `UPDATE` and `DELETE`
+  carry the whole record without responses, keep nulls, and go to every client (`API/Hubs/SearchHub.cs`).
+- A search sends `CREATE` as `Requested`, then an `UPDATE` on every state change and one as the POST returns.
+  While responses arrive, the counts go out at most every 250 ms, and a pending one can be dropped at the end.
+  The final `UPDATE` comes after the responses are saved (`SearchService.cs`, `StartAsync`).
+- **The `Completed` state-change `UPDATE` arrives before the responses are saved, with `endedAt: null`**, so
+  fetching then can return `[]`. `endedAt` is set only by finalisation, so "`isComplete` and `endedAt` set" means
+  the responses are there, on every path (normal, stopped, errored at start, restart cleanup). The state-change
+  broadcasts aren't awaited, so treat `Completed` as sticky rather than relying on order.
+
+## Users
+
+Paths are relative to `Users/`. Everything except `status` asks the peer, and all of them are Soulseek actions.
+Not being logged in to Soulseek gives a 500 with the message as a JSON string. A blacklisted user gets an empty 404.
+
+- `POST /users/{u}/directory {directory}` asks the peer for one folder, waiting up to Soulseek.NET's 5 s message
+  timeout (a 500 when it expires). An offline user gets a 404 with a JSON string. It returns
+  `[{name, fileCount, files: [{filename, size, code, extension, bitRate?, length?, ..., attributes}]}]`, usually with
+  one entry. The file names are bare, so the full path is `directory + '\' + filename`.
+- `GET /users/{u}/info` connects to the peer and returns `{description, hasFreeUploadSlot, hasPicture, picture?,
+  queueLength, uploadSlots}`. `GET /users/{u}/endpoint` asks the server (cached for 60 s). `GET /users/{u}/status`
+  asks the server only, and returns `{isPrivileged, presence}`, with `presence: "Offline"` rather than a 404.
 
 ## Browse
 
@@ -280,6 +356,48 @@ Paths are relative to `../slskd/src/web/src`.
   from the header. Nothing asks for confirmation. Retry sends one obsolete per-user POST per file in parallel,
   so most get 429 beyond two files. Uploads show a Retry for failed selections that would download the file
   from the peer instead.
+- Search (`components/Search/`):
+  - One route, `/searches/:id?`. The list comes only from the search hub. It shows every search newest first, with a
+    state icon, text, files, locked, responses, the end time (time only), and Stop (running) or Delete (finished).
+    There's no bulk action and no list filter.
+  - Creating sends `{id: uuidv4(), searchText}` and nothing else. Enter stays on the list, and the search button
+    opens the results. The box is disabled while the server is disconnected.
+  - Results are fetched once, 500 ms after `isComplete`, which works around the race in
+    [Search hub](#search-hub).
+  - Results show one card per user, with a table per folder. The cards are sorted by upload speed (the default)
+    or by queue length, and revealed 5 at a time without virtualisation.
+  - Toggles: hide locked (on by default), hide no free slot, and fold. A ✕ hides a user.
+  - Selection is per card, and a filter change drops it.
+  - Downloading POSTs the obsolete `downloads/{username}` once per card, without `searchId` or a destination.
+  - "Search for Additional Files in This Directory" sends `POST users/{u}/directory`, keeps element `[0]`, and
+    prepends `directory\` to its bare file names. The fetched files bypass the filter.
+  - Nothing is stored in localStorage.
+
+### Search filter syntax
+
+Stock's result filter (`lib/searches.js:40-190`), which is what phase 5's follow-up ports:
+
+- The text is lowercased and split on single spaces. Numeric tokens are found anywhere in the text, with no word
+  boundary, and only the first match counts:
+  - `minbr:`/`minbitrate:` (kbps)
+  - `minbd:`/`minbitdepth:`
+  - `minfs:`/`minfilesize:` (bytes, although the placeholder suggests otherwise)
+  - `minlen:`/`minlength:` (seconds)
+  - `minfif:`/`minfilesinfolder:`
+- `isvbr`, `iscbr`, `islossless` and `islossy` are substring tests too, so `-isvbr` also turns `isvbr` on.
+- Every other term is an include, or an exclude with a leading `-`. Any term containing `:` is dropped silently.
+  There are no quoted phrases, no OR and no escaping. `iscbr|isvbr` in the placeholder sets both flags and adds a
+  literal include term.
+- The filter applies per file, separately to `files` and `lockedFiles`:
+  - Include terms are ANDed and exclude terms are ORed, as substrings of the lowercased **full path**. The
+    username isn't matched.
+  - A lone `-` makes an empty exclude term, which hides everything. A double space makes an empty include term,
+    which matches everything.
+  - Numeric minimums pass a file that lacks the attribute.
+  - `isvbr`/`iscbr` reject a file whose `isVariableBitRate` is missing. `islossless` needs both `sampleRate` and
+    `bitDepth`, and `islossy` needs neither.
+- `minfif:` counts the whole response, not a folder. When it rejects a response, it leaves the counts alone, so
+  the user still shows as an empty card.
 
 ## Config
 

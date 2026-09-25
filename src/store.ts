@@ -21,7 +21,7 @@ export type Resource<T> = {
   refresh: () => void
 }
 
-function shallowEqual<T extends object>(a: T, b: T) {
+export function shallowEqual<T extends object>(a: T, b: T) {
   const keys = Object.keys(a) as (keyof T)[]
   return keys.length === Object.keys(b).length && keys.every((key) => Object.is(a[key], b[key]))
 }

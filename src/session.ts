@@ -47,6 +47,14 @@ export function onSessionEnd(listener: () => void) {
   endListeners.add(listener)
 }
 
+let controller = new AbortController()
+onSessionEnd(() => {
+  controller.abort()
+  controller = new AbortController()
+})
+
+export const sessionSignal = () => controller.signal
+
 function removeToken(token: string) {
   if (localStorage.getItem(tokenKey) === token) localStorage.removeItem(tokenKey)
 }

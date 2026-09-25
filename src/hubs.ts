@@ -4,10 +4,11 @@ import { api } from './api'
 import { getSession } from './session'
 import { urlBase } from './urlBase'
 
-export type HubStatus = { state: 'connecting' | 'connected' | 'reconnecting'; attempt: number }
+export type HubStatus = { state: 'stopped' | 'connecting' | 'connected' | 'reconnecting'; attempt: number }
 
 export type Hub = {
   subscribe: (listener: () => void) => () => void
+  watch: (listener: () => void) => () => void
   getStatus: () => HubStatus
   on: <T>(method: string, handler: (payload: T) => void) => () => void
 }
@@ -28,7 +29,7 @@ function accessToken() {
 }
 
 function createHub(name: string): Hub {
-  let status: HubStatus = { state: 'connecting', attempt: 0 }
+  let status: HubStatus = { state: 'stopped', attempt: 0 }
   const listeners = new Set<() => void>()
   const handlers = new Map<string, Set<Handler>>()
   let references = 0
@@ -79,6 +80,7 @@ function createHub(name: string): Hub {
     connection = undefined
     clearTimeout(startTimer)
     void current?.stop()
+    setStatus('stopped')
   }
 
   function retain() {
@@ -90,15 +92,23 @@ function createHub(name: string): Hub {
     }
   }
 
+  function watch(listener: () => void) {
+    listeners.add(listener)
+    return () => {
+      listeners.delete(listener)
+    }
+  }
+
   return {
     subscribe(listener) {
-      listeners.add(listener)
+      const unwatch = watch(listener)
       const release = retain()
       return () => {
-        listeners.delete(listener)
+        unwatch()
         release()
       }
     },
+    watch,
     getStatus: () => status,
     on(method, typed) {
       const handler = typed as Handler
@@ -118,6 +128,10 @@ function createHub(name: string): Hub {
 
 export const useHub = (hub: Hub) => useSyncExternalStore(hub.subscribe, hub.getStatus)
 
+export const useWatchedHub = (hub: Hub) => useSyncExternalStore(hub.watch, hub.getStatus)
+
 export const applicationHub = createHub('application')
 
 export const metricsHub = createHub('metrics')
+
+export const searchHub = createHub('search')

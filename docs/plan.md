@@ -78,6 +78,10 @@ structural sharing deep-allocates over the whole payload every tick) or assume t
 - `refresh()` polls at once; actions call it when they settle. `watch` reads a resource without starting it.
 - Hub pushes (application `STATE`, search metadata, metrics) feed the same store. The hubs use
   `@microsoft/signalr`.
+- Hubs send their snapshot (`STATE`, `LIST`) only as they connect, and stay connected for 2 s after their last
+  subscriber leaves. So a resource that starts while its hub is still connected (after a quick log out and in, or
+  when leaving the search pages and coming back) fetches the same snapshot over REST: `GET /application` or
+  `GET /searches`.
 - Soulseek server state is one resource: `STATE` while the application hub is connected, otherwise
   `GET /server` every 2 s, including during the initial connect.
 - Payload types are hand-written and cover only the fields we read. OpenAPI is a poor source (see the facts).
@@ -152,8 +156,8 @@ route tree and `basepath` from `window.urlBase`. There are **no route loaders**:
 - **The router is always mounted.** Its root route renders `<SessionGate><Shell /></SessionGate>`, so the
   shell, pages, polls and hubs unmount when the session ends while the router keeps following the URL.
   Remounting `<RouterProvider>` can render a stale page (see the facts).
-- Paths match stock's: `/searches`, `/downloads`, `/uploads` and `/browse`. `/` redirects to `/searches` from
-  `beforeLoad`, replacing the history entry.
+- Paths match stock's: `/searches`, `/searches/$id`, `/downloads`, `/uploads` and `/browse`. `/` redirects to
+  `/searches` from `beforeLoad`, replacing the history entry.
 - Search params are plain strings (`URLSearchParams` both ways), validated with Valibot:
   `v.optional(v.fallback(schema, default), default)`, so Links can omit them and invalid values fall back.
   Routes add `stripSearchParams(defaults)`, which keeps defaults and invalid values out of the URL. Params that
@@ -178,7 +182,8 @@ route tree and `basepath` from `window.urlBase`. There are **no route loaders**:
   `pendingReconnect` note, and Connect, Retry now + Stop trying, or Disconnect. Connect is only offered while
   disconnected, because `PUT /server` while connected leaves slskd's retry timer running.
 - Hub health has no indicator of its own in the bar, since two status dots side by side looked wrong. The
-  Soulseek popover lists each hub with its retry count. At a glance, the badge grays while the metrics hub is
+  Soulseek popover lists each hub with its retry count; the search hub only runs on the search pages and reads
+  "not in use" elsewhere. At a glance, the badge grays while the metrics hub is
   down, and the popover's source line reads "hub down, polling" while the application hub is.
 - Log out has no confirmation and is hidden on open instances.
 
@@ -189,7 +194,7 @@ Downloads and Uploads are one page component, parameterised by direction.
 - **Layout.** One virtualised scroll: an Active section (anything not `Completed`) above a Finished section.
   Each has a sticky, collapsible header with its counts, section actions and column headers, and each is its own
   TanStack table, so the two arrays are never concatenated. One virtualizer maps its indexes onto both tables'
-  row models. Rows have a fixed height.
+  row models. Rows have a fixed height and `contain: strict`, which makes scrolling far cheaper (see phase 5).
 - **Groups.** Rows are grouped by folder · user (the list's own grouping), one level deep: groups are parent
   rows with the files as sub-rows. A folder with both live and finished files appears in both sections, and its
   status counts the whole folder ("8/12 done · 1 failed"). Active groups start expanded and finished ones
@@ -216,6 +221,45 @@ Downloads and Uploads are one page component, parameterised by direction.
   poll as soon as they settle, and leave one dismissable outcome line in the toolbar. They run at module level,
   so they survive navigation, and ending the session aborts them.
 - **Uploads** have no retry, queue positions or attempts, and no badge.
+
+### Search
+
+`/searches` has the search box and the list of searches. `/searches/$id` is one search's results at full width.
+
+- **The list** comes from the search hub: `LIST` on connect, then `CREATE`, `UPDATE` and `DELETE`. While the hub
+  isn't connected, it polls `GET /searches` every 2 s instead, like the Soulseek resource. Records are mapped to flat
+  objects, and an update reuses the unchanged ones. Each toolbar shows the list's freshness, and Stop and Delete are
+  gated on the list being known: the hub is connected, or the last poll is within the amber threshold.
+- **Creating.** Enter POSTs `{searchText}` with slskd's defaults and no options, then opens the results. slskd picks
+  the id, because `crypto.randomUUID` needs a secure context and plain-HTTP LAN installs aren't one. The returned
+  record goes straight into the list, which would otherwise miss it until the next poll while the hub is down. A
+  429 means another POST held slskd's lock, so it's resent every second for up to 30 s. It's gated on Soulseek, and
+  errors show inline under the box, keeping the text. The results page has Search again, which creates a new search.
+- **The list page.** Columns: state, text (a link to the results), responses, files (+ locked) and started. Newest
+  first, with `q` filtering the text. Stop while running, and Delete always. A DELETE alone leaves the search
+  running and holding one of slskd's two search slots, so Delete stops a running search first. Delete N acts on
+  a selection, 4 at a time.
+- **Results** load once, on the first update with both `isComplete` and `endedAt` set, because the `Completed`
+  update arrives before the responses are saved. They never change afterwards. The parsed results of the 3 most
+  recently opened searches stay in memory. While the search runs, the page shows its state, its live counts and Stop.
+  An unknown id shows "No such search" once the list is known.
+- **Table.** One virtualised TanStack table grouped by folder · user, collapsed by default, with Expand all.
+  Columns: checkbox, Name (a group shows its folder's last two segments), User, Files, Size, Quality, Length, Speed
+  and Queue, then Download, Get full folder and ⓘ.
+- **Sorting** works like Transfers: groups sort by their value and files within their group, so groups never
+  interleave. A group's Quality is its worst file's among those with attributes (cover art has none), lossless
+  ranks above lossy, and a file with no attributes ranks lowest. Queue reads "free" for a free upload slot,
+  otherwise the queue length, and sorts a free slot first whatever the queue length says. The default order is
+  Queue, then fastest, then folder name.
+- **URL.** `q` (a case-insensitive substring of user + full path), `sort`, `locked=show` and `free=only`. Locked
+  files are hidden by default, and when shown they're dimmed and can't be selected.
+- **Downloading.** Select anything, then press Download N (size). It sends one `POST transfers/downloads/batches` per
+  user, carrying `searchId`, one POST at a time, with the same 429 resend as retry. It's gated on Soulseek. The action
+  runs at module level, per search, and leaves an outcome line reporting each user's failures. Rows show Enqueued or
+  Failed from the responses, and their own Download buttons wait while one runs. We never read the downloads list
+  here.
+- **Get full folder** sends `POST users/{u}/directory` on click. The folder's other files join its group marked "not
+  matched". They bypass the filter, and they're kept with the search's cached results. A failure shows on the group row.
 
 ### Health
 
@@ -283,11 +327,43 @@ Downloads and Uploads are one page component, parameterised by direction.
    `--dist` build) idle polls rendered nothing, scrolling while polling stayed around the 50 ms long-task mark at
    worst, and CPU throttling
    stretched the poll interval without the freshness going amber. Active rows at scale went untested.
-5. **Search.** Design it as we go. Responses only arrive once a search finishes, while the hub pushes the
-   metadata live. Stock's filter syntax (`minbr:`, `isvbr`, include/exclude terms) is worth porting eventually.
+5. **Search.** *Done:* the search box and list, the results page, downloading and Get full folder (see
+   [Search](#search)), the search hub with its polling fallback, and the REST catch-up for hubs that stayed
+   connected. We checked these in headless Chromium against `pnpm dev`, and deep links, reloads and params against
+   the `--dist` build:
+   - sort cycles, the filter, Locked and Free slot only in the URL, reloads, invalid params and an unknown id
+   - Shift ranges, group checkboxes, and locked files that can't be selected, including by select-all
+   - the search hub blocked: polling every 2 s, then "live" with no polling once it connects
+   - the session ending during a download, and a quick log out and in, which found the catch-up gap (the Soulseek
+     indicator stayed unknown too)
+   - a search created while away from the search pages showing up on return
+
+   With a real account we checked:
+   - live counts and Stop
+   - three searches created at once: the 429s were resent and the third waited in `Queued`
+   - Delete N on running searches, with a clean slskd log
+   - downloading a folder and a selection spanning users, with every batch carrying `searchId`
+   - Get full folder adding 18 unmatched files to an album with one match
+
+   A peer timeout on Get full folder never happened, so that error path is untested. The dev account couldn't
+   reach the result limits (a search for "remix" got 2 responses), so scale was measured on a production build fed
+   throwaway synthetic responses: 25k files in 21k folders.
+   - Parsing and grouping is a one-off long task of about 200 ms, and sorts take 60–120 ms.
+   - Scrolling in 1,500 px jumps went from 28 long tasks in 30 jumps to 0–4 once rows got `contain: strict`.
+
+   **Next, in a new session:** stock's filter syntax (see the facts) replaces the plain filter, still in `q`.
+   Open questions:
+   - whether tokens must be whole terms (stock finds `minbr:` anywhere), and what an unknown `foo:bar` does
+   - whether terms keep matching the username, as the plain filter does, so `-someuser` hides a user
+   - whether `minfif:` counts per folder · user rather than per response
+   - whether files missing an attribute pass numeric minimums, as in stock
+   - human units such as `minfs:10MiB` and `minlen:3:30`
+   - whether to add quoted phrases or OR, which stock lacks
+   - whether Locked and Free slot only become tokens
 6. **Browse.** A tree pane plus a folder grid, with subfolders listed at the top of the grid, ↵ to go in and
    ⌫ to go up, and a filter that flattens to matching files across the whole share. Share trees are
-   cached in the `slskd-alt` IndexedDB database, and each shows when it was fetched.
+   cached in the `slskd-alt` IndexedDB database, and each shows when it was fetched. Search results' group rows
+   gain a Browse user action.
 
 Later: dashboard, rooms, chat, users, then the config editor. Once the dashboard exists, decide whether `/`
 redirects there instead. After the plan: proper responsiveness.

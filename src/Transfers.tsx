@@ -1,17 +1,13 @@
-import './Transfers.css'
+import './Table.css'
 import {
-  ArrowDownIcon,
-  ArrowUpIcon,
   ChevronDownIcon,
   ChevronRightIcon,
-  Cross2Icon,
   InfoCircledIcon,
   ListBulletIcon,
   MagnifyingGlassIcon,
   ReloadIcon,
 } from '@radix-ui/react-icons'
 import {
-  AlertDialog,
   Box,
   Button,
   Callout,
@@ -39,7 +35,6 @@ import {
   type RowSelectionState,
   rowSortingFeature,
   type SortFn,
-  type SortingState,
   tableFeatures,
   type Updater,
   useTable,
@@ -48,19 +43,32 @@ import { defaultRangeExtractor, type Range, useVirtualizer } from '@tanstack/rea
 import { memo, type ReactNode, useCallback, useDeferredValue, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import * as v from 'valibot'
 import { describeError } from './api'
-import { formatAge, formatBytes, formatProgress, formatSpeed, formatTime, toTime, useAgo } from './format'
+import {
+  ActionButton,
+  Ago,
+  columnsHeight,
+  ConfirmButton,
+  Freshness,
+  GatedIconButton,
+  OutcomeLine,
+  preventShiftSelection,
+  rowHeight,
+  SortButton,
+  stop,
+  toolbarStyle,
+} from './controls'
+import { formatBytes, formatProgress, formatSpeed, formatTime, plural, toTime } from './format'
 import { DelayedSpinner } from './pages'
+import { formatSort, oneOf, parseSort, sortOf, textParam } from './params'
 import { useSoulseekGate } from './soulseek'
-import { type Atom, createAtom, isStale, type Resource, useAtom, useFreshness, useResource, useStale } from './store'
+import { type Atom, createAtom, type Resource, useAtom, useResource, useStale } from './store'
 import {
   actions,
   cancel,
   clearFinished,
-  dismissOutcome,
   type Lookup,
   lookUpPositions,
   lookups,
-  type Progress as ActionProgress,
   remove,
   retry,
 } from './transferActions'
@@ -87,30 +95,16 @@ const columnIds = {
 
 type ColumnId = (typeof columnIds.active)[number]
 
-const sortValues = <const T extends string>(ids: readonly T[]) =>
-  ids.flatMap((id) => [`${id}.asc`, `${id}.desc`] as const)
-
-const oneOf = <const T extends string>(options: readonly T[], fallback: NoInfer<T>) =>
-  v.optional(v.fallback(v.picklist(options), fallback), fallback)
-
 export const transfersSearch = v.object({
-  q: v.optional(v.fallback(v.string(), ''), ''),
+  q: textParam,
   show: oneOf(['all', 'succeeded', 'failed'], 'all'),
-  activeSort: v.fallback(v.optional(v.picklist(sortValues(columnIds.active))), undefined),
-  finishedSort: v.fallback(v.optional(v.picklist(sortValues(columnIds.finished))), undefined),
+  activeSort: sortOf(columnIds.active),
+  finishedSort: sortOf(columnIds.finished),
 })
 
 export const transfersSearchDefaults = { q: '', show: 'all' } as const
 
 export type TransfersSearch = v.InferOutput<typeof transfersSearch>
-
-const parseSort = (value: string | undefined): SortingState => {
-  if (value === undefined) return []
-  const [id = '', direction] = value.split('.')
-  return [{ id, desc: direction === 'desc' }]
-}
-
-const formatSort = ([sort]: SortingState) => sort && `${sort.id}.${sort.desc ? 'desc' : 'asc'}`
 
 const features = tableFeatures({
   rowSortingFeature,
@@ -169,9 +163,7 @@ const templates: Record<Section, string> = {
 }
 
 const minWidth = 1166
-const rowHeight = 36
 const barHeight = 44
-const columnsHeight = 32
 
 type Expansion = Record<Section, ExpandedStateList>
 
@@ -191,8 +183,6 @@ const expandedByDefault = (section: Section) => section === 'active'
 const noGroups: Group[] = []
 
 const allFiles = (groups: Group[]) => groups.flatMap((group) => group.files)
-
-const plural = (count: number, noun: string) => `${count.toLocaleString()} ${noun}${count === 1 ? '' : 's'}`
 
 type Props = {
   direction: Direction
@@ -479,7 +469,7 @@ function TransferList(props: ListProps) {
   }
 
   return (
-    <div ref={scrollRef} className="transfer-scroll">
+    <div ref={scrollRef} className="table-scroll">
       <div style={{ height: virtualizer.getTotalSize(), position: 'relative', minWidth }}>
         {virtualizer.getVirtualItems().map((virtual) => (
           <div
@@ -494,6 +484,7 @@ function TransferList(props: ListProps) {
                     width: '100%',
                     height: virtual.size,
                     transform: `translateY(${virtual.start}px)`,
+                    contain: 'strict',
                   }
             }
           >
@@ -534,7 +525,7 @@ function SectionHeader({
   const everything = allFiles(section === 'active' ? data.active : data.finished)
   const failed = everything.filter((file) => isFailed(file.state))
   return (
-    <div className="transfer-section">
+    <div className="table-section">
       <Flex align="center" gap="3" px="3" height={`${barHeight}px`}>
         <Button
           variant="ghost"
@@ -601,10 +592,10 @@ function SectionHeader({
       </Flex>
       {open && (
         <div
-          className="transfer-row transfer-columns"
+          className="table-row table-columns"
           style={{ gridTemplateColumns: templates[section], height: columnsHeight }}
         >
-          <div className="transfer-cell transfer-check">
+          <div className="table-cell table-check">
             <Checkbox
               checked={table.getIsAllRowsSelected() ? true : table.getIsSomeRowsSelected() ? 'indeterminate' : false}
               onClick={() => table.toggleAllRowsSelected()}
@@ -612,13 +603,13 @@ function SectionHeader({
           </div>
           {columnIds[section].map((id) => {
             const column = table.getColumn(id)
-            const sorted = column?.getIsSorted()
             return (
-              <div key={id} className="transfer-cell" data-align={id === 'size' || id === 'speed' ? 'end' : undefined}>
-                <button type="button" className="transfer-sort" onClick={column?.getToggleSortingHandler()}>
-                  {columnLabels[section][id]}
-                  {sorted === 'asc' ? <ArrowUpIcon /> : sorted === 'desc' ? <ArrowDownIcon /> : null}
-                </button>
+              <div key={id} className="table-cell" data-align={id === 'size' || id === 'speed' ? 'end' : undefined}>
+                <SortButton
+                  label={columnLabels[section][id]}
+                  sorted={column?.getIsSorted()}
+                  onClick={column?.getToggleSortingHandler()}
+                />
               </div>
             )
           })}
@@ -648,17 +639,6 @@ const stateLabels: Record<string, [string, Color]> = {
 function describeState({ state, attempts }: Transfer): [string, Color] {
   const [label, color] = stateLabels[state] ?? [state, 'gray']
   return [label, color === 'gray' && attempts > 1 ? 'amber' : color]
-}
-
-// Clicks on controls inside a row mustn't also select or expand it, and React bubbles clicks out of portals too.
-const stop = (event: { stopPropagation: () => void }) => event.stopPropagation()
-
-const preventShiftSelection = (event: { shiftKey: boolean; preventDefault: () => void }) => {
-  if (event.shiftKey) event.preventDefault()
-}
-
-function Ago({ time }: { time: number }) {
-  return <span title={formatTime(time)}>{useAgo(time)}</span>
 }
 
 function Bar({ value }: { value: number }) {
@@ -696,23 +676,23 @@ const FileRow = memo(function FileRow({
   const time = timeOf(section, file)
   return (
     <div
-      className="transfer-row"
+      className="table-row"
       style={{ gridTemplateColumns: templates[section] }}
       data-selected={selected || undefined}
       onMouseDown={preventShiftSelection}
       onClick={(event) => onSelect(section, file.id, event.shiftKey)}
     >
-      <div className="transfer-cell transfer-check" onClick={stop}>
+      <div className="table-cell table-check" onClick={stop}>
         <Checkbox checked={selected} onClick={(event) => onSelect(section, file.id, event.shiftKey)} />
       </div>
-      <div className="transfer-cell" style={{ paddingLeft: 36 }} title={file.filename}>
+      <div className="table-cell" style={{ paddingLeft: 36 }} title={file.filename}>
         <Text size="2">{file.name}</Text>
       </div>
-      <div className="transfer-cell" />
-      <div className="transfer-cell">
+      <div className="table-cell" />
+      <div className="table-cell">
         <FileStatus file={file} direction={direction} pending={pending} lookup={lookup} />
       </div>
-      <div className="transfer-cell" data-align="end">
+      <div className="table-cell" data-align="end">
         <Text size="2" color="gray">
           {section === 'active' && file.bytesTransferred > 0
             ? formatProgress(file.bytesTransferred, file.size)
@@ -720,18 +700,18 @@ const FileRow = memo(function FileRow({
         </Text>
       </div>
       {section === 'active' && (
-        <div className="transfer-cell" data-align="end">
+        <div className="table-cell" data-align="end">
           <Text size="2" color="gray">
             {isTransferring(file.state) && formatSpeed(file.averageSpeed)}
           </Text>
         </div>
       )}
-      <div className="transfer-cell">
+      <div className="table-cell">
         <Text size="2" color="gray">
           {time > 0 && <Ago time={time} />}
         </Text>
       </div>
-      <Flex className="transfer-cell" gap="1" align="center" justify="end" onClick={stop}>
+      <Flex className="table-cell" gap="1" align="center" justify="end" onClick={stop}>
         {direction === 'download' && isFailed(file.state) && (
           <GatedIconButton label="Retry" gate={gate} onClick={() => retry([file])}>
             <ReloadIcon />
@@ -871,20 +851,20 @@ const GroupRow = memo(function GroupRow({
   const done = `${folder.succeeded.toLocaleString()}/${folder.total.toLocaleString()} done`
   return (
     <div
-      className="transfer-row transfer-group"
+      className="table-row table-group"
       style={{ gridTemplateColumns: templates[section] }}
       data-selected={selected || undefined}
       onMouseDown={preventShiftSelection}
       onClick={() => onToggle(section, group.id)}
     >
-      <div className="transfer-cell transfer-check" onClick={stop}>
+      <div className="table-cell table-check" onClick={stop}>
         <Checkbox
           checked={selected ? true : partial ? 'indeterminate' : false}
           onClick={(event) => onSelect(section, group.id, event.shiftKey)}
         />
       </div>
-      <Flex className="transfer-cell" align="center" gap="2" title={group.directory}>
-        {expanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
+      <Flex className="table-cell" align="center" gap="2" title={group.directory}>
+        {expanded ? <ChevronDownIcon style={{ flexShrink: 0 }} /> : <ChevronRightIcon style={{ flexShrink: 0 }} />}
         <Text size="2" weight="medium" truncate>
           {group.name}
         </Text>
@@ -892,10 +872,10 @@ const GroupRow = memo(function GroupRow({
           {group.files.length.toLocaleString()}
         </Text>
       </Flex>
-      <div className="transfer-cell" title={group.username}>
+      <div className="table-cell" title={group.username}>
         <Text size="2">{group.username}</Text>
       </div>
-      <Flex className="transfer-cell" align="center" gap="2">
+      <Flex className="table-cell" align="center" gap="2">
         {section === 'active' && <Bar value={fraction(group)} />}
         <Text size="1" color="gray" style={{ flexShrink: 0 }}>
           {done}
@@ -906,7 +886,7 @@ const GroupRow = memo(function GroupRow({
           </Text>
         )}
       </Flex>
-      <div className="transfer-cell" data-align="end">
+      <div className="table-cell" data-align="end">
         <Text size="2" color="gray">
           {section === 'active' && group.bytesTransferred > 0
             ? formatProgress(group.bytesTransferred, group.size)
@@ -914,18 +894,18 @@ const GroupRow = memo(function GroupRow({
         </Text>
       </div>
       {section === 'active' && (
-        <div className="transfer-cell" data-align="end">
+        <div className="table-cell" data-align="end">
           <Text size="2" color="gray">
             {group.speed > 0 && formatSpeed(group.speed)}
           </Text>
         </div>
       )}
-      <div className="transfer-cell">
+      <div className="table-cell">
         <Text size="2" color="gray">
           {group.time > 0 && <Ago time={group.time} />}
         </Text>
       </div>
-      <Flex className="transfer-cell" gap="1" align="center" justify="end" onClick={stop}>
+      <Flex className="table-cell" gap="1" align="center" justify="end" onClick={stop}>
         {queued.length > 0 && (
           <GatedIconButton label="Check queue positions" gate={gate} onClick={() => lookUpPositions(queued)}>
             <ListBulletIcon />
@@ -935,93 +915,6 @@ const GroupRow = memo(function GroupRow({
     </div>
   )
 })
-
-function GatedIconButton({
-  label,
-  gate,
-  onClick,
-  children,
-}: {
-  label: string
-  gate?: string
-  onClick: () => void
-  children: ReactNode
-}) {
-  return (
-    <Tooltip content={gate ?? label}>
-      <IconButton
-        size="1"
-        variant="ghost"
-        color="gray"
-        aria-label={label}
-        aria-disabled={gate !== undefined || undefined}
-        data-disabled={gate !== undefined || undefined}
-        onClick={() => gate === undefined && onClick()}
-      >
-        {children}
-      </IconButton>
-    </Tooltip>
-  )
-}
-
-type ActionButtonProps = {
-  label: string
-  busy: string
-  progress?: ActionProgress
-  gate?: string
-  color?: 'red'
-  onClick: () => void
-}
-
-function ActionButton({ label, busy, progress, gate, color, onClick }: ActionButtonProps) {
-  const disabled = gate !== undefined || progress !== undefined
-  const button = (
-    <Button
-      size="1"
-      variant="soft"
-      color={color}
-      aria-disabled={disabled || undefined}
-      data-disabled={disabled || undefined}
-      onClick={() => !disabled && onClick()}
-    >
-      {progress === undefined
-        ? label
-        : `${busy} ${progress.done.toLocaleString()} / ${progress.total.toLocaleString()}`}
-    </Button>
-  )
-  return gate === undefined || progress !== undefined ? button : <Tooltip content={gate}>{button}</Tooltip>
-}
-
-function ConfirmButton({
-  title,
-  description,
-  action,
-  onConfirm,
-  ...button
-}: Omit<ActionButtonProps, 'onClick'> & { title: string; description: string; action: string; onConfirm: () => void }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <AlertDialog.Root open={open} onOpenChange={setOpen}>
-      <ActionButton {...button} onClick={() => setOpen(true)} />
-      <AlertDialog.Content maxWidth="440px">
-        <AlertDialog.Title>{title}</AlertDialog.Title>
-        <AlertDialog.Description size="2">{description}</AlertDialog.Description>
-        <Flex gap="3" mt="4" justify="end">
-          <AlertDialog.Cancel>
-            <Button variant="soft" color="gray">
-              Back
-            </Button>
-          </AlertDialog.Cancel>
-          <AlertDialog.Action>
-            <Button color={button.color} onClick={onConfirm}>
-              {action}
-            </Button>
-          </AlertDialog.Action>
-        </Flex>
-      </AlertDialog.Content>
-    </AlertDialog.Root>
-  )
-}
 
 type ToolbarProps = {
   direction: Direction
@@ -1040,7 +933,7 @@ function Toolbar({ direction, resource, error, text, onTextChange, selected, onC
   const cancellable = selected.filter((file) => !isFinished(file.state))
   const removable = selected.filter((file) => isFinished(file.state))
   return (
-    <Flex align="center" gap="3" px="4" py="2" flexShrink="0" style={{ boxShadow: 'inset 0 -1px 0 0 var(--gray-a5)' }}>
+    <Flex align="center" gap="3" px="4" py="2" flexShrink="0" style={toolbarStyle}>
       <TextField.Root
         size="2"
         placeholder="Filter by user or path"
@@ -1087,63 +980,10 @@ function Toolbar({ direction, resource, error, text, onTextChange, selected, onC
         </Flex>
       )}
       <Flex ml="auto" align="center" gap="4" flexShrink="0">
-        <OutcomeLine direction={direction} />
-        <Freshness resource={resource} error={error} />
+        <OutcomeLine atom={actions[direction]} />
+        <Freshness resource={resource} interval={pollInterval} error={error} />
       </Flex>
     </Flex>
   )
 }
 
-function OutcomeLine({ direction }: { direction: Direction }) {
-  const { outcome } = useAtom(actions[direction])
-  if (outcome === undefined) return null
-  const color = outcome.failed ? 'red' : 'gray'
-  return (
-    <Flex align="center" gap="1">
-      {outcome.details.length === 0 ? (
-        <Text size="2" color={color}>
-          {outcome.summary}
-        </Text>
-      ) : (
-        <Popover.Root>
-          <Popover.Trigger>
-            <Button size="1" variant="ghost" color={color}>
-              {outcome.summary}
-            </Button>
-          </Popover.Trigger>
-          <Popover.Content width="480px" maxHeight="360px">
-            <Flex direction="column" gap="1">
-              {outcome.details.map((detail, index) => (
-                <Text key={index} size="1" style={{ wordBreak: 'break-word' }}>
-                  {detail}
-                </Text>
-              ))}
-            </Flex>
-          </Popover.Content>
-        </Popover.Root>
-      )}
-      <IconButton size="1" variant="ghost" color="gray" aria-label="Dismiss" onClick={() => dismissOutcome(direction)}>
-        <Cross2Icon />
-      </IconButton>
-    </Flex>
-  )
-}
-
-function Freshness({ resource, error }: { resource: Resource<Transfers>; error: unknown }) {
-  const age = useFreshness(resource)
-  const stale = isStale(age, resource.getInterval() ?? pollInterval)
-  return (
-    <Flex align="center" gap="2">
-      {error !== undefined && (
-        <Tooltip content={describeError(error)}>
-          <Text size="1" color="red">
-            Last poll failed
-          </Text>
-        </Tooltip>
-      )}
-      <Text size="1" color={stale ? 'amber' : 'gray'}>
-        {age === undefined ? 'not loaded yet' : `updated ${formatAge(age)} ago`}
-      </Text>
-    </Flex>
-  )
-}
