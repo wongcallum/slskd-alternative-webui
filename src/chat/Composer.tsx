@@ -49,9 +49,14 @@ export function Composer({ draftKey, placeholder, send }: Props) {
   }
 
   return (
-    <Box px="4" py="3" flexShrink="0" style={{ boxShadow: 'inset 0 1px 0 0 var(--gray-a5)' }}>
+    <Box
+      px={{ initial: '3', sm: '4' }}
+      py={{ initial: '2', sm: '3' }}
+      flexShrink="0"
+      style={{ boxShadow: 'inset 0 1px 0 0 var(--gray-a5)' }}
+    >
       <TextField.Root
-        size="2"
+        size={{ initial: '3', sm: '2' }}
         autoFocus={!touch}
         placeholder={placeholder}
         value={text}
@@ -61,7 +66,7 @@ export function Composer({ draftKey, placeholder, send }: Props) {
         <TextField.Slot side="right">
           <GateTip gate={reason} label="Send">
             <IconButton
-              size="1"
+              size={{ initial: '2', sm: '1' }}
               variant="ghost"
               aria-label="Send"
               loading={sending}
