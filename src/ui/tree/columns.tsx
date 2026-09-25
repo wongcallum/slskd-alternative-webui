@@ -10,16 +10,18 @@ import {
 import type { ReactNode } from 'react'
 
 import { formatDuration } from '../../lib/format'
+import { useFrom } from '../../lib/media'
 import { byName, compareNames } from '../../lib/text'
 import type { Item } from '../../lib/tree'
 
 export const paneColumnIds = ['name', 'folder', 'files', 'size'] as const
 
-// Each view adds its own columns after the name, files or folder, and size.
+// Each view adds its own columns after the name, files or folder, and size. A wide one only shows from lg.
 export type ExtraColumn = {
   id: string
   label: string
   width: number
+  wide?: boolean
   end?: boolean
   value: (item: Item) => number
   render: (item: Item) => ReactNode
@@ -44,19 +46,48 @@ export const paneColumns = (extras: readonly ExtraColumn[]) =>
     ),
   )
 
-export type Layout = { template: string; minWidth: number }
+// Stacked below sm. Beside the tree, the pane drops its file count or folder column below md, and wide extras below lg.
+export type PaneWidth = 'stacked' | 'narrow' | 'medium' | 'wide'
+
+export function usePaneWidth(): PaneWidth {
+  const sm = useFrom('sm')
+  const md = useFrom('md')
+  const lg = useFrom('lg')
+  return !sm ? 'stacked' : !md ? 'narrow' : !lg ? 'medium' : 'wide'
+}
+
+export type Layout = { template: string; minWidth: number; counted: boolean; extras: readonly ExtraColumn[] }
 
 // Filtered, the pane lists matching files from every folder below, so the folder replaces the file count.
-export function paneLayout(extras: readonly ExtraColumn[], selectable: boolean, filtered: boolean): Layout {
+export function paneLayout(
+  allExtras: readonly ExtraColumn[],
+  selectable: boolean,
+  filtered: boolean,
+  width: PaneWidth,
+): Layout {
+  const extras = width === 'wide' ? allExtras : allExtras.filter((extra) => extra.wide !== true)
+  const counted = width === 'medium' || width === 'wide'
   const widths = extras.map((extra) => extra.width)
+  const [name, nameWidth] = !counted
+    ? ['minmax(180px, 1fr)', 180]
+    : filtered
+      ? ['minmax(240px, 1fr)', 240]
+      : ['minmax(280px, 1fr)', 280]
+  const [count, countWidth] = filtered ? ['minmax(160px, 0.7fr)', 160] : ['90px', 90]
   const parts = [
     ...(selectable ? ['40px'] : []),
-    ...(filtered ? ['minmax(240px, 1fr)', 'minmax(160px, 0.7fr)'] : ['minmax(280px, 1fr)', '90px']),
+    name,
+    ...(counted ? [count] : []),
     '100px',
-    ...widths.map((width) => `${width}px`),
+    ...widths.map((each) => `${each}px`),
   ]
-  const fixed = (selectable ? 40 : 0) + (filtered ? 400 : 370) + 100
-  return { template: parts.join(' '), minWidth: widths.reduce((sum, width) => sum + width, fixed) }
+  const fixed = (selectable ? 40 : 0) + nameWidth + (counted ? countWidth : 0) + 100
+  return {
+    template: parts.join(' '),
+    minWidth: widths.reduce((sum, each) => sum + each, fixed),
+    counted,
+    extras,
+  }
 }
 
 function numberOf(id: string, extras: readonly ExtraColumn[]): ((item: Item) => number) | undefined {
@@ -99,6 +130,7 @@ export const audioColumns: ExtraColumn[] = [
     id: 'length',
     label: 'Length',
     width: 100,
+    wide: true,
     end: true,
     value: (item) => item.length ?? 0,
     render: (item) => (item.length ?? 0) > 0 && formatDuration(item.length ?? 0),

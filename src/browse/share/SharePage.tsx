@@ -4,9 +4,10 @@ import { type ReactNode, useEffect, useMemo } from 'react'
 
 import { describeError } from '../../lib/api'
 import { formatBytes, plural } from '../../lib/format'
+import { useFrom } from '../../lib/media'
 import { useAtom } from '../../lib/store'
 import { useSoulseekGate } from '../../soulseek/soulseek'
-import { ActionButton, Tip, toolbarStyle } from '../../ui/controls'
+import { ActionButton, Tip, Toolbar, toolbarStyle } from '../../ui/controls'
 import { Ago, Empty, ErrorCallout, Loading } from '../../ui/status'
 import { TreeView } from '../../ui/tree/TreeView'
 import { UserMenu } from '../../users/UserMenu'
@@ -32,6 +33,7 @@ export function SharePage({ search, onSearchChange }: Props) {
   const ready = loaded?.status === 'ready' ? loaded : undefined
   const top = ready?.share.top
   const config = useMemo(() => shareConfig(username), [username])
+  const sm = useFrom('sm')
 
   let content: ReactNode
   if (ready !== undefined) {
@@ -71,37 +73,45 @@ export function SharePage({ search, onSearchChange }: Props) {
 
   return (
     <Flex direction="column" height="100%">
-      <Flex align="center" gap="4" px="4" py="3" flexShrink="0" style={toolbarStyle}>
+      <Toolbar gap="4" py="3">
         <UserBox current={username} />
         <UserMenu username={username} here="browse">
           <IconButton size="2" variant="ghost" color="gray" aria-label={`More for ${username}`}>
             <DotsHorizontalIcon />
           </IconButton>
         </UserMenu>
-        {top !== undefined && (
-          <Text size="2" color="gray">
-            {plural(top.fileCount, 'file')}
-            {top.lockedCount > 0 && ` (${top.lockedCount.toLocaleString()} locked)`}, {formatBytes(top.size)}
-          </Text>
-        )}
-        <Flex ml="auto" align="center" gap="3" flexShrink="0">
-          {ready?.notCached !== undefined && (
-            <Tip content={ready.notCached}>
-              <Text size="2" color="amber">
-                Not cached
-              </Text>
-            </Tip>
-          )}
-          {ready !== undefined && (
-            <Text size="2" color="gray">
-              Browsed <Ago time={ready.fetchedAt} />
+        {/* Below sm the summary, its age and Browse again share the line under the box. */}
+        <Flex align="center" gap="3" minWidth="0" flexGrow="1" flexBasis={{ initial: '100%', sm: '0' }}>
+          {top !== undefined && (
+            <Text size="2" color="gray" truncate>
+              {plural(top.fileCount, 'file')}
+              {top.lockedCount > 0 && ` (${top.lockedCount.toLocaleString()} locked)`}, {formatBytes(top.size)}
+              {!sm && ready !== undefined && (
+                <>
+                  , browsed <Ago time={ready.fetchedAt} />
+                </>
+              )}
             </Text>
           )}
-          {ready !== undefined && (
-            <ActionButton label="Browse again" busy="Browsing" gate={gate} onClick={() => void browse(username)} />
-          )}
+          <Flex ml="auto" align="center" gap="3" flexShrink="0">
+            {ready?.notCached !== undefined && (
+              <Tip content={ready.notCached}>
+                <Text size="2" color="amber">
+                  Not cached
+                </Text>
+              </Tip>
+            )}
+            {sm && ready !== undefined && (
+              <Text size="2" color="gray">
+                Browsed <Ago time={ready.fetchedAt} />
+              </Text>
+            )}
+            {ready !== undefined && (
+              <ActionButton label="Browse again" busy="Browsing" gate={gate} onClick={() => void browse(username)} />
+            )}
+          </Flex>
         </Flex>
-      </Flex>
+      </Toolbar>
       {ready !== undefined && running !== undefined ? (
         <Flex align="center" px="4" py="2" flexShrink="0" style={toolbarStyle}>
           <BrowseProgress running={running} />
