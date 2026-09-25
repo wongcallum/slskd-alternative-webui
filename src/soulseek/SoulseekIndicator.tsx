@@ -4,10 +4,11 @@ import { useState } from 'react'
 import { describeError } from '../lib/api'
 import { formatAge } from '../lib/format'
 import { applicationHub, type HubStatus, metricsHub, searchHub, useHub, useWatchedHub } from '../lib/hubs'
-import type { Application } from '../system/application'
+import { useFreshness } from '../lib/store'
+import { type Application, application, useApplication } from '../system/application'
 import { type Color, disabledProps } from '../ui/controls'
 import { StatusDot } from '../ui/status'
-import { connect, disconnect, reconnect, useSoulseek } from './soulseek'
+import { connect, disconnect, reconnect } from './soulseek'
 
 const hubStates: Record<HubStatus['state'], string> = {
   stopped: 'Not in use',
@@ -62,7 +63,7 @@ function describeSource(data: Application | undefined, known: boolean, age: numb
 }
 
 export function SoulseekIndicator({ compact }: { compact: boolean }) {
-  const soulseek = useSoulseek()
+  const soulseek = useApplication()
   const { color, label } = describeSoulseek(soulseek.data, soulseek.known)
   return (
     <Popover.Root>
@@ -93,7 +94,9 @@ export function SoulseekIndicator({ compact }: { compact: boolean }) {
   )
 }
 
-function SoulseekPanel({ data, error, known, age }: ReturnType<typeof useSoulseek>) {
+// The age ticks every second, so only the open panel follows it.
+function SoulseekPanel({ data, error, known }: ReturnType<typeof useApplication>) {
+  const age = useFreshness(application)
   const [pending, setPending] = useState<Action>()
   const [actionError, setActionError] = useState<string>()
   const applicationHubStatus = useHub(applicationHub)
