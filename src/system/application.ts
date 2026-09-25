@@ -36,6 +36,7 @@ type RawState = {
     parent?: string | null
   }
   shares: { scanPending: boolean; scanning: boolean; scanProgress: number }
+  rooms: string[]
 }
 
 export type Application = {
@@ -70,12 +71,21 @@ export type Application = {
   children: number
   childLimit: number
   acceptsChildren: boolean
+  rooms: readonly string[]
 }
 
 export const applicationPollInterval = 2000
 
 // Release builds report a fourth version part of 0, which their tags don't have.
 const trimVersion = (version: string) => version.replace(/^(\d+\.\d+\.\d+)\.0$/, '$1')
+
+let rooms: readonly string[] = []
+
+// Every push carries a new array, which would count as a change.
+function sameRooms(next: string[]) {
+  if (next.length !== rooms.length || next.some((room, index) => room !== rooms[index])) rooms = next
+  return rooms
+}
 
 function fromState(via: Via, state: RawState): Application {
   const { version, server, user, distributedNetwork: network, shares } = state
@@ -113,6 +123,7 @@ function fromState(via: Via, state: RawState): Application {
     children: network.children.length,
     childLimit: network.childLimit,
     acceptsChildren: network.canAcceptChildren,
+    rooms: sameRooms(state.rooms),
   }
 }
 

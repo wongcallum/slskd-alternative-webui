@@ -98,7 +98,7 @@ const costFactor = 10
 export function poll<T>(
   sink: Sink<T>,
   request: (signal: AbortSignal, measure: Measure) => Promise<T>,
-  interval: number,
+  interval: number | (() => number),
 ): Source {
   const controller = new AbortController()
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -126,7 +126,7 @@ export function poll<T>(
     }
     inFlight = false
     if (controller.signal.aborted) return
-    const next = Math.max(interval, costFactor * cost)
+    const next = Math.max(typeof interval === 'number' ? interval : interval(), costFactor * cost)
     sink.pace(next)
     timer = setTimeout(tick, again ? 0 : next)
   }
