@@ -1,11 +1,13 @@
-import { Box, Button, Flex, TabNav, Text } from '@radix-ui/themes'
-import { Link, Outlet, useMatchRoute } from '@tanstack/react-router'
-import type { CSSProperties, ReactNode } from 'react'
+import { Box, Button, Flex, Text } from '@radix-ui/themes'
+import { Outlet } from '@tanstack/react-router'
 
 import { logout, useSession } from '../session/session'
 import { SoulseekIndicator } from '../soulseek/SoulseekIndicator'
+import { SystemLink } from '../system/SystemLink'
+import { UpdateNotice } from '../system/UpdateNotice'
 import { DownloadsBadge } from '../transfers/DownloadsBadge'
 import { toolbarStyle } from '../ui/controls'
+import { NavTab, NavTabs } from '../ui/nav'
 
 export function Shell() {
   const session = useSession()
@@ -14,8 +16,7 @@ export function Shell() {
       <Flex asChild align="center" gap="5" px="4" flexShrink="0" overflowX="auto" style={toolbarStyle}>
         <header>
           <Text weight="bold">slskd</Text>
-          {/* TabNav draws its own divider in --gray-a5 under the tabs, which would double up with the header's. */}
-          <TabNav.Root style={{ '--gray-a5': 'transparent' } as CSSProperties}>
+          <NavTabs>
             <NavTab to="/searches">Search</NavTab>
             <NavTab to="/downloads">
               Downloads
@@ -23,9 +24,11 @@ export function Shell() {
             </NavTab>
             <NavTab to="/uploads">Uploads</NavTab>
             <NavTab to="/browse">Browse</NavTab>
-          </TabNav.Root>
+          </NavTabs>
           <Flex align="center" gap="4" ml="auto" flexShrink="0">
             <SoulseekIndicator />
+            <UpdateNotice />
+            <SystemLink />
             {session.status === 'authenticated' && (
               <Button variant="ghost" color="gray" onClick={logout}>
                 Log out
@@ -38,14 +41,5 @@ export function Shell() {
         <Outlet />
       </Box>
     </Flex>
-  )
-}
-
-function NavTab({ to, children }: { to: '/searches' | '/downloads' | '/uploads' | '/browse'; children: ReactNode }) {
-  const matchRoute = useMatchRoute()
-  return (
-    <TabNav.Link asChild active={Boolean(matchRoute({ to, fuzzy: true }))}>
-      <Link to={to}>{children}</Link>
-    </TabNav.Link>
   )
 }

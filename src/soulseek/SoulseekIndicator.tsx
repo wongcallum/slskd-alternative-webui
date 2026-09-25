@@ -3,28 +3,15 @@ import { useState } from 'react'
 
 import { describeError } from '../lib/api'
 import { applicationHub, type HubStatus, metricsHub, searchHub, useHub, useWatchedHub } from '../lib/hubs'
+import type { Application } from '../system/application'
 import { type Color, disabledProps } from '../ui/controls'
-import { connect, disconnect, type Soulseek, useSoulseek } from './soulseek'
-
-function StatusDot({ color }: { color: Color }) {
-  return (
-    <span
-      style={{
-        display: 'inline-block',
-        flexShrink: 0,
-        width: 8,
-        height: 8,
-        borderRadius: '50%',
-        background: `var(--${color}-9)`,
-      }}
-    />
-  )
-}
+import { StatusDot } from '../ui/status'
+import { connect, disconnect, reconnect, useSoulseek } from './soulseek'
 
 const describeHub = ({ state, attempt }: HubStatus) =>
   state === 'stopped' ? 'not in use' : attempt === 0 ? state : `${state} (retry ${attempt})`
 
-function describeSoulseek(data: Soulseek | undefined, known: boolean): { color: Color; label: string } {
+function describeSoulseek(data: Application | undefined, known: boolean): { color: Color; label: string } {
   if (!data || !known) return { color: 'gray', label: 'Soulseek: unknown' }
   if (data.isLoggedIn) return { color: 'green', label: data.username ? `Connected as ${data.username}` : 'Connected' }
   if (data.state.includes('Disconnecting')) return { color: 'amber', label: 'Disconnecting…' }
@@ -35,24 +22,33 @@ function describeSoulseek(data: Soulseek | undefined, known: boolean): { color: 
   return { color: 'red', label: 'Disconnected' }
 }
 
-type Action = 'connect' | 'retry' | 'stop' | 'disconnect'
+type Action = 'connect' | 'retry' | 'stop' | 'reconnect' | 'disconnect'
 
 const actionLabels: Record<Action, string> = {
   connect: 'Connect',
   retry: 'Retry now',
   stop: 'Stop trying',
+  reconnect: 'Reconnect',
   disconnect: 'Disconnect',
 }
 
+const actionCalls: Record<Action, () => Promise<unknown>> = {
+  connect,
+  retry: connect,
+  stop: disconnect,
+  reconnect,
+  disconnect,
+}
+
 // slskd's PUT /server while connected leaves its retry timer running, so connecting is only offered while disconnected.
-function actionsFor(data: Soulseek | undefined): Action[] {
+function actionsFor(data: Application | undefined): Action[] {
   if (!data || data.state.includes('Disconnecting')) return []
-  if (data.isConnected) return ['disconnect']
+  if (data.isConnected) return data.pendingReconnect ? ['reconnect', 'disconnect'] : ['disconnect']
   if (data.isTransitioning || data.retryingAt) return ['retry', 'stop']
   return ['connect']
 }
 
-function describeSource(data: Soulseek | undefined, known: boolean, age: number | undefined) {
+function describeSource(data: Application | undefined, known: boolean, age: number | undefined) {
   if (data?.via === 'hub') return known ? 'live via hub' : 'hub down, polling'
   return age === undefined ? 'not polled yet' : `polled, updated ${Math.round(age / 1000)} s ago`
 }
@@ -87,7 +83,7 @@ function SoulseekPanel({ data, error, known, age }: ReturnType<typeof useSoulsee
     setPending(action)
     setActionError(undefined)
     try {
-      await (action === 'connect' || action === 'retry' ? connect() : disconnect())
+      await actionCalls[action]()
     } catch (thrown) {
       setActionError(describeError(thrown))
     }
@@ -132,7 +128,7 @@ function SoulseekPanel({ data, error, known, age }: ReturnType<typeof useSoulsee
       </DataList.Root>
       {data?.pendingReconnect && (
         <Text size="2" color="amber">
-          Settings changed; reconnect to apply.
+          Changed Soulseek settings apply after a reconnect.
         </Text>
       )}
       {actions.length > 0 && (
@@ -142,7 +138,7 @@ function SoulseekPanel({ data, error, known, age }: ReturnType<typeof useSoulsee
               key={action}
               size="1"
               variant="soft"
-              color={action === 'connect' || action === 'retry' ? undefined : 'red'}
+              color={action === 'stop' || action === 'disconnect' ? 'red' : undefined}
               loading={pending === action}
               {...disabledProps(!known)}
               onClick={() => known && void run(action)}
