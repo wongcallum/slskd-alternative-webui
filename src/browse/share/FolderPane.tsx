@@ -121,7 +121,7 @@ export function FolderPane({ share, folder, unknown, fetchedAt, matches, sort, o
                     share,
                     folder,
                     selected.flatMap((item) => (item.kind === 'folder' ? filesUnder(item) : [item])),
-                  )
+                  ).then(() => setRowSelection({}))
                 }
               />
             </SelectionActions>

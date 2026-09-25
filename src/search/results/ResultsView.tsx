@@ -117,7 +117,7 @@ export function ResultsView({ searchId, results, folders, params, onSearchChange
               busy="Enqueueing"
               progress={downloads.running.download}
               gate={soulseekGate}
-              onClick={() => void download(searchId, selected)}
+              onClick={() => void download(searchId, selected).then(() => setRowSelection({}))}
             />
           </SelectionActions>
         )}
