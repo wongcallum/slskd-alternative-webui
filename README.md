@@ -9,6 +9,19 @@ binary's directory.
 How it works is in [docs/design.md](docs/design.md), and verified behaviour of slskd and our libraries is in
 [docs/facts.md](docs/facts.md).
 
+## Development
+
+Install Nix and devenv (`nix profile add nixpkgs#devenv`), then enter the environment with `devenv shell` or
+`direnv allow`.
+
+- `devenv up -d` builds and starts a dev slskd from the source pinned in `devenv.yaml`, and `devenv down` stops it.
+  It runs with `no_connect`, url base `/slskd` and login `slskd`/`slskd`, and serves `dist`.
+- `pnpm dev` (`--host` to reach it through port forwarding) serves the UI at `http://localhost:5173/slskd/`. After
+  `pnpm build`, slskd serves the build at `http://localhost:5030/slskd/`.
+- To use a real Soulseek account, put `soulseek: { username, password }` in `.devenv/state/slskd/app/slskd.yml`
+  and press Connect in the Soulseek popover.
+- To move to another slskd commit, change its rev in `devenv.yaml` and run `devenv update slskd`.
+
 ## Roadmap
 
 What's left of the stock UI, in order:
