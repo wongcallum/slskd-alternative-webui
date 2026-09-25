@@ -21,6 +21,8 @@ export type Resource<T> = {
   getInterval: () => number | undefined
   isRunning: () => boolean
   refresh: () => void
+  // For one that will never be used again, which the session's end would otherwise keep until then.
+  dispose: () => void
 }
 
 export function shallowEqual<T extends object>(a: T, b: T) {
@@ -63,7 +65,7 @@ export function createResource<T extends object>(start: (sink: Sink<T>) => Sourc
   }
 
   // A source still running when the session ends writes to a dead sink until the app unmounts and stops it.
-  onSessionEnd(() => {
+  const unlisten = onSessionEnd(() => {
     generation++
     updatedAt = undefined
     interval = undefined
@@ -91,6 +93,7 @@ export function createResource<T extends object>(start: (sink: Sink<T>) => Sourc
     getInterval: () => interval,
     isRunning: () => source !== undefined,
     refresh: () => source?.refresh?.(),
+    dispose: unlisten,
   }
 }
 
@@ -103,7 +106,10 @@ export function createResourceMap<T>(create: (key: string) => Resource<T>) {
       if (resource === undefined) resources.set(key, (resource = create(key)))
       return resource
     },
-    forget: (key: string) => resources.delete(key),
+    forget(key: string) {
+      resources.get(key)?.dispose()
+      resources.delete(key)
+    },
   }
 }
 
