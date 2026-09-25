@@ -1,6 +1,5 @@
 import { ChevronRightIcon, Cross2Icon } from '@radix-ui/react-icons'
 import { Box, Callout, Code, Flex, Text } from '@radix-ui/themes'
-import { Link as RouterLink } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 
 import { describeError } from '../../lib/api'
@@ -23,7 +22,7 @@ import {
   useListLayout,
 } from '../../ui/table'
 import { audioColumns } from '../../ui/tree/columns'
-import type { FolderLinkProps, TreeConfig } from '../../ui/tree/FolderPane'
+import type { TreeConfig } from '../../ui/tree/FolderPane'
 import { TreeView } from '../../ui/tree/TreeView'
 import { type Application, application, applicationPollInterval, rescanNeeded, useApplication } from '../application'
 import { useOptions } from '../options/options'
@@ -270,12 +269,6 @@ function ShareRow({
   )
 }
 
-function SharesFolderLink({ path, ...props }: FolderLinkProps) {
-  return (
-    <RouterLink {...props} from="/system/shares" to="/system/shares" search={(previous) => ({ ...previous, path })} />
-  )
-}
-
 function ScanningNote() {
   const scanning = useResource(application).data?.scanning === true
   return (
@@ -288,9 +281,9 @@ function ScanningNote() {
 }
 
 const contentsConfig: TreeConfig = {
+  page: '/system/shares',
   scope: 'the shares',
   extras: audioColumns,
-  FolderLink: SharesFolderLink,
   status: <ScanningNote />,
 }
 

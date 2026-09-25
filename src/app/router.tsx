@@ -12,7 +12,7 @@ import {
 import { useEffect } from 'react'
 
 import { BrowsePage } from '../browse/BrowsePage'
-import { type BrowseSearch, browseSearch, browseSearchDefaults } from '../browse/params'
+import { browseSearch, browseSearchDefaults } from '../browse/params'
 import { SharePage } from '../browse/share/SharePage'
 import { unreadCount } from '../chat/ChatBadge'
 import { ChatPage } from '../chat/ChatPage'
@@ -20,31 +20,28 @@ import { ConversationView } from '../chat/ConversationView'
 import { chatSearch, chatSearchDefaults, roomsSearch, roomsSearchDefaults } from '../chat/params'
 import { RoomView } from '../chat/RoomView'
 import { useResource } from '../lib/store'
-import { type ResultsSearch, resultsSearch, resultsSearchDefaults } from '../search/results/params'
+import { searchesSearch, searchesSearchDefaults } from '../search/params'
+import { resultsSearch, resultsSearchDefaults } from '../search/results/params'
 import { ResultsPage } from '../search/results/ResultsPage'
 import { searches } from '../search/searches'
-import { type SearchesSearch, SearchesPage, searchesSearch, searchesSearchDefaults } from '../search/SearchesPage'
+import { SearchesPage } from '../search/SearchesPage'
 import { onSessionEnd } from '../session/session'
 import { SessionGate } from '../session/SessionGate'
 import { FilesPage } from '../system/files/FilesPage'
-import { type FilesSearch, filesSearch, filesSearchDefaults } from '../system/files/params'
+import { filesSearch, filesSearchDefaults } from '../system/files/params'
 import { InfoPage } from '../system/InfoPage'
 import { LogsPage } from '../system/LogsPage'
 import { optionsSearch, optionsSearchDefaults } from '../system/options/params'
-import { eventsSearch, eventsSearchDefaults, type LogsSearch, logsSearch, logsSearchDefaults } from '../system/params'
-import { type SharesSearch, sharesSearch, sharesSearchDefaults } from '../system/shares/params'
+import { eventsSearch, eventsSearchDefaults, logsSearch, logsSearchDefaults } from '../system/params'
+import { sharesSearch, sharesSearchDefaults } from '../system/shares/params'
 import { SharesPage } from '../system/shares/SharesPage'
-import {
-  TransfersPage,
-  type TransfersSearch,
-  transfersSearch,
-  transfersSearchDefaults,
-} from '../transfers/TransfersPage'
+import { transfersSearch, transfersSearchDefaults } from '../transfers/params'
+import { TransfersPage } from '../transfers/TransfersPage'
 import { usersSearch, usersSearchDefaults } from '../users/params'
 import { ProfilePage } from '../users/ProfilePage'
 import { UsersPage } from '../users/UsersPage'
 import { NotFound, RouteError } from './pages'
-import { useSearchChange } from './search'
+import { useSearchProps } from './search'
 import { Shell } from './Shell'
 
 const loadYamlPages = () => import('./yamlPages')
@@ -90,12 +87,7 @@ const searchesRoute = createRoute({
   validateSearch: searchesSearch,
   search: { middlewares: [stripSearchParams(searchesSearchDefaults)] },
   component: function Searches() {
-    return (
-      <SearchesPage
-        search={searchesRoute.useSearch()}
-        onSearchChange={useSearchChange<SearchesSearch>(searchesRoute.useNavigate())}
-      />
-    )
+    return <SearchesPage {...useSearchProps(searchesRoute.useSearch(), searchesRoute.useNavigate())} />
   },
 })
 
@@ -111,13 +103,13 @@ const searchRoute = createRoute({
   component: function SearchResults() {
     const { id } = searchRoute.useParams()
     const router = useRouter()
-    const onSearchChange = useSearchChange<ResultsSearch>(searchRoute.useNavigate())
+    const props = useSearchProps(searchRoute.useSearch(), searchRoute.useNavigate())
     // The title comes from the search list, which usually arrives after the route has loaded.
     const text = useResource(searches).data?.byId.get(id)?.text
     useEffect(() => {
       void router.invalidate({ filter: (match) => match.routeId === searchRoute.id })
     }, [router, text])
-    return <ResultsPage key={id} id={id} search={searchRoute.useSearch()} onSearchChange={onSearchChange} />
+    return <ResultsPage key={id} id={id} {...props} />
   },
 })
 
@@ -131,8 +123,7 @@ const downloadsRoute = createRoute({
     return (
       <TransfersPage
         direction="download"
-        search={downloadsRoute.useSearch()}
-        onSearchChange={useSearchChange<TransfersSearch>(downloadsRoute.useNavigate())}
+        {...useSearchProps(downloadsRoute.useSearch(), downloadsRoute.useNavigate())}
       />
     )
   },
@@ -146,11 +137,7 @@ const uploadsRoute = createRoute({
   search: { middlewares: [stripSearchParams(transfersSearchDefaults)] },
   component: function Uploads() {
     return (
-      <TransfersPage
-        direction="upload"
-        search={uploadsRoute.useSearch()}
-        onSearchChange={useSearchChange<TransfersSearch>(uploadsRoute.useNavigate())}
-      />
+      <TransfersPage direction="upload" {...useSearchProps(uploadsRoute.useSearch(), uploadsRoute.useNavigate())} />
     )
   },
 })
@@ -162,10 +149,9 @@ const browseRoute = createRoute({
   validateSearch: browseSearch,
   search: { middlewares: [stripSearchParams(browseSearchDefaults)] },
   component: function Browse() {
-    const search = browseRoute.useSearch()
-    const onSearchChange = useSearchChange<BrowseSearch>(browseRoute.useNavigate(), 'path')
-    if (search.user === '') return <BrowsePage />
-    return <SharePage key={search.user} search={search} onSearchChange={onSearchChange} />
+    const props = useSearchProps(browseRoute.useSearch(), browseRoute.useNavigate(), 'path')
+    if (props.search.user === '') return <BrowsePage />
+    return <SharePage key={props.search.user} {...props} />
   },
 })
 
@@ -247,12 +233,7 @@ const systemSharesRoute = createRoute({
   validateSearch: sharesSearch,
   search: { middlewares: [stripSearchParams(sharesSearchDefaults)] },
   component: function Shares() {
-    return (
-      <SharesPage
-        search={systemSharesRoute.useSearch()}
-        onSearchChange={useSearchChange<SharesSearch>(systemSharesRoute.useNavigate(), 'path')}
-      />
-    )
+    return <SharesPage {...useSearchProps(systemSharesRoute.useSearch(), systemSharesRoute.useNavigate(), 'path')} />
   },
 })
 
@@ -263,12 +244,7 @@ const systemFilesRoute = createRoute({
   validateSearch: filesSearch,
   search: { middlewares: [stripSearchParams(filesSearchDefaults)] },
   component: function Files() {
-    return (
-      <FilesPage
-        search={systemFilesRoute.useSearch()}
-        onSearchChange={useSearchChange<FilesSearch>(systemFilesRoute.useNavigate(), 'path')}
-      />
-    )
+    return <FilesPage {...useSearchProps(systemFilesRoute.useSearch(), systemFilesRoute.useNavigate(), 'path')} />
   },
 })
 
@@ -288,12 +264,7 @@ const systemLogsRoute = createRoute({
   validateSearch: logsSearch,
   search: { middlewares: [stripSearchParams(logsSearchDefaults)] },
   component: function Logs() {
-    return (
-      <LogsPage
-        search={systemLogsRoute.useSearch()}
-        onSearchChange={useSearchChange<LogsSearch>(systemLogsRoute.useNavigate())}
-      />
-    )
+    return <LogsPage {...useSearchProps(systemLogsRoute.useSearch(), systemLogsRoute.useNavigate())} />
   },
 })
 

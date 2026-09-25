@@ -1,14 +1,7 @@
 import { Flex, Link, Text } from '@radix-ui/themes'
+import { Link as RouterLink } from '@tanstack/react-router'
 import { type RowSelectionState, type SortingState, type Updater, useTable } from '@tanstack/react-table'
-import {
-  type ComponentProps,
-  type ComponentType,
-  Fragment,
-  type ReactNode,
-  useCallback,
-  useMemo,
-  useState,
-} from 'react'
+import { type ComponentProps, Fragment, type ReactNode, useCallback, useMemo, useState } from 'react'
 
 import { nameOf } from '../../lib/files'
 import { plural } from '../../lib/format'
@@ -19,19 +12,21 @@ import { Ago, Empty } from '../status'
 import { type ExtraColumn, paneColumns, paneFeatures, paneLayout, sortItems, usePaneWidth } from './columns'
 import { type FileBadge, ItemList } from './ItemList'
 
+type Page = '/browse' | '/system/files' | '/system/shares'
+
 // It's rendered through Radix's Link with asChild, so it has to pass the props it's given on to its anchor.
-export type FolderLinkProps = { path: string } & Omit<ComponentProps<'a'>, 'href'>
+function FolderLink({ page, path, ...props }: { page: Page; path: string } & Omit<ComponentProps<'a'>, 'href'>) {
+  return <RouterLink {...props} from={page} to={page} search={(previous) => ({ ...previous, path })} />
+}
 
-type FolderLink = ComponentType<FolderLinkProps>
-
-// What a view adds to the shared tree: its columns and how to link to a folder, and optionally what can be selected,
-// what to do with a selection, what to show beside it, and a badge on files.
+// What a view adds to the shared tree: its page and columns, and optionally what can be selected, what to do with a
+// selection, what to show beside it, and a badge on files.
 export type Selection = { tree: Tree; folder: Folder; items: Item[]; clear: () => void }
 
 export type TreeConfig = {
+  page: Page
   scope: string
   extras: readonly ExtraColumn[]
-  FolderLink: FolderLink
   selectable?: (item: Item) => boolean
   actions?: (selection: Selection) => ReactNode
   status?: ReactNode
@@ -61,7 +56,7 @@ export function FolderPane({
   onOpen,
   config,
 }: Props) {
-  const { scope, extras, FolderLink, selectable, actions, status, Badge } = config
+  const { page, scope, extras, selectable, actions, status, Badge } = config
   const folderOf = useCallback(
     (item: Item) => (item.kind === 'file' ? relativePath(tree, folder, item.folder) : ''),
     [tree, folder],
@@ -132,7 +127,9 @@ export function FolderPane({
                   </Text>
                 ) : (
                   <Link asChild size="2" color="gray" truncate style={{ flexShrink: index === 0 ? 0 : 1 }}>
-                    <FolderLink path={each.path}>{each.name}</FolderLink>
+                    <FolderLink page={page} path={each.path}>
+                      {each.name}
+                    </FolderLink>
                   </Link>
                 )}
               </Fragment>
@@ -158,7 +155,7 @@ export function FolderPane({
         matches === undefined ? (
           <Empty>This folder is empty.</Empty>
         ) : (
-          <NoMatches folder={folder} matches={matches} scope={scope} FolderLink={FolderLink} />
+          <NoMatches folder={folder} matches={matches} page={page} scope={scope} />
         )
       ) : (
         <ItemList
@@ -177,17 +174,7 @@ export function FolderPane({
   )
 }
 
-function NoMatches({
-  folder,
-  matches,
-  scope,
-  FolderLink,
-}: {
-  folder: Folder
-  matches: Matches
-  scope: string
-  FolderLink: FolderLink
-}) {
+function NoMatches({ folder, matches, page, scope }: { folder: Folder; matches: Matches; page: Page; scope: string }) {
   let above = folder.parent
   while (above !== undefined && !matches.counts.has(above)) above = above.parent
   if (above === undefined) return <Empty>Nothing in {scope} matches.</Empty>
@@ -195,7 +182,7 @@ function NoMatches({
     <Empty
       actions={
         <Link asChild>
-          <FolderLink path={above.path}>
+          <FolderLink page={page} path={above.path}>
             Show {plural(matches.counts.get(above) ?? 0, 'match', 'matches')} in {above.name}
           </FolderLink>
         </Link>

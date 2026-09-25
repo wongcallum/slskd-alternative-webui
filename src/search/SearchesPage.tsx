@@ -1,9 +1,8 @@
 import { Flex } from '@radix-ui/themes'
 import type { RowSelectionState } from '@tanstack/react-table'
 import { type ReactNode, useMemo, useState } from 'react'
-import * as v from 'valibot'
 
-import { type SearchProps, textParam } from '../lib/params'
+import type { SearchProps } from '../lib/params'
 import { useAtom } from '../lib/store'
 import {
   ActionButton,
@@ -16,6 +15,7 @@ import {
 } from '../ui/controls'
 import { Empty, Freshness, Polling } from '../ui/status'
 import { NewSearch } from './NewSearch'
+import type { SearchesSearch } from './params'
 import {
   deleteSearches,
   listActions,
@@ -26,12 +26,6 @@ import {
   useSearches,
 } from './searches'
 import { SearchList, useListTable } from './SearchList'
-
-export const searchesSearch = v.object({ q: textParam })
-
-export const searchesSearchDefaults = { q: '' } as const
-
-export type SearchesSearch = v.InferOutput<typeof searchesSearch>
 
 const none: Search[] = []
 

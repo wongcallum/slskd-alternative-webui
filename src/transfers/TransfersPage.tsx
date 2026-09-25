@@ -1,9 +1,8 @@
 import { Flex } from '@radix-ui/themes'
 import type { RowSelectionState } from '@tanstack/react-table'
 import { type ReactNode, useMemo, useState } from 'react'
-import * as v from 'valibot'
 
-import { oneOf, type SearchProps, sortOf, textParam } from '../lib/params'
+import type { SearchProps } from '../lib/params'
 import { type Resource, useAtom, useResource, useStale } from '../lib/store'
 import { useSoulseekGate } from '../soulseek/soulseek'
 import {
@@ -17,7 +16,8 @@ import {
 } from '../ui/controls'
 import { Empty, Freshness, Polling } from '../ui/status'
 import { actions, cancel, remove, retry } from './actions'
-import { columnIds, expansions, type Gates, keepPresent, useSectionTable } from './table'
+import type { TransfersSearch } from './params'
+import { expansions, type Gates, keepPresent, useSectionTable } from './table'
 import { TransferList } from './TransferList'
 import {
   type Direction,
@@ -26,22 +26,10 @@ import {
   isFinished,
   isRetryable,
   pollInterval,
-  shows,
   type Transfer,
   type Transfers,
   transfers,
 } from './transfers'
-
-export const transfersSearch = v.object({
-  q: textParam,
-  show: oneOf(shows, 'all'),
-  activeSort: sortOf(columnIds.active),
-  finishedSort: sortOf(columnIds.finished),
-})
-
-export const transfersSearchDefaults = { q: '', show: 'all' } as const
-
-export type TransfersSearch = v.InferOutput<typeof transfersSearch>
 
 const noGroups: Group[] = []
 

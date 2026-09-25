@@ -1,18 +1,12 @@
-import { Link as RouterLink } from '@tanstack/react-router'
-
 import { useAtom } from '../../lib/store'
 import { filesUnder, type Item, type TreeFile } from '../../lib/tree'
 import { DownloadButton } from '../../transfers/DownloadButton'
 import { MarkBadge } from '../../transfers/MarkBadge'
 import { OutcomeLine } from '../../ui/controls'
 import { audioColumns } from '../../ui/tree/columns'
-import type { FolderLinkProps, Selection, TreeConfig } from '../../ui/tree/FolderPane'
+import type { Selection, TreeConfig } from '../../ui/tree/FolderPane'
 import type { FileBadge } from '../../ui/tree/ItemList'
 import { downloadFiles, shareDownloadsOf } from '../browse'
-
-function BrowseFolderLink({ path, ...props }: FolderLinkProps) {
-  return <RouterLink {...props} from="/browse" to="/browse" search={(previous) => ({ ...previous, path })} />
-}
 
 const selectable = (item: Item) => (item.kind === 'folder' ? item.fileCount > item.lockedCount : !item.locked)
 
@@ -56,9 +50,9 @@ function downloadBadge(username: string) {
 }
 
 export const shareConfig = (username: string): TreeConfig => ({
+  page: '/browse',
   scope: 'this share',
   extras: audioColumns,
-  FolderLink: BrowseFolderLink,
   selectable,
   actions: (selection) => <DownloadAction username={username} selection={selection} />,
   status: <OutcomeLine atom={shareDownloadsOf(username)} />,
