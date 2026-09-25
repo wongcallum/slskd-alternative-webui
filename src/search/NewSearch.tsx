@@ -2,12 +2,14 @@ import { MagnifyingGlassIcon } from '@radix-ui/react-icons'
 import { Box, Button, Flex, Spinner, Text, TextField } from '@radix-ui/themes'
 import { type SubmitEvent, useState } from 'react'
 
+import { useTouch } from '../lib/media'
 import { useSoulseekGate } from '../soulseek/soulseek'
 import { disabledProps } from '../ui/controls'
 import { useCreateSearch } from './useCreateSearch'
 
 export function NewSearch() {
   const gate = useSoulseekGate()
+  const touch = useTouch()
   const [text, setText] = useState('')
   const { busy, error, create } = useCreateSearch()
 
@@ -25,7 +27,7 @@ export function NewSearch() {
           <TextField.Root
             size="3"
             placeholder="Search Soulseek"
-            autoFocus
+            autoFocus={!touch}
             value={text}
             onChange={(event) => setText(event.target.value)}
             style={{ flexGrow: 1, maxWidth: 520 }}

@@ -75,13 +75,20 @@ export const stackedHeight3 = 72
 
 export const columnsHeight = 32
 
-// The widest tables stack their rows below md, and drop a column between md and lg.
 export type Layout = 'stacked' | 'medium' | 'wide'
 
+// The widest tables stack their rows below md, and drop a column between md and lg.
 export function useLayout(): Layout {
   const md = useFrom('md')
   const lg = useFrom('lg')
   return !md ? 'stacked' : lg ? 'wide' : 'medium'
+}
+
+// Other lists stack below sm, and narrow or drop a column between sm and md.
+export function useListLayout(): Layout {
+  const sm = useFrom('sm')
+  const md = useFrom('md')
+  return !sm ? 'stacked' : md ? 'wide' : 'medium'
 }
 
 type RowProps = {

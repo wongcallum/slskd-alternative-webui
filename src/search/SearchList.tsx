@@ -10,7 +10,6 @@ import {
 } from '@tanstack/react-table'
 import { memo } from 'react'
 
-import { useFrom } from '../lib/media'
 import { useAtom } from '../lib/store'
 import { GatedIconButton } from '../ui/controls'
 import { Ago } from '../ui/status'
@@ -28,6 +27,7 @@ import {
   StackedRow,
   stackedHeight,
   stop,
+  useListLayout,
   useRowToggle,
   VirtualTable,
 } from '../ui/table'
@@ -61,9 +61,7 @@ export function SearchList({ table, gate }: { table: ReturnType<typeof useListTa
   const { pending } = useAtom(listActions)
   const rows = table.getRowModel().rows
   const onSelect = useRowToggle(table)
-  const sm = useFrom('sm')
-  const md = useFrom('md')
-  const layout: Layout = !sm ? 'stacked' : md ? 'wide' : 'medium'
+  const layout = useListLayout()
 
   const header = (
     <HeaderRow template={layout === 'stacked' ? '' : templates[layout]} table={table} stacked={layout === 'stacked'}>

@@ -3,6 +3,7 @@ import { Box, IconButton, Text, TextField } from '@radix-ui/themes'
 import { type KeyboardEvent, useState } from 'react'
 
 import { describeError } from '../lib/api'
+import { useTouch } from '../lib/media'
 import { useAtom } from '../lib/store'
 import { useSoulseekGate } from '../soulseek/soulseek'
 import { disabledProps, GateTip } from '../ui/controls'
@@ -13,6 +14,7 @@ type Props = { draftKey: string; placeholder: string; send: (text: string) => Pr
 // The text stays until slskd has taken it, so a failed send can be retried as it is.
 export function Composer({ draftKey, placeholder, send }: Props) {
   const gate = useSoulseekGate()
+  const touch = useTouch()
   const text = useAtom(drafts).get(draftKey) ?? ''
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string>()
@@ -50,7 +52,7 @@ export function Composer({ draftKey, placeholder, send }: Props) {
     <Box px="4" py="3" flexShrink="0" style={{ boxShadow: 'inset 0 1px 0 0 var(--gray-a5)' }}>
       <TextField.Root
         size="2"
-        autoFocus
+        autoFocus={!touch}
         placeholder={placeholder}
         value={text}
         onChange={(event) => setText(event.target.value)}
