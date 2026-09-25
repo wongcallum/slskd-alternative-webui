@@ -82,14 +82,11 @@
   font-size: var(--font-size-1);
 }
 
+.chat-divider,
 .chat-divider {
   display: flex;
-  grid-column: 1 / -1;
   gap: var(--space-3);
   align-items: center;
-  padding: var(--space-2) var(--space-4);
-  color: var(--gray-11);
-  font-size: var(--font-size-1);
 }
 
 .chat-divider::before,

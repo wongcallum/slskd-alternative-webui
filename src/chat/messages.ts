@@ -10,7 +10,7 @@ export type Message = {
   mention: boolean
 }
 
-type Target = { kind: 'room' | 'user'; name: string }
+export type Target = { kind: 'room' | 'user'; name: string }
 
 const isTarget = (stored: unknown): stored is Target =>
   typeof stored === 'object' &&

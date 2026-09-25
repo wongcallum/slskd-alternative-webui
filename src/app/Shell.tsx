@@ -1,6 +1,7 @@
 import { Box, Button, Flex, Text } from '@radix-ui/themes'
 import { Outlet } from '@tanstack/react-router'
 
+import { ChatBadge, useUnreadInTitle } from '../chat/ChatBadge'
 import { logout, useSession } from '../session/session'
 import { SoulseekIndicator } from '../soulseek/SoulseekIndicator'
 import { SystemLink } from '../system/SystemLink'
@@ -11,6 +12,7 @@ import { NavTab, NavTabs } from '../ui/nav'
 
 export function Shell() {
   const session = useSession()
+  useUnreadInTitle()
   return (
     <Flex direction="column" height="100vh">
       <Flex asChild align="center" gap="5" px="4" flexShrink="0" overflowX="auto" style={toolbarStyle}>
@@ -24,7 +26,10 @@ export function Shell() {
             </NavTab>
             <NavTab to="/uploads">Uploads</NavTab>
             <NavTab to="/browse">Browse</NavTab>
-            <NavTab to="/rooms">Chat</NavTab>
+            <NavTab to="/chat" also={['/rooms']}>
+              Chat
+              <ChatBadge />
+            </NavTab>
           </NavTabs>
           <Flex align="center" gap="4" ml="auto" flexShrink="0">
             <SoulseekIndicator />
