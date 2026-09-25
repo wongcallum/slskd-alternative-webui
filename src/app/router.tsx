@@ -30,13 +30,18 @@ import { Shell } from './Shell'
 
 const title = (name: string) => ({ meta: [{ title: `${name} · slskd` }] })
 
-// Params that change as you type or click replace the history entry.
+// Params that filter or sort replace the history entry. Changing a navigation param pushes one, so Back returns to it.
 function useSearchChange<T extends object>(
-  navigate: (options: { search: (previous: T) => T; replace: true }) => Promise<void>,
+  navigate: (options: { search: (previous: T) => T; replace: boolean }) => Promise<void>,
+  navigation?: keyof T,
 ) {
   return useCallback(
-    (patch: Partial<T>) => navigate({ search: (previous) => ({ ...previous, ...patch }), replace: true }),
-    [navigate],
+    (patch: Partial<T>) =>
+      navigate({
+        search: (previous) => ({ ...previous, ...patch }),
+        replace: navigation === undefined || !(navigation in patch),
+      }),
+    [navigate, navigation],
   )
 }
 
@@ -147,7 +152,7 @@ const browseRoute = createRoute({
   search: { middlewares: [stripSearchParams(browseSearchDefaults)] },
   component: function Browse() {
     const search = browseRoute.useSearch()
-    const onSearchChange = useSearchChange<BrowseSearch>(browseRoute.useNavigate())
+    const onSearchChange = useSearchChange<BrowseSearch>(browseRoute.useNavigate(), 'path')
     if (search.user === '') return <BrowsePage />
     return <SharePage key={search.user} search={search} onSearchChange={onSearchChange} />
   },
