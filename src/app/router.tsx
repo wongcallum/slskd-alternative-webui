@@ -24,6 +24,8 @@ import { ResultsPage } from '../search/results/ResultsPage'
 import { searches } from '../search/searches'
 import { type SearchesSearch, SearchesPage, searchesSearch, searchesSearchDefaults } from '../search/SearchesPage'
 import { SessionGate } from '../session/SessionGate'
+import { FilesPage } from '../system/files/FilesPage'
+import { type FilesSearch, filesSearch, filesSearchDefaults } from '../system/files/params'
 import { InfoPage } from '../system/InfoPage'
 import { type LogsSearch, LogsPage, logsSearch, logsSearchDefaults } from '../system/LogsPage'
 import { type SharesSearch, sharesSearch, sharesSearchDefaults } from '../system/shares/params'
@@ -246,6 +248,22 @@ const systemSharesRoute = createRoute({
   },
 })
 
+const systemFilesRoute = createRoute({
+  getParentRoute: () => systemRoute,
+  path: 'files',
+  head: () => title('Files · System'),
+  validateSearch: filesSearch,
+  search: { middlewares: [stripSearchParams(filesSearchDefaults)] },
+  component: function Files() {
+    return (
+      <FilesPage
+        search={systemFilesRoute.useSearch()}
+        onSearchChange={useSearchChange<FilesSearch>(systemFilesRoute.useNavigate(), 'path')}
+      />
+    )
+  },
+})
+
 const systemLogsRoute = createRoute({
   getParentRoute: () => systemRoute,
   path: 'logs',
@@ -272,7 +290,7 @@ export const router = createRouter({
     browseRoute,
     usersRoute,
     chatRoute.addChildren([roomsRoute, conversationRoute]),
-    systemRoute.addChildren([systemIndexRoute, systemInfoRoute, systemSharesRoute, systemLogsRoute]),
+    systemRoute.addChildren([systemIndexRoute, systemInfoRoute, systemSharesRoute, systemFilesRoute, systemLogsRoute]),
   ]),
   basepath: window.urlBase,
   // A route with children and no notFoundComponent of its own renders this one for its unmatched paths.
