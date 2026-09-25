@@ -869,6 +869,8 @@ Checked against the `@radix-ui/themes` 3.3.0 package source.
   hidden, to reserve its bold width), so keep stateful components and `id`s out of it. A `Badge` inside works
   but needs its own margin.
 - The root `Theme` provides a `Tooltip.Provider` with a 200 ms delay.
+- `DropdownMenu.Trigger` and `Dialog.Trigger` always render with `asChild`, so their child must be one element that
+  takes a ref.
 - next-themes 0.4.6, which the Radix docs recommend, is mostly unmaintained. Its anti-flash script does nothing
   when rendered client-side only (React 19 doesn't run rendered `<script>`s) and logs a warning in dev.
 
