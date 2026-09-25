@@ -13,7 +13,7 @@ import type { ExtraColumn } from '../../ui/tree/columns'
 import type { FolderLinkProps, Selection, TreeConfig } from '../../ui/tree/FolderPane'
 import { TreeView } from '../../ui/tree/TreeView'
 import { useApplication } from '../application'
-import { useOptions } from '../options'
+import { useOptions } from '../options/options'
 import { rescan } from '../shares/shares'
 import { SystemPage } from '../SystemPage'
 import {
