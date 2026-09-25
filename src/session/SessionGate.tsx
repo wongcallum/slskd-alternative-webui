@@ -23,7 +23,7 @@ export function SessionGate({ children }: { children: ReactNode }) {
 
 function Checking() {
   return (
-    <Flex align="center" justify="center" minHeight="100vh">
+    <Flex align="center" justify="center" minHeight="100dvh">
       <DelayedSpinner />
     </Flex>
   )
@@ -31,8 +31,8 @@ function Checking() {
 
 function Unreachable({ error, retry }: { error: unknown; retry: () => void }) {
   return (
-    <Flex align="center" justify="center" minHeight="100vh" p="4">
-      <Card size="3" style={{ width: 360 }}>
+    <Flex align="center" justify="center" minHeight="100dvh" p="4">
+      <Card size="3" style={{ width: '100%', maxWidth: 360 }}>
         <Flex direction="column" gap="3">
           <Heading size="5">Can't reach slskd</Heading>
           <Text color="gray">{describeError(error)}</Text>

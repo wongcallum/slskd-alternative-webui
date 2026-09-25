@@ -1,0 +1,30 @@
+/* Radix Themes gives popovers a 480px max-width whatever the screen, and caps only menus and selects to it. */
+.rt-PopoverContent.rt-PopoverContent {
+  max-width: min(var(--max-width, 100vw), var(--radix-popover-content-available-width));
+  max-height: min(var(--max-height, 100vh), var(--radix-popover-content-available-height));
+}
+
+@media (pointer: coarse) {
+  /* iOS zooms into editable text smaller than 16px as it's focused. */
+  .rt-TextFieldInput,
+  .rt-TextAreaInput,
+  .cm-content,
+  :root .cm-panels .cm-textfield {
+    font-size: 16px;
+  }
+
+  .rt-TextFieldRoot:where(.rt-r-size-1) {
+    --text-field-height: var(--space-6);
+  }
+
+  /* Small buttons keep their look but take a finger-sized tap. */
+  .rt-BaseButton:where(.rt-r-size-1) {
+    position: relative;
+  }
+
+  .rt-BaseButton:where(.rt-r-size-1)::after {
+    position: absolute;
+    inset: -6px;
+    content: '';
+  }
+}

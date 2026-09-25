@@ -1,4 +1,5 @@
 import '@radix-ui/themes/styles.css'
+import './app/app.css'
 import { Theme } from '@radix-ui/themes'
 import { RouterProvider } from '@tanstack/react-router'
 import { StrictMode } from 'react'
