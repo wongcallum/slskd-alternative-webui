@@ -1,8 +1,7 @@
-import { Box, Button, Flex, Text } from '@radix-ui/themes'
+import { Box, Flex, Text } from '@radix-ui/themes'
 import { Outlet } from '@tanstack/react-router'
 
 import { ChatBadge, useUnreadInTitle } from '../chat/ChatBadge'
-import { logout, useSession } from '../session/session'
 import { SoulseekIndicator } from '../soulseek/SoulseekIndicator'
 import { SystemLink } from '../system/SystemLink'
 import { UpdateNotice } from '../system/UpdateNotice'
@@ -10,9 +9,9 @@ import { DownloadsBadge } from '../transfers/DownloadsBadge'
 import { TransferSpeeds } from '../transfers/TransferSpeeds'
 import { toolbarStyle } from '../ui/controls'
 import { NavTab, NavTabs } from '../ui/nav'
+import { AppMenu } from './AppMenu'
 
 export function Shell() {
-  const session = useSession()
   useUnreadInTitle()
   return (
     <Flex direction="column" height="100vh">
@@ -38,11 +37,7 @@ export function Shell() {
             <SoulseekIndicator />
             <UpdateNotice />
             <SystemLink />
-            {session.status === 'authenticated' && (
-              <Button variant="ghost" color="gray" onClick={logout}>
-                Log out
-              </Button>
-            )}
+            <AppMenu />
           </Flex>
         </header>
       </Flex>
