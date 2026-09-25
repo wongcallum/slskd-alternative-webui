@@ -55,8 +55,10 @@ const soulseek = createResource<Soulseek>((sink) => {
   const offState = applicationHub.on<ApplicationState>('STATE', (state) => sink.set(fromState(state)))
   const following = followHub(applicationHub, sink, {
     snapshot: async (signal) => fromState(await api.get('application', { signal }).json<ApplicationState>()),
+    // GET /server has no username, so the last one pushed is kept.
     request: async (signal) => ({
       ...fromServer('poll', await api.get('server', { signal }).json<ServerState>()),
+      username: soulseek.getSnapshot().data?.username,
       pendingReconnect: false,
     }),
     interval: serverPollInterval,

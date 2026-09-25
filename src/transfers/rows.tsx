@@ -9,7 +9,15 @@ import { Ago } from '../ui/status'
 import { ActionsCell, Cell, CheckCell, GridRow, GroupNameCell } from '../ui/table'
 import { type Lookup, lookUpPositions, retry } from './actions'
 import { fraction, templates, timeOf } from './table'
-import { type Direction, type Group, isFailed, isTransferring, type Section, type Transfer } from './transfers'
+import {
+  type Direction,
+  type Group,
+  isFinished,
+  isRetryable,
+  isTransferring,
+  type Section,
+  type Transfer,
+} from './transfers'
 
 const stateLabels: Record<string, [string, Color]> = {
   Requested: ['Requested', 'gray'],
@@ -18,7 +26,7 @@ const stateLabels: Record<string, [string, Color]> = {
   Initializing: ['Initializing', 'gray'],
   InProgress: ['In progress', 'blue'],
   'Completed, Succeeded': ['Succeeded', 'green'],
-  'Completed, Cancelled': ['Cancelled', 'red'],
+  'Completed, Cancelled': ['Cancelled', 'gray'],
   'Completed, TimedOut': ['Timed out', 'red'],
   'Completed, Errored': ['Errored', 'red'],
   'Completed, Rejected': ['Rejected', 'red'],
@@ -27,7 +35,7 @@ const stateLabels: Record<string, [string, Color]> = {
 
 function describeState({ state, attempts }: Transfer): [string, Color] {
   const [label, color] = stateLabels[state] ?? [state, 'gray']
-  return [label, color === 'gray' && attempts > 1 ? 'amber' : color]
+  return [label, color === 'gray' && !isFinished(state) && attempts > 1 ? 'amber' : color]
 }
 
 function Bar({ value }: { value: number }) {
@@ -81,7 +89,7 @@ export const FileRow = memo(function FileRow({
       {section === 'active' && <Cell end>{isTransferring(file.state) && formatSpeed(file.averageSpeed)}</Cell>}
       <Cell>{time > 0 && <Ago time={time} />}</Cell>
       <ActionsCell gap="1">
-        {direction === 'download' && isFailed(file.state) && (
+        {direction === 'download' && isRetryable(file.state) && (
           <GatedIconButton label="Retry" gate={gate} onClick={() => retry([file])}>
             <ReloadIcon />
           </GatedIconButton>
@@ -221,6 +229,11 @@ export const GroupRow = memo(function GroupRow({
         {folder.failed > 0 && (
           <Text size="1" color="red" style={{ flexShrink: 0 }}>
             {folder.failed.toLocaleString()} failed
+          </Text>
+        )}
+        {folder.cancelled > 0 && (
+          <Text size="1" color="gray" style={{ flexShrink: 0 }}>
+            {folder.cancelled.toLocaleString()} cancelled
           </Text>
         )}
       </Flex>

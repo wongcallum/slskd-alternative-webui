@@ -19,7 +19,7 @@ import {
 import { Empty } from '../../ui/status'
 import { collapsed, expandedState } from '../../ui/table'
 import { FiltersButton } from './Filters'
-import { type FilterSearch, qualities, type ResultsSearch, saveFilters } from './params'
+import { countFilters, noFilters, qualities, type ResultsSearch } from './params'
 import { ResultList } from './ResultList'
 import {
   download,
@@ -85,11 +85,6 @@ export function ResultsView({ searchId, results, folders, params, onSearchChange
   const soulseekGate = useSoulseekGate()
   const downloads = useAtom(downloadsOf(searchId))
 
-  function changeFilters(patch: Partial<FilterSearch>) {
-    saveFilters({ ...params, ...patch })
-    onSearchChange(patch)
-  }
-
   return (
     <>
       <Flex align="center" gap="4" px="4" py="2" flexShrink="0" style={toolbarStyle}>
@@ -99,7 +94,7 @@ export function ResultsView({ searchId, results, folders, params, onSearchChange
           onChange={filter.change}
           style={{ width: 330 }}
         />
-        <FiltersButton filters={params} onChange={changeFilters} />
+        <FiltersButton filters={params} onChange={onSearchChange} />
         {results.locked > 0 && (
           <CheckboxField checked={locked} onChange={(checked) => onSearchChange({ locked: checked ? 'show' : 'hide' })}>
             Locked ({results.locked.toLocaleString()})
@@ -122,7 +117,7 @@ export function ResultsView({ searchId, results, folders, params, onSearchChange
               busy="Enqueueing"
               progress={downloads.running.download}
               gate={soulseekGate}
-              onClick={() => void download(searchId, selected)}
+              onClick={() => void download(searchId, selected).then(() => setRowSelection({}))}
             />
           </SelectionActions>
         )}
@@ -136,7 +131,14 @@ export function ResultsView({ searchId, results, folders, params, onSearchChange
         </Flex>
       </Flex>
       {groups.length === 0 ? (
-        <Empty>Nothing matches.</Empty>
+        <NothingShown
+          total={total}
+          locked={results.locked}
+          params={params}
+          text={filter.text}
+          onClearText={() => filter.change('')}
+          onSearchChange={onSearchChange}
+        />
       ) : (
         <ResultList
           searchId={searchId}
@@ -147,5 +149,50 @@ export function ResultsView({ searchId, results, folders, params, onSearchChange
         />
       )}
     </>
+  )
+}
+
+type NothingShownProps = {
+  total: number
+  locked: number
+  params: ResultsSearch
+  text: string
+  onClearText: () => void
+  onSearchChange: (patch: Partial<ResultsSearch>) => void
+}
+
+function NothingShown({ total, locked, params, text, onClearText, onSearchChange }: NothingShownProps) {
+  if (total === 0) {
+    return (
+      <Empty
+        actions={
+          <Button size="1" variant="soft" onClick={() => onSearchChange({ locked: 'show' })}>
+            Show locked
+          </Button>
+        }
+      >
+        {locked === 1 ? 'The only file is locked.' : `All ${locked.toLocaleString()} files are locked.`}
+      </Empty>
+    )
+  }
+  return (
+    <Empty
+      actions={
+        <>
+          {countFilters(params) > 0 && (
+            <Button size="1" variant="soft" onClick={() => onSearchChange(noFilters)}>
+              Clear filters
+            </Button>
+          )}
+          {text !== '' && (
+            <Button size="1" variant="soft" onClick={onClearText}>
+              Clear text filter
+            </Button>
+          )}
+        </>
+      }
+    >
+      {total === 1 ? 'Filters hide the only file.' : `Filters hide all ${total.toLocaleString()} files.`}
+    </Empty>
   )
 }

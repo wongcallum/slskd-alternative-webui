@@ -46,7 +46,7 @@ export function SharePage({ search, onSearchChange }: Props) {
   } else if (loaded?.status === 'missing' && running !== undefined) {
     content = (
       <Flex justify="center" p="6">
-        <BrowseProgress username={username} running={running} />
+        <BrowseProgress running={running} />
       </Flex>
     )
   } else if (loaded?.status === 'missing') {
@@ -89,7 +89,7 @@ export function SharePage({ search, onSearchChange }: Props) {
       </Flex>
       {ready !== undefined && running !== undefined ? (
         <Flex align="center" px="4" py="2" flexShrink="0" style={toolbarStyle}>
-          <BrowseProgress username={username} running={running} />
+          <BrowseProgress running={running} />
         </Flex>
       ) : (
         failure !== undefined && (

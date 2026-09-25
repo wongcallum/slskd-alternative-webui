@@ -239,13 +239,13 @@ const sameStatus = (a: Status | undefined, b: Status | undefined) =>
   a.size === b.size &&
   a.percentComplete === b.percentComplete
 
-function describeBrowseError(username: string, error: unknown) {
+function describeBrowseError(error: unknown) {
   if (isHTTPError(error)) {
     const message = typeof error.data === 'string' ? error.data : ''
     if (error.response.status === 404) {
-      return message === '' ? `${username} is on your blacklist` : `${username} appears to be offline`
+      return message === '' ? 'On your blacklist' : 'Appears to be offline'
     }
-    if (message.includes('timed out after 60000 milliseconds')) return `${username} didn't respond within 60 s`
+    if (message.includes('timed out after 60000 milliseconds')) return "Didn't respond within 60 s"
   }
   return describeError(error)
 }
@@ -316,9 +316,7 @@ export async function browse(username: string) {
     if (notCached === undefined) announce(username)
   } catch (error) {
     if (!signal.aborted) {
-      failures.set((current) =>
-        new Map(current).set(username, { error: describeBrowseError(username, error), at: Date.now() }),
-      )
+      failures.set((current) => new Map(current).set(username, { error: describeBrowseError(error), at: Date.now() }))
     }
   } finally {
     arrived = true

@@ -2,7 +2,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
 
 import { describeError } from '../lib/api'
-import { createSearch } from './searches'
+import { createSearch, hasSearchTerm } from './searches'
 
 // A new search opens its results, unless the page was left while slskd was creating it.
 export function useCreateSearch() {
@@ -17,6 +17,13 @@ export function useCreateSearch() {
   }, [])
 
   async function create(text: string) {
+    if (!hasSearchTerm(text)) {
+      setState({
+        busy: false,
+        error: 'Add a word to search for. Words starting with - only exclude, and single characters are ignored.',
+      })
+      return
+    }
     setState({ busy: true })
     try {
       const id = await createSearch(text)

@@ -1,8 +1,8 @@
 import { MinusIcon, PlusIcon } from '@radix-ui/react-icons'
-import { Flex, IconButton, Tooltip } from '@radix-ui/themes'
+import { Flex } from '@radix-ui/themes'
 import { useCallback, useEffect, useMemo } from 'react'
 
-import { FilterField, toolbarStyle, useFilterText } from '../../ui/controls'
+import { FilterField, GatedIconButton, toolbarStyle, useFilterText } from '../../ui/controls'
 import type { BrowseSearch } from '../params'
 import { type Folder, matchShare, nearestFolder, type Share } from '../shareTree'
 import { FolderPane } from './FolderPane'
@@ -29,6 +29,7 @@ export function ShareView({ share, fetchedAt, search, onSearchChange }: Props) {
     },
     [share, onSearchChange],
   )
+  const expansionGate = matches === undefined ? undefined : 'The filtered tree shows every match'
 
   return (
     <Flex flexGrow="1" minHeight="0">
@@ -40,33 +41,25 @@ export function ShareView({ share, fetchedAt, search, onSearchChange }: Props) {
       >
         <Flex align="center" gap="2" px="3" py="2" flexShrink="0" style={toolbarStyle}>
           <FilterField
-            placeholder="Filter folders and files, -word to exclude"
+            placeholder="Filter, -word to exclude"
             value={filter.text}
             onChange={filter.change}
             style={{ flexGrow: 1 }}
           />
-          <Tooltip content="Expand all">
-            <IconButton
-              size="1"
-              variant="ghost"
-              color="gray"
-              aria-label="Expand all"
-              onClick={() => updateExpansion(share, () => ({ all: true, toggled: {} }))}
-            >
-              <PlusIcon />
-            </IconButton>
-          </Tooltip>
-          <Tooltip content="Collapse all">
-            <IconButton
-              size="1"
-              variant="ghost"
-              color="gray"
-              aria-label="Collapse all"
-              onClick={() => updateExpansion(share, () => ({ all: false, toggled: {} }))}
-            >
-              <MinusIcon />
-            </IconButton>
-          </Tooltip>
+          <GatedIconButton
+            label="Expand all"
+            gate={expansionGate}
+            onClick={() => updateExpansion(share, () => ({ all: true, toggled: {} }))}
+          >
+            <PlusIcon />
+          </GatedIconButton>
+          <GatedIconButton
+            label="Collapse all"
+            gate={expansionGate}
+            onClick={() => updateExpansion(share, () => ({ all: false, toggled: {} }))}
+          >
+            <MinusIcon />
+          </GatedIconButton>
         </Flex>
         <Tree share={share} selected={folder} matches={matches} onOpen={open} />
       </Flex>

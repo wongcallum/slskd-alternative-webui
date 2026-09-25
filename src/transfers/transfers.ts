@@ -29,7 +29,7 @@ type RawUser = { username: string; directories: { directory: string; files: RawT
 
 export type Transfer = RawTransfer & { kind: 'file'; username: string; directory: string; name: string; search: string }
 
-type Folder = { total: number; succeeded: number; failed: number }
+type Folder = { total: number; succeeded: number; failed: number; cancelled: number }
 
 export type Group = {
   kind: 'group'
@@ -55,12 +55,15 @@ export type Transfers = {
   queued: number
   succeeded: number
   failed: number
+  cancelled: number
   speed: number
 }
 
 export const isFinished = (state: string) => state.startsWith('Completed')
 const isSucceeded = (state: string) => state === 'Completed, Succeeded'
-export const isFailed = (state: string) => isFinished(state) && !isSucceeded(state)
+const isCancelled = (state: string) => state === 'Completed, Cancelled'
+export const isRetryable = (state: string) => isFinished(state) && !isSucceeded(state)
+export const isFailed = (state: string) => isRetryable(state) && !isCancelled(state)
 export const isTransferring = (state: string) => state === 'InProgress' || state === 'Initializing'
 
 const unchanged = (file: Transfer, raw: RawTransfer) =>
@@ -136,7 +139,7 @@ function merge(previous: Transfers | undefined, users: RawUser[]): Transfers {
   const previousGroups = new Map<string, Group>()
   for (const group of previous?.active ?? []) previousGroups.set(group.id, group)
   for (const group of previous?.finished ?? []) previousGroups.set(group.id, group)
-  const totals = { transferring: 0, queued: 0, succeeded: 0, failed: 0, speed: 0 }
+  const totals = { transferring: 0, queued: 0, succeeded: 0, failed: 0, cancelled: 0, speed: 0 }
   const sections: Record<Section, Group[]> = { active: [], finished: [] }
 
   function place(section: Section, username: string, directory: string, files: Transfer[], folder: Folder) {
@@ -147,6 +150,7 @@ function merge(previous: Transfers | undefined, users: RawUser[]): Transfers {
       old.folder.total === folder.total &&
       old.folder.succeeded === folder.succeeded &&
       old.folder.failed === folder.failed &&
+      old.folder.cancelled === folder.cancelled &&
       files.every((file) => previous?.byId.get(file.id) === file)
     sections[section].push(reusable ? old : buildGroup(section, username, directory, files.sort(byName), folder))
   }
@@ -156,6 +160,7 @@ function merge(previous: Transfers | undefined, users: RawUser[]): Transfers {
       const active: Transfer[] = []
       const finished: Transfer[] = []
       let succeeded = 0
+      let cancelled = 0
       for (const raw of files) {
         const old = previous?.byId.get(raw.id)
         const file = old !== undefined && unchanged(old, raw) ? old : toTransfer(raw, username, directory)
@@ -163,6 +168,7 @@ function merge(previous: Transfers | undefined, users: RawUser[]): Transfers {
         if (isFinished(file.state)) {
           finished.push(file)
           if (isSucceeded(file.state)) succeeded++
+          else if (isCancelled(file.state)) cancelled++
         } else {
           active.push(file)
           if (isTransferring(file.state)) {
@@ -171,9 +177,11 @@ function merge(previous: Transfers | undefined, users: RawUser[]): Transfers {
           } else totals.queued++
         }
       }
+      const failed = finished.length - succeeded - cancelled
       totals.succeeded += succeeded
-      totals.failed += finished.length - succeeded
-      const folder = { total: files.length, succeeded, failed: finished.length - succeeded }
+      totals.failed += failed
+      totals.cancelled += cancelled
+      const folder = { total: files.length, succeeded, failed, cancelled }
       if (active.length > 0) place('active', username, directory, active, folder)
       if (finished.length > 0) place('finished', username, directory, finished, folder)
     }
@@ -190,7 +198,10 @@ function merge(previous: Transfers | undefined, users: RawUser[]): Transfers {
   return { active, finished, byId, ...totals }
 }
 
-export type Show = 'all' | 'succeeded' | 'failed'
+export type Show = 'all' | 'succeeded' | 'failed' | 'cancelled'
+
+const outcomeOf = (state: string): Show =>
+  isSucceeded(state) ? 'succeeded' : isCancelled(state) ? 'cancelled' : 'failed'
 
 export function filterGroups(groups: Group[], query: string, show: Show) {
   if (query === '' && show === 'all') return groups
@@ -198,7 +209,7 @@ export function filterGroups(groups: Group[], query: string, show: Show) {
   const result: Group[] = []
   for (const group of groups) {
     const files = group.files.filter(
-      (file) => file.search.includes(needle) && (show === 'all' || (show === 'succeeded') === isSucceeded(file.state)),
+      (file) => file.search.includes(needle) && (show === 'all' || outcomeOf(file.state) === show),
     )
     if (files.length === group.files.length) result.push(group)
     else if (files.length > 0) {

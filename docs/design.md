@@ -99,7 +99,8 @@ and we cache browsed share trees in IndexedDB), show when each result was fetche
   Remounting `<RouterProvider>` can render a stale page (see the facts).
 - Paths match stock's.
 - Invalid search params fall back to their defaults, and defaults and invalid values stay out of the URL. Params
-  that change as you type or click replace the history entry.
+  that filter or sort a view replace the history entry. Opening a folder in Browse pushes one, so Back returns to
+  the previous folder.
 - No router devtools, code splitting or scroll restoration.
 
 ### Shell
@@ -118,6 +119,9 @@ and we cache browsed share trees in IndexedDB), show when each result was fetche
   in 1,500 px jumps went from 28 long tasks in 30 jumps to 0–4.
 - Cancel all, Retry failed and Clear finished act on the whole section whatever the filter, and they're the only
   actions in the app that ask for confirmation.
+- `Completed, Cancelled` is an outcome of its own, not a failure: it isn't counted as failed and Retry failed skips
+  it, but a selected cancelled download can still be retried. A cancel during a retry backoff ends as
+  `Completed, Errored` (see the facts), so it still counts as failed.
 
 ### Search
 
