@@ -7,7 +7,7 @@ import { api, describeError } from '../lib/api'
 import { byName } from '../lib/text'
 import { FilterField, GateTip } from '../ui/controls'
 import { Fetching } from '../ui/status'
-import { ColumnHeader, GridRow, HeaderRow, VirtualTable } from '../ui/table'
+import { ColumnHeader, GridRow, HeaderRow, RowButton, VirtualTable } from '../ui/table'
 import { joinRoom, useJoinedRooms } from './rooms'
 
 type RawAvailableRoom = { name: string; userCount: number; isPrivate: boolean; isOwned: boolean; isModerated: boolean }
@@ -178,9 +178,11 @@ function RoomRow({ room, joined, joining, onJoin }: RoomRowProps) {
   return (
     <GridRow template={template} style={{ cursor: 'pointer' }} onClick={onJoin}>
       <Flex className="table-cell" align="center" gap="2" title={room.name}>
-        <Text size="2" truncate>
-          {room.name}
-        </Text>
+        <RowButton>
+          <Text size="2" truncate>
+            {room.name}
+          </Text>
+        </RowButton>
         {room.isPrivate && (
           <Tooltip content="Private">
             <LockClosedIcon style={{ flexShrink: 0 }} />
