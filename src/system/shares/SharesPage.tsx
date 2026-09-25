@@ -15,6 +15,7 @@ import {
   GridRow,
   HeaderRow,
   Parts,
+  RowButton,
   rowHeight,
   StackedRow,
   stackedHeight,
@@ -227,13 +228,21 @@ function ShareRow({
     style: excluded ? undefined : { cursor: 'pointer' },
     onClick: excluded ? undefined : () => onOpen(share.alias),
   }
-  const path = (
+  const name = (
+    <Text size="2" weight="medium" truncate>
+      {share.localPath}
+    </Text>
+  )
+  const path = excluded ? (
     <>
-      {excluded ? <Cross2Icon style={{ flexShrink: 0 }} /> : <ChevronRightIcon style={{ flexShrink: 0 }} />}
-      <Text size="2" weight="medium" truncate>
-        {share.localPath}
-      </Text>
+      <Cross2Icon style={{ flexShrink: 0 }} />
+      {name}
     </>
+  ) : (
+    <RowButton>
+      <ChevronRightIcon style={{ flexShrink: 0 }} />
+      {name}
+    </RowButton>
   )
   if (stacked) {
     return (

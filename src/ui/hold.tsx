@@ -11,6 +11,7 @@ import {
   HeaderRow,
   type Layout,
   Parts,
+  RowButton,
   rowHeight,
   StackedRow,
   stackedHeight,
@@ -119,7 +120,7 @@ export function HeldRow({
       <StackedRow
         selected={selected}
         dimmed={dimmed}
-        title={title}
+        title={<RowButton>{title}</RowButton>}
         meta={<Parts items={[formatPreciseTime(time), ...details]} />}
         style={{ cursor: 'pointer' }}
         onClick={onClick}
@@ -134,7 +135,9 @@ export function HeldRow({
       style={{ cursor: 'pointer' }}
       onClick={onClick}
     >
-      <Cell title={formatFullPreciseTime(time)}>{formatPreciseTime(time)}</Cell>
+      <Cell title={formatFullPreciseTime(time)}>
+        <RowButton>{formatPreciseTime(time)}</RowButton>
+      </Cell>
       {cells}
     </GridRow>
   )

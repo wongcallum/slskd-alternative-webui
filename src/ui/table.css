@@ -136,6 +136,21 @@
   cursor: pointer;
 }
 
+.row-button {
+  all: unset;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  cursor: pointer;
+}
+
+/* The row is what the button acts for, and its cells would clip a ring around the button. */
+.table-row:has(.row-button:focus-visible) {
+  outline: 2px solid var(--focus-8);
+  outline-offset: -2px;
+}
+
 .table-stacked {
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
