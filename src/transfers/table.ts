@@ -109,6 +109,19 @@ export const openSections: Record<Direction, Atom<Record<Section, boolean>>> = {
   upload: createAtom<Record<Section, boolean>>({ active: true, finished: true }),
 }
 
+// A row that leaves its section, as a retried file does, would come back selected if it returned under the same id.
+export function keepPresent(selection: RowSelectionState, groups: readonly Group[] | undefined) {
+  const ids = Object.keys(selection)
+  if (ids.length === 0 || groups === undefined) return selection
+  const present = new Set<string>()
+  for (const group of groups) {
+    present.add(group.id)
+    for (const file of group.files) present.add(file.id)
+  }
+  if (ids.every((id) => present.has(id))) return selection
+  return Object.fromEntries(Object.entries(selection).filter(([id]) => present.has(id)))
+}
+
 export function useSectionTable<S extends string>(
   section: Section,
   data: Group[],

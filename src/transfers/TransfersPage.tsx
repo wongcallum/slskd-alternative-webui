@@ -17,7 +17,7 @@ import {
 } from '../ui/controls'
 import { Empty, Freshness, Polling } from '../ui/status'
 import { actions, cancel, remove, retry } from './actions'
-import { columnIds, expansions, type Gates, useSectionTable } from './table'
+import { columnIds, expansions, type Gates, keepPresent, useSectionTable } from './table'
 import { TransferList } from './TransferList'
 import {
   type Direction,
@@ -65,6 +65,12 @@ export function TransfersPage({ direction, search, onSearchChange }: Props) {
   const expansion = useAtom(expansions[direction])
   const [activeSelection, setActiveSelection] = useState<RowSelectionState>({})
   const [finishedSelection, setFinishedSelection] = useState<RowSelectionState>({})
+  const [pruned, setPruned] = useState(data)
+  if (pruned !== data) {
+    setPruned(data)
+    setActiveSelection((current) => keepPresent(current, data?.active))
+    setFinishedSelection((current) => keepPresent(current, data?.finished))
+  }
   const activeTable = useSectionTable(
     'active',
     active,
