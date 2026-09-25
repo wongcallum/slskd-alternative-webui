@@ -44,9 +44,9 @@ export const eventsPollInterval = 10_000
 export const eventsPageSize = 100
 
 const typeLabels: Record<string, string> = {
-  DownloadFileComplete: 'Download',
+  DownloadFileComplete: 'File downloaded',
   DownloadDirectoryComplete: 'Folder downloaded',
-  UploadFileComplete: 'Upload',
+  UploadFileComplete: 'File uploaded',
   PrivateMessageReceived: 'Private message',
   RoomMessageReceived: 'Room message',
   SoulseekClientConnected: 'Connected',

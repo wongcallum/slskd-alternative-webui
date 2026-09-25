@@ -397,7 +397,7 @@ function SourcesView({ control, gate }: { control: ReactNode; gate?: string }) {
   ) : (
     <SystemPage>
       <Toolbar control={control} />
-      <Unavailable>{gate}, so there's no telling where each setting came from.</Unavailable>
+      <Unavailable>{gate}, so it can't show where each setting came from.</Unavailable>
     </SystemPage>
   )
 }
@@ -409,7 +409,7 @@ function SourcesContent({ control }: { control: ReactNode }) {
     <SystemPage status={<FetchedResource resource={sources} loading={sourcesLoading} label="Reload" />}>
       <Toolbar control={control}>
         <Text size="1" color="gray">
-          Secrets are shown as they are.
+          Secrets are shown in plain text.
         </Text>
       </Toolbar>
       {lines === undefined ? (

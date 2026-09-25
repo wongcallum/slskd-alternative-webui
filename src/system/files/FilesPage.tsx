@@ -101,11 +101,9 @@ function DeleteAction({ selection }: { selection: Selection }) {
     gate = `slskd can't address ${unaddressable.id.slice(unaddressable.id.lastIndexOf('/') + 1)}; delete its folder instead`
   }
   const description = [
-    `This deletes ${formatBytes(size)} from slskd's disk for good.`,
+    `This permanently deletes ${formatBytes(size)} from slskd's disk.`,
     ...(targets.some((target) => target.root === 'incomplete')
-      ? [
-          'A download still writing to Incomplete carries on regardless, and most likely ends as succeeded with no file.',
-        ]
+      ? ['A download still writing to Incomplete keeps going, and most likely ends as succeeded with no file.']
       : []),
   ].join(' ')
   return (

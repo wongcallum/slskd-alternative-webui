@@ -47,7 +47,7 @@ function HoldButton({ hold, unseen }: { hold: Hold<unknown>; unseen: string }) {
     )
   }
   return (
-    <Tooltip content="Hold the list still. Scrolling down does too.">
+    <Tooltip content="Keep new rows from moving the list. Scrolling down also pauses it.">
       <Button size="1" variant="soft" color="gray" onClick={hold.pause}>
         <PauseIcon />
         Pause

@@ -38,7 +38,7 @@ const columns = [
   { label: 'Files', end: true },
   { label: 'Size', end: true },
   { label: 'Locked', end: true },
-  { label: 'Fetched' },
+  { label: 'Browsed' },
   { label: 'Status' },
 ]
 
@@ -88,7 +88,7 @@ export function BrowsePage() {
         <>
           <UserBox />
           <Text size="2" color="gray" ml="auto">
-            {formatBytes(stored)} stored
+            {formatBytes(stored)} cached
           </Text>
         </>
       }
@@ -136,11 +136,7 @@ function LandingRow({ entry }: { entry: Entry }) {
             <TrashIcon />
           </GatedIconButton>
         )}
-        <GatedIconButton
-          label={stats === undefined ? 'Browse again' : 'Re-browse'}
-          gate={gate}
-          onClick={() => void browse(username)}
-        >
+        <GatedIconButton label="Browse again" gate={gate} onClick={() => void browse(username)}>
           <ReloadIcon />
         </GatedIconButton>
       </ActionsCell>
