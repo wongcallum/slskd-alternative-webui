@@ -1,15 +1,13 @@
-import { ReloadIcon, TrashIcon } from '@radix-ui/react-icons'
-import { Flex, Text } from '@radix-ui/themes'
+import { Text } from '@radix-ui/themes'
 import { type ReactNode, useEffect, useMemo } from 'react'
 
 import { entriesByUser } from '../lib/db'
 import { formatBytes, plural } from '../lib/format'
 import { useAtom } from '../lib/store'
 import { useSoulseekGate } from '../soulseek/soulseek'
-import { GatedIconButton } from '../ui/controls'
 import { Ago } from '../ui/status'
-import { ActionsCell, Cell, GridRow, type Layout, Parts, StackedRow } from '../ui/table'
-import { UserLink, UserLinkCell, UserListPage } from '../ui/UserList'
+import { Cell, type Layout } from '../ui/table'
+import { UserListPage, UserListRow } from '../ui/UserList'
 import {
   type Browse,
   browse,
@@ -120,54 +118,37 @@ function LandingRow({ entry, layout }: { entry: Entry; layout: Layout }) {
       </Text>
     )
   }
-  const actions = (
-    <>
-      {cached && (
-        <GatedIconButton label="Delete" onClick={() => void deleteShare(username)}>
-          <TrashIcon />
-        </GatedIconButton>
-      )}
-      <GatedIconButton label="Browse again" gate={gate} onClick={() => void browse(username)}>
-        <ReloadIcon />
-      </GatedIconButton>
-    </>
-  )
-  if (layout === 'stacked') {
-    return (
-      <StackedRow
-        title={<UserLink username={username} to="/browse" />}
-        meta={
-          status ??
-          (stats !== undefined && (
-            <Parts
-              items={[
-                plural(stats.files, 'file'),
-                formatBytes(stats.size),
-                stats.locked > 0 && `${stats.locked.toLocaleString()} locked`,
-                <span key="browsed">
-                  Browsed <Ago time={stats.fetchedAt} />
-                </span>,
-              ]}
-            />
-          ))
-        }
-        actions={actions}
-      />
-    )
-  }
   const wide = layout === 'wide'
   return (
-    <GridRow template={templates[layout]}>
-      <UserLinkCell username={username} to="/browse" />
-      {wide && <Cell end>{stats?.folders.toLocaleString()}</Cell>}
-      <Cell end>{stats?.files.toLocaleString()}</Cell>
-      <Cell end>{stats !== undefined && formatBytes(stats.size)}</Cell>
-      {wide && <Cell end>{stats?.locked.toLocaleString()}</Cell>}
-      <Cell>{stats !== undefined && <Ago time={stats.fetchedAt} />}</Cell>
-      <Flex className="table-cell" align="center">
-        {status}
-      </Flex>
-      <ActionsCell>{actions}</ActionsCell>
-    </GridRow>
+    <UserListRow
+      username={username}
+      to="/browse"
+      layout={layout}
+      templates={templates}
+      status={status}
+      details={
+        stats === undefined
+          ? []
+          : [
+              plural(stats.files, 'file'),
+              formatBytes(stats.size),
+              stats.locked > 0 && `${stats.locked.toLocaleString()} locked`,
+              <span key="browsed">
+                Browsed <Ago time={stats.fetchedAt} />
+              </span>,
+            ]
+      }
+      cells={
+        <>
+          {wide && <Cell end>{stats?.folders.toLocaleString()}</Cell>}
+          <Cell end>{stats?.files.toLocaleString()}</Cell>
+          <Cell end>{stats !== undefined && formatBytes(stats.size)}</Cell>
+          {wide && <Cell end>{stats?.locked.toLocaleString()}</Cell>}
+          <Cell>{stats !== undefined && <Ago time={stats.fetchedAt} />}</Cell>
+        </>
+      }
+      onDelete={cached ? () => void deleteShare(username) : undefined}
+      again={{ label: 'Browse again', gate, onClick: () => void browse(username) }}
+    />
   )
 }

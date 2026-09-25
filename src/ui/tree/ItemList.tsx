@@ -127,114 +127,101 @@ type RowProps = {
   onSelect: (id: string, shiftKey: boolean) => void
 }
 
-// Stacked, a row's details are its count or folder, size and extras, on the line under its name.
+// Stacked, a row's details are its file count or folder, size and extras, on the line under its name.
 function Row({
-  stacked,
-  template,
+  id,
+  item,
   group,
-  check,
   dimmed,
-  selected,
   title,
+  icon,
   name,
-  details,
-  cells,
+  count,
+  countCell,
+  size,
   onClick,
-}: {
-  stacked: boolean
-  template: string
-  group?: boolean
-  check: ReactNode
-  dimmed: boolean
-  selected: boolean
-  title: string
-  name: ReactNode
-  details: ReactNode[]
-  cells: ReactNode
-  onClick: (event: { shiftKey: boolean }) => void
-}) {
-  if (stacked) {
-    return (
-      <StackedRow
-        group={group}
-        selected={selected}
-        dimmed={dimmed}
-        check={check || undefined}
-        title={name}
-        meta={<Parts items={details} />}
-        style={group ? { cursor: 'pointer' } : undefined}
-        onClick={onClick}
-      />
-    )
-  }
-  return (
-    <GridRow
-      template={template}
-      group={group}
-      selected={selected}
-      dimmed={dimmed}
-      style={group ? { cursor: 'pointer' } : undefined}
-      onClick={onClick}
-    >
-      {check}
-      <Flex className="table-cell" align="center" gap="2" title={title}>
-        {name}
-      </Flex>
-      {cells}
-    </GridRow>
-  )
-}
-
-const SubfolderRow = memo(function SubfolderRow({
-  folder,
-  template,
   stacked,
+  template,
   counted,
   extras,
   selectable,
   disabled,
   selected,
   onSelect,
+}: RowProps & {
+  id: string
+  item: Item
+  group?: boolean
+  dimmed: boolean
+  title: string
+  icon: ReactNode
+  name: ReactNode
+  count: ReactNode
+  countCell: ReactNode
+  size: ReactNode
+  onClick: (event: { shiftKey: boolean }) => void
+}) {
+  const check = selectable ? (
+    <CheckCell selected={selected} disabled={disabled} onToggle={(shiftKey) => onSelect(id, shiftKey)} />
+  ) : undefined
+  const style = group ? { cursor: 'pointer' } : undefined
+  const label = (
+    <>
+      {icon}
+      {name}
+    </>
+  )
+  if (stacked) {
+    return (
+      <StackedRow
+        group={group}
+        selected={selected}
+        dimmed={dimmed}
+        check={check}
+        title={label}
+        meta={<Parts items={[count, size, ...extras.map((extra) => extra.render(item))]} />}
+        style={style}
+        onClick={onClick}
+      />
+    )
+  }
+  return (
+    <GridRow template={template} group={group} selected={selected} dimmed={dimmed} style={style} onClick={onClick}>
+      {check}
+      <Flex className="table-cell" align="center" gap="2" title={title}>
+        {label}
+      </Flex>
+      {counted && countCell}
+      <Cell end>{size}</Cell>
+      <ExtraCells item={item} extras={extras} />
+    </GridRow>
+  )
+}
+
+const SubfolderRow = memo(function SubfolderRow({
+  folder,
   onOpen,
+  ...props
 }: RowProps & { folder: Folder; onOpen: (folder: Folder) => void }) {
-  const id = `folder\n${folder.id}`
   return (
     <Row
-      stacked={stacked}
-      template={template}
+      {...props}
+      id={`folder\n${folder.id}`}
+      item={folder}
       group
-      check={
-        selectable && (
-          <CheckCell selected={selected} disabled={disabled} onToggle={(shiftKey) => onSelect(id, shiftKey)} />
-        )
-      }
       dimmed={folder.locked || folder.hidden}
-      selected={selected}
       title={folder.name}
+      icon={
+        folder.locked ? <LockClosedIcon style={{ flexShrink: 0 }} /> : <ChevronRightIcon style={{ flexShrink: 0 }} />
+      }
       name={
-        <>
-          {folder.locked ? (
-            <LockClosedIcon style={{ flexShrink: 0 }} />
-          ) : (
-            <ChevronRightIcon style={{ flexShrink: 0 }} />
-          )}
-          <Text size="2" weight="medium" truncate>
-            {folder.name}
-          </Text>
-        </>
+        <Text size="2" weight="medium" truncate>
+          {folder.name}
+        </Text>
       }
-      details={[
-        plural(folder.fileCount, 'file'),
-        formatBytes(folder.size),
-        ...extras.map((extra) => extra.render(folder)),
-      ]}
-      cells={
-        <>
-          {counted && <Cell end>{folder.fileCount.toLocaleString()}</Cell>}
-          <Cell end>{formatBytes(folder.size)}</Cell>
-          <ExtraCells item={folder} extras={extras} />
-        </>
-      }
+      count={plural(folder.fileCount, 'file')}
+      countCell={<Cell end>{folder.fileCount.toLocaleString()}</Cell>}
+      size={formatBytes(folder.size)}
       onClick={() => onOpen(folder)}
     />
   )
@@ -242,51 +229,33 @@ const SubfolderRow = memo(function SubfolderRow({
 
 const FileRow = memo(function FileRow({
   file,
-  template,
-  stacked,
-  counted,
-  extras,
   folder,
   separator,
-  selectable,
-  disabled,
-  selected,
   Badge,
-  onSelect,
+  ...props
 }: RowProps & { file: TreeFile; folder?: string; separator: string; Badge?: FileBadge }) {
   const id = `file\n${file.id}`
-  const toggle = selectable && !disabled
   const path = folder?.split(separator).join(' › ')
   return (
     <Row
-      stacked={stacked}
-      template={template}
-      check={
-        selectable && (
-          <CheckCell selected={selected} disabled={disabled} onToggle={(shiftKey) => onSelect(id, shiftKey)} />
-        )
-      }
+      {...props}
+      id={id}
+      item={file}
       dimmed={file.locked || file.hidden}
-      selected={selected}
       title={file.filename}
+      icon={file.locked ? <LockClosedIcon style={{ flexShrink: 0 }} /> : <FileIcon style={{ flexShrink: 0 }} />}
       name={
         <>
-          {file.locked ? <LockClosedIcon style={{ flexShrink: 0 }} /> : <FileIcon style={{ flexShrink: 0 }} />}
           <Text size="2" truncate>
             {file.name}
           </Text>
           {Badge !== undefined && <Badge file={file} />}
         </>
       }
-      details={[path, !file.link && formatBytes(file.size), ...extras.map((extra) => extra.render(file))]}
-      cells={
-        <>
-          {counted && (folder === undefined ? <div className="table-cell" /> : <Cell title={folder}>{path}</Cell>)}
-          <Cell end>{!file.link && formatBytes(file.size)}</Cell>
-          <ExtraCells item={file} extras={extras} />
-        </>
-      }
-      onClick={(event) => toggle && onSelect(id, event.shiftKey)}
+      count={path}
+      countCell={folder === undefined ? <div className="table-cell" /> : <Cell title={folder}>{path}</Cell>}
+      size={!file.link && formatBytes(file.size)}
+      onClick={(event) => props.selectable && !props.disabled && props.onSelect(id, event.shiftKey)}
     />
   )
 })

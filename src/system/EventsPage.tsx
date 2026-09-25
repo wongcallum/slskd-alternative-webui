@@ -4,15 +4,15 @@ import * as v from 'valibot'
 import { stringify } from 'yaml'
 
 import { describeError } from '../lib/api'
-import { formatFullPreciseTime, formatPreciseTime, plural } from '../lib/format'
+import { formatFullPreciseTime, plural } from '../lib/format'
 import { textParam } from '../lib/params'
 import { useAtom, useResource } from '../lib/store'
 import { toStringOptions, yamlVersion } from '../lib/yaml'
 import { useFilterText } from '../ui/controls'
 import { DetailsPane } from '../ui/details'
-import { HeldList, HeldToolbar, useHold } from '../ui/hold'
+import { HeldList, HeldRow, HeldToolbar, useHold } from '../ui/hold'
 import { Busy, Empty, Freshness, Polling } from '../ui/status'
-import { Cell, GridRow, type Layout, Parts, rowHeight, StackedRow } from '../ui/table'
+import { Cell, type Layout, rowHeight } from '../ui/table'
 import { YamlView } from '../ui/YamlView'
 import { UserMenu } from '../users/UserMenu'
 import {
@@ -278,47 +278,33 @@ const EventRow = memo(function EventRow({ record, layout, selected, onSelect }: 
       )}
     </>
   )
-  if (layout === 'stacked') {
-    // An event with nothing to say, such as a connect, is titled by its type.
-    const titled = text === undefined || text === ''
-    return (
-      <StackedRow
-        selected={selected}
-        title={titled ? <Text size="2">{typeLabel(record.type)}</Text> : details}
-        meta={
-          <Parts
-            items={[
-              formatPreciseTime(record.time),
-              !titled && typeLabel(record.type),
-              user !== undefined && <UserMenu key="user" username={user} />,
-            ]}
-          />
-        }
-        style={{ cursor: 'pointer' }}
-        onClick={() => onSelect(record)}
-      />
-    )
-  }
+  // Stacked, an event with nothing to say, such as a connect, is titled by its type.
+  const titled = text === undefined || text === ''
   return (
-    <GridRow
-      template={templates[layout]}
+    <HeldRow
+      layout={layout}
+      templates={templates}
+      time={record.time}
       selected={selected}
-      style={{ cursor: 'pointer' }}
+      title={titled ? <Text size="2">{typeLabel(record.type)}</Text> : details}
+      details={[!titled && typeLabel(record.type), user !== undefined && <UserMenu key="user" username={user} />]}
+      cells={
+        <>
+          <Cell title={record.type}>{typeLabel(record.type)}</Cell>
+          <div className="table-cell" title={user}>
+            {user !== undefined && (
+              <Text size="2">
+                <UserMenu username={user} />
+              </Text>
+            )}
+          </div>
+          <Flex className="table-cell" align="center" gap="2" title={text}>
+            {details}
+          </Flex>
+        </>
+      }
       onClick={() => onSelect(record)}
-    >
-      <Cell title={formatFullPreciseTime(record.time)}>{formatPreciseTime(record.time)}</Cell>
-      <Cell title={record.type}>{typeLabel(record.type)}</Cell>
-      <div className="table-cell" title={user}>
-        {user !== undefined && (
-          <Text size="2">
-            <UserMenu username={user} />
-          </Text>
-        )}
-      </div>
-      <Flex className="table-cell" align="center" gap="2" title={text}>
-        {details}
-      </Flex>
-    </GridRow>
+    />
   )
 })
 

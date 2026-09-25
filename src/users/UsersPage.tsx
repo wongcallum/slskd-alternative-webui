@@ -1,14 +1,12 @@
-import { ReloadIcon, TrashIcon } from '@radix-ui/react-icons'
 import { Flex, Text } from '@radix-ui/themes'
 import { type ReactNode, useEffect, useMemo } from 'react'
 
 import { entriesByUser } from '../lib/db'
 import { useAtom } from '../lib/store'
 import { useSoulseekGate } from '../soulseek/soulseek'
-import { GatedIconButton } from '../ui/controls'
 import { Ago, Busy } from '../ui/status'
-import { ActionsCell, Cell, GridRow, type Layout, Parts, StackedRow } from '../ui/table'
-import { UserLink, UserLinkCell, UserListPage } from '../ui/UserList'
+import { Cell, type Layout } from '../ui/table'
+import { UserListPage, UserListRow } from '../ui/UserList'
 import { LookUpBox } from './LookUpBox'
 import { LookupErrorLine, PresenceLabel } from './LookupStatus'
 import {
@@ -80,69 +78,47 @@ function UserRow({ entry, layout }: { entry: Entry; layout: Layout }) {
   if (startedAt !== undefined) status = <Busy>Looking up…</Busy>
   else if (errors !== undefined) status = <LookupErrorLine username={username} errors={errors} />
   const info = record?.info
-  const actions = (
-    <>
-      {record !== undefined && (
-        <GatedIconButton label="Delete" onClick={() => void deleteUser(username)}>
-          <TrashIcon />
-        </GatedIconButton>
-      )}
-      <GatedIconButton label="Look up again" gate={gate} onClick={() => void lookUp(username)}>
-        <ReloadIcon />
-      </GatedIconButton>
-    </>
-  )
-  if (layout === 'stacked') {
-    return (
-      <StackedRow
-        title={<UserLink username={username} to="/users" />}
-        meta={
-          status ?? (
-            <Parts
-              items={[
-                record?.status !== undefined && (
-                  <PresenceLabel key="presence" presence={record.status.presence} size="1" />
-                ),
-                info !== undefined && (
-                  <Text key="slot" color={info.freeSlot ? 'green' : undefined}>
-                    {info.freeSlot ? 'Free slot' : 'No free slot'}
-                  </Text>
-                ),
-                info !== undefined && `${info.queue.toLocaleString()} queued`,
-                record !== undefined && (
-                  <span key="updated">
-                    Updated <Ago time={lookedUpAt(record)} />
-                  </span>
-                ),
-              ]}
-            />
-          )
-        }
-        actions={actions}
-      />
-    )
-  }
   return (
-    <GridRow template={templates[layout]}>
-      <UserLinkCell username={username} to="/users" />
-      <Flex className="table-cell" align="center">
-        {record?.status !== undefined && <PresenceLabel presence={record.status.presence} />}
-      </Flex>
-      {layout === 'wide' && (
-        <div className="table-cell">
-          {info !== undefined && (
-            <Text size="2" color={info.freeSlot ? 'green' : 'gray'}>
-              {info.freeSlot ? 'Yes' : 'No'}
-            </Text>
+    <UserListRow
+      username={username}
+      to="/users"
+      layout={layout}
+      templates={templates}
+      status={status}
+      details={[
+        record?.status !== undefined && <PresenceLabel key="presence" presence={record.status.presence} size="1" />,
+        info !== undefined && (
+          <Text key="slot" color={info.freeSlot ? 'green' : undefined}>
+            {info.freeSlot ? 'Free slot' : 'No free slot'}
+          </Text>
+        ),
+        info !== undefined && `${info.queue.toLocaleString()} queued`,
+        record !== undefined && (
+          <span key="updated">
+            Updated <Ago time={lookedUpAt(record)} />
+          </span>
+        ),
+      ]}
+      cells={
+        <>
+          <Flex className="table-cell" align="center">
+            {record?.status !== undefined && <PresenceLabel presence={record.status.presence} />}
+          </Flex>
+          {layout === 'wide' && (
+            <div className="table-cell">
+              {info !== undefined && (
+                <Text size="2" color={info.freeSlot ? 'green' : 'gray'}>
+                  {info.freeSlot ? 'Yes' : 'No'}
+                </Text>
+              )}
+            </div>
           )}
-        </div>
-      )}
-      <Cell end>{info?.queue.toLocaleString()}</Cell>
-      <Cell>{record !== undefined && <Ago time={lookedUpAt(record)} />}</Cell>
-      <Flex className="table-cell" align="center">
-        {status}
-      </Flex>
-      <ActionsCell>{actions}</ActionsCell>
-    </GridRow>
+          <Cell end>{info?.queue.toLocaleString()}</Cell>
+          <Cell>{record !== undefined && <Ago time={lookedUpAt(record)} />}</Cell>
+        </>
+      }
+      onDelete={record === undefined ? undefined : () => void deleteUser(username)}
+      again={{ label: 'Look up again', gate, onClick: () => void lookUp(username) }}
+    />
   )
 }

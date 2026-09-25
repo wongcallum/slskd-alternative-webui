@@ -2,8 +2,21 @@ import { PauseIcon, PlayIcon } from '@radix-ui/react-icons'
 import { Button, Tooltip } from '@radix-ui/themes'
 import { type Key, type ReactNode, type UIEvent, useCallback, useRef, useState } from 'react'
 
+import { formatFullPreciseTime, formatPreciseTime } from '../lib/format'
 import { FilterField, Toolbar, ToolbarEnd } from './controls'
-import { ColumnHeader, HeaderRow, type Layout, rowHeight, stackedHeight, useListLayout, VirtualTable } from './table'
+import {
+  Cell,
+  ColumnHeader,
+  GridRow,
+  HeaderRow,
+  type Layout,
+  Parts,
+  rowHeight,
+  StackedRow,
+  stackedHeight,
+  useListLayout,
+  VirtualTable,
+} from './table'
 
 // A list with the newest rows on top holds still while it's scrolled down or paused, so reading isn't disturbed by
 // rows arriving at the top. The marker is whatever the list needs to tell the rows it held from the new ones.
@@ -77,6 +90,54 @@ export function HeldToolbar({
         <HoldButton hold={hold} unseen={unseen} />
       </ToolbarEnd>
     </Toolbar>
+  )
+}
+
+// A record's row: stacked, its time leads the details under its title; otherwise it leads the cells.
+export function HeldRow({
+  layout,
+  templates,
+  time,
+  selected,
+  dimmed,
+  title,
+  details,
+  cells,
+  onClick,
+}: {
+  layout: Layout
+  templates: Record<Exclude<Layout, 'stacked'>, string>
+  time: number
+  selected: boolean
+  dimmed?: boolean
+  title: ReactNode
+  details: ReactNode[]
+  cells: ReactNode
+  onClick: () => void
+}) {
+  if (layout === 'stacked') {
+    return (
+      <StackedRow
+        selected={selected}
+        dimmed={dimmed}
+        title={title}
+        meta={<Parts items={[formatPreciseTime(time), ...details]} />}
+        style={{ cursor: 'pointer' }}
+        onClick={onClick}
+      />
+    )
+  }
+  return (
+    <GridRow
+      template={templates[layout]}
+      selected={selected}
+      dimmed={dimmed}
+      style={{ cursor: 'pointer' }}
+      onClick={onClick}
+    >
+      <Cell title={formatFullPreciseTime(time)}>{formatPreciseTime(time)}</Cell>
+      {cells}
+    </GridRow>
   )
 }
 

@@ -75,14 +75,18 @@
   font-size: var(--font-size-1);
 }
 
-.chat-divider {
-  display: flex;
+.chat-divider,
+.chat-note {
   grid-column: 1 / -1;
-  gap: var(--space-3);
-  align-items: center;
   padding: var(--space-2) var(--space-4);
   color: var(--gray-11);
   font-size: var(--font-size-1);
+}
+
+.chat-divider {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
 }
 
 .chat-divider::before,
@@ -99,13 +103,6 @@
 .chat-divider[data-new]::before,
 .chat-divider[data-new]::after {
   border-color: var(--red-a6);
-}
-
-.chat-note {
-  grid-column: 1 / -1;
-  padding: var(--space-2) var(--space-4);
-  color: var(--gray-11);
-  font-size: var(--font-size-1);
 }
 
 .chat-jump {
