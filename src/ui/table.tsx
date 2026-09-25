@@ -8,6 +8,8 @@ import {
   type Key,
   type MouseEvent,
   type ReactNode,
+  type RefObject,
+  type UIEventHandler,
   useCallback,
   useLayoutEffect,
   useRef,
@@ -232,6 +234,8 @@ export function VirtualTable<T>({
   reveal,
   role,
   label,
+  scrollRef: externalRef,
+  onScroll,
 }: {
   minWidth: number
   header?: ReactNode
@@ -242,8 +246,11 @@ export function VirtualTable<T>({
   reveal?: { key: unknown; index: number }
   role?: string
   label?: string
+  scrollRef?: RefObject<HTMLDivElement | null>
+  onScroll?: UIEventHandler<HTMLDivElement>
 }) {
-  const scrollRef = useRef<HTMLDivElement>(null)
+  const ownRef = useRef<HTMLDivElement>(null)
+  const scrollRef = externalRef ?? ownRef
   const headHeight = header === undefined ? 0 : columnsHeight
   const getItemKey = useCallback(
     (index: number) => {
@@ -266,7 +273,7 @@ export function VirtualTable<T>({
     if (reveal !== undefined && reveal.index >= 0) virtualizer.scrollToIndex(reveal.index, { align: 'auto' })
   }, [reveal?.key, found]) // oxlint-disable-line react-hooks/exhaustive-deps
   return (
-    <div ref={scrollRef} className="table-scroll" role={role} aria-label={label}>
+    <div ref={scrollRef} className="table-scroll" role={role} aria-label={label} onScroll={onScroll}>
       {header !== undefined && (
         <div className="table-head" style={{ minWidth, height: columnsHeight }}>
           {header}
