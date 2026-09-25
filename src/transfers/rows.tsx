@@ -115,7 +115,11 @@ export const FileRow = memo(function FileRow({
         indent
         selected={selected}
         check={check}
-        title={<Text size="2">{file.name}</Text>}
+        title={
+          <Text size="2" truncate>
+            {file.name}
+          </Text>
+        }
         meta={<Parts items={[status, size, speed, time > 0 && <Ago key="time" time={time} />]} />}
         actions={actions}
         onClick={(event) => onSelect(file.id, event.shiftKey)}
