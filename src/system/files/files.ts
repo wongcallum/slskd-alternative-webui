@@ -168,10 +168,16 @@ export type Target = {
 // Paths are "Downloads/…", so the first segment names the root. Anything inside a selected folder goes with it.
 export function targetsOf(items: readonly Item[]): Target[] {
   const targets: Target[] = []
-  const paths = items.map((item) => (item.kind === 'folder' ? item.path : item.filename))
-  items.forEach((item, index) => {
-    const path = paths[index] ?? ''
-    if (paths.some((other, at) => at !== index && items[at]?.kind === 'folder' && path.startsWith(`${other}/`))) return
+  const folders = new Set(items.flatMap((item) => (item.kind === 'folder' ? [item.path] : [])))
+  const inSelectedFolder = (path: string) => {
+    for (let at = path.lastIndexOf('/'); at > 0; at = path.lastIndexOf('/', at - 1)) {
+      if (folders.has(path.slice(0, at))) return true
+    }
+    return false
+  }
+  items.forEach((item) => {
+    const path = item.kind === 'folder' ? item.path : item.filename
+    if (inSelectedFolder(path)) return
     const cut = path.indexOf('/')
     const root = roots.find(({ name }) => name === path.slice(0, cut))
     if (root === undefined || cut < 0) return
