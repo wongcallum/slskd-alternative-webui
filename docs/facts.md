@@ -187,10 +187,11 @@ Error bodies are JSON strings. Encode the username segment with `encodeURICompon
   `user {username, privileges, statistics}`, `distributedNetwork`,
   `shares {scanPending, scanning, ready, faulted, cancelled, scanProgress, hosts, directories, files}`, `rooms` and
   `users`. `users` is never populated.
-- `user.username` is updated on every Soulseek client state change. `pendingReconnect` is set when an option
-  that needs a reconnect changes while connected, and any disconnect clears it. `pendingRestart` stays set
-  until a restart. `version.latest` and `isUpdateAvailable` stay null on dev and canary builds and with
-  `no_version_check`.
+- `user.username` is updated on every Soulseek client state change. It's null until the first login and again after
+  every disconnect, since Soulseek.NET clears its `Username` as it disconnects (`SoulseekClient.cs`).
+  `pendingReconnect` is set when an option that needs a reconnect changes while connected, and any disconnect clears
+  it. `pendingRestart` stays set until a restart. `version.latest` and `isUpdateAvailable` stay null on dev and
+  canary builds and with `no_version_check`.
 - `OPTIONS` is the whole options object with every secret replaced by `"*****"`. It's pushed on connect and
   after each options change that actually differs.
 - Other shapes: `user.statistics {averageSpeed, directoryCount, fileCount, uploadCount}` (as the server reports
