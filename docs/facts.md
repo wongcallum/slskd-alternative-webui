@@ -39,6 +39,10 @@ Paths below are relative to `Transfers/` unless they start with another director
   `id, batchId?, username, direction, filename (full remote path), size, state, requestedAt, enqueuedAt?, startedAt?, endedAt?, bytesTransferred, averageSpeed, placeInQueue?, exception?, attempts, nextAttemptAt?, removed`,
   plus the computed `bytesRemaining, percentComplete, elapsedTime?, remainingTime?` (`Types/Transfer.cs`).
   - Sizes are bytes, `averageSpeed` is bytes per second, and `percentComplete` runs from 0 to 100.
+  - `averageSpeed` comes from Soulseek.NET 10.0.2 (`TransferInternal.cs`): an exponential moving average (α 0.2) of
+    1 s samples. It's 0 for a transfer's first second and is replaced by bytes ÷ duration once every byte is in. So
+    it underreads short transfers while they run: over a batch of 3–5 s files, the running rows' summed
+    `averageSpeed` showed 18% of the bytes actually moved (measured).
   - `elapsedTime` and `remainingTime` are .NET TimeSpans (`"00:00:03.6311109"`). `elapsedTime` is measured
     against the server's clock, so a running transfer's record changes on every poll.
   - **`requestedAt` and `enqueuedAt` are UTC but serialised without the `Z`**, while `startedAt` and
@@ -299,6 +303,33 @@ observed on throwaway instances of the dev build and the 0.25.1 and 0.26.0 relea
   up about 10 s later, once every file was `Queued, Remotely`. While files downloaded it ran 1–4 below the list,
   and `inProgress.files` dipped to -2. Each file was `InProgress` for only a few seconds, so `inProgress.files`
   mostly read 0. While nothing moved, the two matched exactly.
+- Observed against the list's `InProgress` rows at the same moments, `inProgress.files` disagreed in 19–30% of samples.
+  A peer stuck in `Initializing` counts, and when that attempt fails the decrement takes the gauge to 0 while another
+  file runs, or to −3 in a batch. `users` is only set at recounts, and `queued.files` reached −1.
+
+### Speeds
+
+- `inProgress.totalSpeed` is an exponential moving average (factor 0.5) of the in-progress transfers' summed
+  `averageSpeed` (see [Records](#records)), fed only at each recount and reset to 0 by one that finds none running.
+  `inProgress.averageSpeed` is the same over their mean, but each running transfer also feeds it its own speed about
+  once a second between recounts (`Telemetry/Metrics.cs`, `Transfers/Downloads/DownloadService.cs`,
+  `Transfers/Uploads/UploadService.cs`). Both are bytes per second. Stock's footer shows `averageSpeed`.
+- Measured with real downloads, as a share of the bytes the files actually moved:
+
+  | Downloads                                  | `totalSpeed` | `averageSpeed` | The higher of the two |
+  | ------------------------------------------ | ------------ | -------------- | --------------------- |
+  | One 32 MiB file over 128 s                 | 92%          | 98%            | 102%                  |
+  | Two users at once                          | 83%          | 75%            | 88%                   |
+  | Six 4–6 MB files from one user, 3–5 s each | 9%           | 26%            | 26%                   |
+
+- **`totalSpeed` misses short files**, because it only sees files running at a recount and past their first second.
+  It read 0 in 22 of 24 samples while one of the six files was downloading, and never registered files of 2–3 s.
+- `totalSpeed` climbs in 5 s steps, taking 15–20 s to reach a steady rate, and holds its last value until the recount
+  after the last transfer ends. When one of two transfers ends it halves the excess every 5 s, overstating for about
+  20 s.
+- With two transfers, `averageSpeed` swings between their two speeds rather than following the mean.
+- `completed.bytes` only rises as a file completes. A rate from it was right over the six short files (91%) but reads
+  0 through a long one.
 
 ## Logs
 
@@ -651,6 +682,8 @@ dashboard yet.
   with `Cache-Control: no-cache`.
 - A dynamic `import()` becomes its own chunk in `static/`, and loads from beside the main chunk, so it follows the url
   base with nothing rewritten (observed: `/slskd/static/YamlEditor-….js`).
+- An inline classic `<script>` in `index.html` survives both: Vite 8's build only scans it for `import()`, and slskd
+  serves it unchanged (observed). slskd sends no `Content-Security-Policy`.
 - A non-root `url_base` is additive: slskd answers at both `/api/...` and `/slskd/api/...`. At root,
   `GET /slskd/api/...` returns the SPA HTML with a 200 (other methods get 404), so a hardcoded path can hide.
 
@@ -969,7 +1002,8 @@ Paths are relative to `slskd/src/web/src`.
   `events`, `logs`). Everything else, `/` included, redirects to `/dashboard`. Browse and users take their
   user from router state or localStorage, not the URL.
 - The nav's connection item disconnects on a single click with no confirmation, and connects on a click while
-  disconnected. There are no count badges; the footer shows transfer counts from the metrics hub.
+  disconnected. There are no count badges; the footer shows transfer counts and `inProgress.averageSpeed` from the
+  metrics hub.
 - Theme: localStorage `slskd-theme` (`dark`/`light`), falling back to `prefers-color-scheme`. It never sets
   `document.title`.
 - System (`components/System/`): `/system` redirects to `/system/info`, and every tab is always shown.
@@ -1171,6 +1205,11 @@ Checked against the `@radix-ui/themes` 3.3.0 package source.
 - An explicit appearance puts `light`/`dark` on the `Theme` element and sets `color-scheme` on `:root` through
   `:has([data-is-root-theme='true'])`, so only once React has rendered. Portalled content (menus, tooltips,
   popovers, dialogs) is wrapped in a nested `Theme` and inherits the appearance.
+  - That rule is `:root:where(:has(...))`, so it outranks `<meta name="color-scheme">`, which only applies while the
+    root's `color-scheme` is `normal`. Observed: with the meta rewritten to `light`, picking dark made the root dark.
+    An inline style on `<html>` would outrank the rule instead.
+  - The root `Theme` keeps `appearance` in state and copies a changed prop over in a `useEffect`, so the first render
+    uses the prop as given and a change lands one render later (`components/theme.js`).
 - `TabNav.Link asChild active` is the documented way to render router links. `active` sets `data-active` and
   `aria-current="page"`. The child's children are wrapped in inner spans and **the label renders twice** (once
   hidden, to reserve its bold width), so keep stateful components and `id`s out of it. A `Badge` inside works
@@ -1181,7 +1220,9 @@ Checked against the `@radix-ui/themes` 3.3.0 package source.
 - `SegmentedControl.Item` always passes `disabled: false`, so an item can't be disabled, and its label renders twice
   like `TabNav.Link`'s. **A `Tooltip` around an item breaks the selection**: the trigger's own `data-state` replaces
   the item's `on`, so no item looks selected (observed). The tooltip has to go inside.
-- A `DropdownMenu.CheckboxItem` closes the menu when toggled unless its `onSelect` calls `preventDefault()`.
+- A `DropdownMenu.CheckboxItem` or `RadioItem` closes the menu when picked unless its `onSelect` calls
+  `preventDefault()`. A radio item still changes the value then (`@radix-ui/react-menu` 2.1.24 runs its own handler
+  with `checkForDefaultPrevented: false`).
 - next-themes 0.4.6, which the Radix docs recommend, is mostly unmaintained. Its anti-flash script does nothing
   when rendered client-side only (React 19 doesn't run rendered `<script>`s) and logs a warning in dev.
 
@@ -1291,7 +1332,9 @@ Checked against `@codemirror/view` 6.43.13, `lang-yaml` 6.1.3, `lint` 6.9.7 and 
 - `lang-yaml` tags keys `definition(propertyName)`, quoted strings `string` and every unquoted value `content`, so
   numbers and booleans can't be coloured apart from plain strings.
 - `setDiagnostics` sets lint results from outside the editor, with no `linter` source.
-- `EditorView.theme` takes CSS variables, so the editor can use Radix's tokens.
+- `EditorView.theme` takes CSS variables, so the editor can use Radix's tokens. Its `dark` option only adds
+  `EditorView.darkTheme.of(true)`, which picks the base themes' `&dark` rules over `&light`. That facet in a
+  `Compartment` switches them in an open editor (observed).
 - The editor, the YAML mode, lint and search come to about 123 kB gzipped.
 
 ## filesize
