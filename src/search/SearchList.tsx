@@ -108,7 +108,13 @@ type SearchRowProps = {
 }
 
 const SearchRow = memo(function SearchRow({ search, layout, selected, pending, gate, onSelect }: SearchRowProps) {
-  const check = <CheckCell selected={selected} onToggle={(shiftKey) => onSelect(search.id, shiftKey)} />
+  const check = (
+    <CheckCell
+      label={`Select ${search.text}`}
+      selected={selected}
+      onToggle={(shiftKey) => onSelect(search.id, shiftKey)}
+    />
+  )
   const state = (
     <>
       <SearchState search={search} size={layout === 'stacked' ? '1' : '2'} />

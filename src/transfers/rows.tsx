@@ -92,7 +92,9 @@ export const FileRow = memo(function FileRow({
       ? formatProgress(file.bytesTransferred, file.size)
       : formatBytes(file.size)
   const speed = section === 'active' && isTransferring(file.state) ? formatSpeed(file.averageSpeed) : undefined
-  const check = <CheckCell selected={selected} onToggle={(shiftKey) => onSelect(file.id, shiftKey)} />
+  const check = (
+    <CheckCell label={`Select ${file.name}`} selected={selected} onToggle={(shiftKey) => onSelect(file.id, shiftKey)} />
+  )
   const actions = (
     <>
       {direction === 'download' && isRetryable(file.state) && (
@@ -272,7 +274,12 @@ export const GroupRow = memo(function GroupRow({
       : formatBytes(group.size)
   const speed = section === 'active' && group.speed > 0 ? formatSpeed(group.speed) : undefined
   const check = (
-    <CheckCell selected={selected} partial={partial} onToggle={(shiftKey) => onSelect(group.id, shiftKey)} />
+    <CheckCell
+      label={`Select ${group.name}`}
+      selected={selected}
+      partial={partial}
+      onToggle={(shiftKey) => onSelect(group.id, shiftKey)}
+    />
   )
   const actions = (
     <>
