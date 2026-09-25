@@ -265,6 +265,11 @@ Paths below are relative to `Search/` unless they start with another directory. 
   - The optional attributes are omitted when the peer didn't send them. `length` is seconds, `bitRate` kbps, and
     `sampleRate` the peer's raw value (Hz in practice). `uploadSpeed` is the peer's raw number, which stock
     shows as bytes per second.
+  - Observed across 2,280 real result files from 37 users (the dev account's stored searches):
+    - 1,536 files were lossless (bit depth and sample rate), but only 112 of those had a `bitRate`.
+    - 125 had no attributes at all: mostly jpg, txt and nfo, but also 31 mp3 and 2 flac from peers that send none.
+    - 311 of the 731 files with a `bitRate` had no `isVariableBitRate`.
+    - Every file had either a quality attribute and a `length`, or neither.
   - Results aren't checked against the blacklist.
 
 ### Endpoints
@@ -375,7 +380,8 @@ Paths are relative to `../slskd/src/web/src`.
 
 ### Search filter syntax
 
-Stock's result filter (`lib/searches.js:40-190`), which is what phase 5's follow-up ports:
+Stock's result filter (`lib/searches.js:40-190`). We replaced it with a Filters popover (see the plan's Search
+section):
 
 - The text is lowercased and split on single spaces. Numeric tokens are found anywhere in the text, with no word
   boundary, and only the first match counts:

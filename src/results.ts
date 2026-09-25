@@ -59,6 +59,7 @@ export type ResultGroup = {
   name: string
   files: ResultFile[]
   matched: number
+  total: number
   size: number
   length: number
   quality: number
@@ -84,12 +85,14 @@ function folderName(directory: string) {
   return last <= 0 ? directory : directory.slice(lastSeparator(directory, last - 1) + 1)
 }
 
-const lossless = 100_000
-
 // Lossless ranks above any bitrate, by depth and then sample rate. A file without attributes ranks lowest.
+export const losslessQuality = (bitDepth: number, sampleRate = 0) => 100_000 + bitDepth * 1000 + sampleRate / 1000
+
+const lossless = losslessQuality(0)
+
 function qualityOf(file: RawFile): [number, string] {
   if (file.bitDepth && file.sampleRate) {
-    return [lossless + file.bitDepth * 1000 + file.sampleRate / 1000, `${file.bitDepth}/${file.sampleRate / 1000} kHz`]
+    return [losslessQuality(file.bitDepth, file.sampleRate), `${file.bitDepth}/${file.sampleRate / 1000} kHz`]
   }
   if (file.bitRate) return [file.bitRate, `${file.bitRate} kbps${file.isVariableBitRate ? ' VBR' : ''}`]
   return [-1, '']
@@ -135,7 +138,7 @@ function toFile(raw: RawFile, peer: Peer, locked: boolean, matched: boolean): Re
   }
 }
 
-function buildGroup(id: string, peer: Peer, directory: string, files: ResultFile[]): ResultGroup {
+function buildGroup(id: string, peer: Peer, directory: string, files: ResultFile[], total = files.length): ResultGroup {
   let size = 0
   let length = 0
   let matched = 0
@@ -154,6 +157,7 @@ function buildGroup(id: string, peer: Peer, directory: string, files: ResultFile
     name: folderName(directory),
     files,
     matched,
+    total,
     size,
     length,
     quality,
@@ -219,23 +223,65 @@ function toResults(responses: RawResponse[]): Results {
 
 export type FolderFetch = { pending: boolean; files?: ResultFile[]; error?: string; at?: number }
 
-export type ResultFilter = { query: string; locked: boolean; free: boolean }
+// Quality is a floor on the quality ranking, size is in bytes and length in seconds. Zero turns a criterion off.
+export type ResultFilter = {
+  query: string
+  locked: boolean
+  free: boolean
+  quality: number
+  size: number
+  length: number
+  files: number
+}
 
+export const unfiltered = { query: '', free: false, quality: 0, size: 0, length: 0, files: 0 }
+
+const hasAttributes = (file: ResultFile) => file.quality >= 0 || file.length !== undefined
+
+const countAttributed = (files: ResultFile[]) => files.reduce((count, file) => count + (hasAttributes(file) ? 1 : 0), 0)
+
+function parseQuery(query: string) {
+  const include: string[] = []
+  const exclude: string[] = []
+  for (const term of query.toLowerCase().split(/\s+/)) {
+    if (!term.startsWith('-')) {
+      if (term !== '') include.push(term)
+    } else if (term.length > 1) exclude.push(term.slice(1))
+  }
+  return { include, exclude }
+}
+
+// Criteria judge files with attributes. Files without them, such as cover art, ride along while their folder still
+// shows a file that has them. Fetched files bypass the filter but count towards the folder's minimum.
 // Groups whose files all pass keep their identity, so TanStack reuses what it can.
 export function viewGroups(results: Results, folders: ReadonlyMap<string, FolderFetch>, filter: ResultFilter) {
   const base = filter.locked ? results.all : results.unlocked
-  const needle = filter.query.toLowerCase()
-  if (needle === '' && !filter.free && folders.size === 0) return base
+  const { include, exclude } = parseQuery(filter.query)
+  const searching = include.length + exclude.length > 0
+  const judging = filter.quality > 0 || filter.size > 0 || filter.length > 0
+  if (!searching && !judging && filter.files === 0 && !filter.free && folders.size === 0) return base
+  const matches = (file: ResultFile) =>
+    include.every((term) => file.search.includes(term)) && !exclude.some((term) => file.search.includes(term))
+  const passes = (file: ResultFile) =>
+    !hasAttributes(file) ||
+    ((filter.quality === 0 || file.quality >= filter.quality) &&
+      file.size >= filter.size &&
+      (file.length ?? 0) >= filter.length)
   const view: ResultGroup[] = []
   for (const group of base) {
     if (filter.free && !group.peer.free) continue
-    const files = needle === '' ? group.files : group.files.filter((file) => file.search.includes(needle))
     const extras = folders.get(group.id)?.files ?? []
+    let files = searching ? group.files.filter(matches) : group.files
+    if (judging) {
+      files = files.filter(passes)
+      if (countAttributed(files) + countAttributed(extras) === 0) files = []
+    }
     if (files.length + extras.length === 0) continue
+    if (filter.files > 0 && countAttributed(files) + countAttributed(extras) < filter.files) continue
     if (extras.length === 0 && files.length === group.files.length) view.push(group)
     else {
       const merged = extras.length === 0 ? files : [...files, ...extras].sort(byName)
-      view.push(buildGroup(group.id, group.peer, group.directory, merged))
+      view.push(buildGroup(group.id, group.peer, group.directory, merged, group.files.length + extras.length))
     }
   }
   return view

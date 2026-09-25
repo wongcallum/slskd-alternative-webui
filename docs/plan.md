@@ -47,8 +47,8 @@ Icons. Each dependency is added in the phase that first uses it.
 
 ### Storage
 
-- We share an origin with stock, so everything we persist is prefixed `slskd-alt`: the localStorage key
-  `slskd-alt-token`, and the IndexedDB database `slskd-alt`.
+- We share an origin with stock, so everything we persist is prefixed `slskd-alt`: the localStorage keys
+  `slskd-alt-token` and `slskd-alt-result-filters`, and the IndexedDB database `slskd-alt`.
 
 ### Live store
 
@@ -251,15 +251,32 @@ Downloads and Uploads are one page component, parameterised by direction.
   ranks above lossy, and a file with no attributes ranks lowest. Queue reads "free" for a free upload slot,
   otherwise the queue length, and sorts a free slot first whatever the queue length says. The default order is
   Queue, then fastest, then folder name.
-- **URL.** `q` (a case-insensitive substring of user + full path), `sort`, `locked=show` and `free=only`. Locked
-  files are hidden by default, and when shown they're dimmed and can't be selected.
+- **Filtering.** The text box ANDs whitespace-separated terms, each a case-insensitive substring of user + full
+  path, and `-term` excludes, as in the search box. Everything else is in a Filters popover whose button counts
+  the active ones:
+  - quality at least: Any, 128–320 kbps, Lossless or 24-bit lossless, on the Quality ranking
+  - min file size (MiB), min length (minutes) and min files per folder, as number fields
+  - Free slot only
+
+  Stock packs these criteria into the text box as a syntax (see the facts). We dropped it, because its keywords
+  collide with path text and can't be discovered. Criteria judge files that have attributes. Files without
+  attributes (cover art, logs, and everything from peers that send none) ride along while their folder still shows
+  a file that has them: a quality filter keeps an album's cover but hides a folder of attribute-less mp3s. Min
+  files counts a folder · user group's shown files that have attributes. A group that lost files to the filter
+  reads "10 of 12" in Files, so a partial album never looks whole.
+- **URL.** `q`, `sort`, `locked=show`, and the popover's `quality`, `size`, `length`, `files` and `free=only`. Locked
+  files are hidden by default, and when shown they're dimmed and can't be selected. The popover's values are saved
+  to localStorage whenever they change. A results page opened with none of them in its URL gets the saved values
+  written in, replacing the history entry, so a quality preference carries over. Clear resets them and forgets the
+  saved values.
 - **Downloading.** Select anything, then press Download N (size). It sends one `POST transfers/downloads/batches` per
   user, carrying `searchId`, one POST at a time, with the same 429 resend as retry. It's gated on Soulseek. The action
   runs at module level, per search, and leaves an outcome line reporting each user's failures. Rows show Enqueued or
   Failed from the responses, and their own Download buttons wait while one runs. We never read the downloads list
   here.
 - **Get full folder** sends `POST users/{u}/directory` on click. The folder's other files join its group marked "not
-  matched". They bypass the filter, and they're kept with the search's cached results. A failure shows on the group row.
+  matched". They bypass the filter but count towards min files, and they're kept with the search's cached results. A
+  failure shows on the group row.
 
 ### Health
 
@@ -351,15 +368,16 @@ Downloads and Uploads are one page component, parameterised by direction.
    - Parsing and grouping is a one-off long task of about 200 ms, and sorts take 60–120 ms.
    - Scrolling in 1,500 px jumps went from 28 long tasks in 30 jumps to 0–4 once rows got `contain: strict`.
 
-   **Next, in a new session:** stock's filter syntax (see the facts) replaces the plain filter, still in `q`.
-   Open questions:
-   - whether tokens must be whole terms (stock finds `minbr:` anywhere), and what an unknown `foo:bar` does
-   - whether terms keep matching the username, as the plain filter does, so `-someuser` hides a user
-   - whether `minfif:` counts per folder · user rather than per response
-   - whether files missing an attribute pass numeric minimums, as in stock
-   - human units such as `minfs:10MiB` and `minlen:3:30`
-   - whether to add quoted phrases or OR, which stock lacks
-   - whether Locked and Free slot only become tokens
+   The Filters popover then replaced the plain filter (see [Search](#search)). We checked it in headless Chromium
+   against `pnpm dev`, on the dev account's stored results:
+   - ten combinations of terms and criteria, each matching an independent implementation of the rules over the
+     same responses
+   - cover art riding along with a 320 album that it drops out of under Lossless, and "N of M" on partial folders
+   - fast typing in the text box and the number fields, including the "3." on the way to "3.5"
+   - remembered filters written into a newly opened results page without adding a history entry, Clear forgetting
+     them, and invalid params stripped
+
+   Filters combined with Get full folder went untested, because fetching a folder needs Soulseek.
 6. **Browse.** A tree pane plus a folder grid, with subfolders listed at the top of the grid, ↵ to go in and
    ⌫ to go up, and a filter that flattens to matching files across the whole share. Share trees are
    cached in the `slskd-alt` IndexedDB database, and each shows when it was fetched. Search results' group rows
