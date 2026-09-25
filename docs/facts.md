@@ -244,10 +244,15 @@ observed on throwaway instances of the dev build and the 0.25.1 and 0.26.0 relea
   `no_config_watch` is on. Only a new process clears it. Observed: editing `instance_name` in the YAML set it.
 - `pendingReconnect` is set when the Soulseek address, port, username or password changes while connected, and any
   disconnect clears it.
-- `shares.scanPending` is set when `shares.directories` or `shares.filters` change, or when a scan faults or is
-  cancelled, and a successful scan clears it. Observed: adding a directory in the YAML set it and a rescan cleared it.
-- `PUT /shares` rescans and always returns 200. Its 409 for a scan in progress can't happen, because the exception
-  lands in the returned task (`Shares/ShareService.cs`). `DELETE /shares` cancels (204, or 404 when none runs).
+- `shares.scanPending` is set when `shares.directories` or `shares.filters` change, or when a scan faults, and a
+  scan that ends any other way clears it, **a cancelled one included** (see [Scanning](#scanning)). Observed: adding a
+  directory in the YAML set it and a rescan cleared it.
+  - Changes are compared as sets, so reordering the entries or adding a duplicate doesn't set it.
+  - While a scan runs it comes from the share service's own flag, which never sees config changes. Observed: false
+    during the rescan after a config change, true during the rescan after a cancel.
+- `PUT /shares` rescans and always returns 200, even while a scan runs (observed). Its 409 for a scan in progress can't
+  happen, because the exception lands in the returned task (`Shares/ShareService.cs`). `DELETE /shares` cancels (204,
+  or 404 when none runs).
 
 ### Privileges
 
@@ -321,6 +326,150 @@ observed on throwaway instances of the dev build and the 0.25.1 and 0.26.0 relea
   (ASP.NET Core's `HubConnectionHandler.cs`). Not observed. Every reconnect sends the whole buffer again.
 - Pushes can be frequent. Observed: 54 a second on the dev instance while logged in to Soulseek with no share scan,
   each one a `no such table: filenames` warning with a 7-line stack trace (see [Endpoints](#endpoints-1) under Search).
+
+## Shares
+
+Paths are relative to `Shares/` unless they start with another directory. Scans were observed on a throwaway instance
+of the dev build sharing up to 64k files.
+
+### Configuration
+
+- Shares come from `shares.directories` (YAML), `-s`/`--shared` (repeatable) or `SLSKD_SHARED_DIR` (split on `;`), and
+  filters from `shares.filters`, `--share-filter` or `SLSKD_SHARE_FILTER`. No endpoint adds or removes one:
+  `PATCH /options` only takes the Soulseek listen address and port, so a UI can change them only through
+  `PUT /options/yaml`, with `remote_configuration` on.
+- An entry is an absolute path, optionally prefixed with `[Alias]`; otherwise the alias is the last segment. A leading
+  `-` or `!` makes it an exclusion. Aliases must be unique (case-sensitive, exclusions included) and contain no
+  separator, and a path can't have two aliases (`Core/Options.cs`).
+- Filters are regexes, case-insensitive unless `flags.case_sensitive_regex` is set, tested against the full local path
+  of every directory and file.
+- `directories` and `filters` apply without a restart (unless `no_config_watch`). `cache.storage_mode` (`memory` by
+  default, or `disk`) and `cache.workers` need one.
+
+### Endpoints
+
+Everything is in `API/Controllers/SharesController.cs`, takes a JWT or any API key with no role check, and works in
+relay agent mode.
+
+- `GET /shares` returns `{"local": Share[], "<agent>": Share[]}`, keyed by host, with the exclusions and the longest
+  `localPath` first. A Share is `{id, alias, isExcluded, localPath, raw, remotePath, directories?, files?}`
+  (`Types/Share.cs`).
+  - `remotePath` always equals `alias`, and `id` is its SHA1 in uppercase hex, so an id belongs to an alias rather
+    than a path. `GET /shares/{id}` matches it case-sensitively.
+  - `raw` is the config entry, prefix included, without a trailing `/`.
+  - The counts are absent until a scan or startup computes them, and **any change to `shares.directories` rebuilds
+    every share without them**, a reorder included (observed). An exclusion counts 0 and 0, and `directories`
+    leaves out the share's own root.
+- `GET /shares/contents` returns everything shared as `[{name, fileCount, files}]`, one entry per directory, in the
+  shape of a browse response: `name` is the remote path joined with `\` (`Music\Album`), and files have bare
+  `filename`s and the same attributes, read with TagLib for audio and video only.
+  - It's read from the share database and built in memory on each call, with no pagination or compression. Observed:
+    2.47 MB for 24k tiny files, in 0.9 s. A FLAC costs about 300 B.
+  - Directories come in no particular order, with their files sorted. A directory without files, such as one
+    holding only folders, is listed with `files: []`.
+  - Before any scan has created the database it's a 500: `"SQLite Error 1: 'no such table: directories'."`
+    (observed on dev).
+- `GET /shares/{id}/contents` filters the same list with `LIKE '<remotePath>\%'`, so aliases that differ only by case,
+  or where `_` matches another character, merge (from the source). It leaves out the share's root unless that holds
+  files, and gives `[]` for an exclusion or an unscanned share.
+- `PUT /shares` scans and `DELETE /shares` cancels (see [Pending states](#pending-states)).
+- A file belongs to the deepest share containing it, so a nested share's contents appear only under its own alias.
+  Hidden files, dot-directories, system files and symlinks aren't shared, and neither are filtered or excluded paths,
+  which are counted only in the log. A share whose path doesn't exist logs a warning and counts 0 (observed).
+
+### Scanning
+
+- At startup, unless `no_share_scan` is set, slskd restores the last scan's database (from the `shares.local.bak.db`
+  backup in memory mode). It scans if there's none, the last one never ended, it was marked suspect, or the share
+  options changed since. `force_share_scan` always scans. Connecting to Soulseek waits for that scan, while HTTP is
+  already up. With `cache.retention` (minutes, at least 60) it rescans once the last good scan is older.
+- With `no_share_scan`, nothing is restored and `ready` stays false, so contents are a 500 until a `PUT /shares`, which
+  still works (observed).
+- **A scan updates the live database in place.** During a scan, contents are the old data plus what's been scanned so
+  far (observed growing from 8k to 23k directories). Stale rows are pruned at the end, and then the search index is
+  rebuilt, so incoming searches use the old index throughout. Peers browsing us get `browse.cache`, which is rebuilt
+  when `ready` turns true.
+- `STATE.shares` during a scan (observed):
+  - At the start, `scanning: true` and `ready: false`, and `directories` and `files` drop to 0.
+  - Then `directories` is how many directories will be scanned, `files` how many files have been scanned so far, and
+    `scanProgress` runs from 0 to 1. A push goes out only when the rounded percentage changes, about 100 per scan, so
+    other changes wait for the next step.
+  - At the end, `scanning: false` and then `scanPending: false`, and 200–400 ms later `ready: true` with the totals.
+    The counts in `GET /shares` change only then.
+- **A cancelled scan leaves a stale search index and counts as a success.**
+  - The scan stops only once its directory walk has finished.
+  - Nothing is pruned and the index isn't rebuilt. Observed: 64,001 files could be browsed and 24,001 searched.
+  - Then `ready` turns true and `browse.cache` is rebuilt from the partial data. `cancelled` is set and `scanPending`
+    cleared, and after a restart the partial scan counts as good. Only `cancelled` shows what happened, until the
+    next scan or restart.
+- A faulted scan keeps `scanPending` and leaves `ready` false (from the source).
+- Removing a share takes it off `GET /shares` at once, but its files stay in contents, search and `browse.cache` until
+  a rescan (observed).
+- A peer asking for a file that's gone or changed size marks the last scan suspect
+  (`Transfers/Uploads/UploadService.cs`). That makes the next startup rescan, but it never reaches `STATE`.
+- `STATE.shares.hosts` lists `local` and each relay agent, and stays null with `no_share_scan`. Nothing exposes scan
+  history or when the last scan ran.
+
+## Files
+
+Paths are relative to `Files/` unless they start with another directory. Deleting, symlinks and a big directory were
+checked on a throwaway instance of the dev build.
+
+### Endpoints
+
+Everything is in `API/FilesController.cs` and `FileService.cs`, takes a JWT or any API key with no role check, and works
+in relay agent mode.
+
+- `GET /files/{downloads|incomplete}/directories` lists that directory, and `.../directories/{path}` a folder in it.
+  `DELETE .../directories/{path}` deletes a folder with everything in it, and `DELETE .../files/{path}` a file.
+- **`{path}` is standard base64 of the UTF-8 path relative to the root**, padding included.
+  - `+` works raw or as `%2B`. **A `/` in the base64 can't be sent**: raw it splits the route, and `%2F` reaches the
+    decoder undecoded (a 500).
+  - The path is normalised first, so `./a`, `a//b` and `a/./b` mean `a` and `a/b`, and inserting them shifts the
+    encoding. Some names encode with a `/` at every shift, like `Who Are You???.flac`. Observed: it could be listed with
+    its folder but not deleted on its own.
+- A listing is `{name, fullName, attributes, createdAt, modifiedAt, files, directories}`. Files are
+  `{name, fullName, length, attributes, createdAt, modifiedAt}`, and child directories have no `files`, `directories`
+  or `length`.
+  - **`fullName` is relative to the folder asked for**, and a root's own `name` is its basename.
+  - `attributes` is a flags string (`"Hidden, Directory"`, `"Directory, ReparsePoint"`).
+  - Times are UTC. On Linux `createdAt` equals `modifiedAt` (observed).
+  - Entries come in filesystem order.
+- A listing is one level deep by default. `?recursive=true` (only `true` and `false` parse) flattens every descendant
+  into the top-level arrays, level by level, with `fullName`s like `a/b/c.flac`. There's no paging or compression.
+  Observed: 10k files in 400 folders was 2.3 MB in 0.15 s, about 230 B a file.
+- **What a listing includes:**
+  - System-attribute entries are skipped, but dotfiles are listed as `Hidden`.
+  - A recursive listing follows directory symlinks, even outside the roots. A loop only stops when the OS gives up,
+    at about 40 levels. Observed: 8 files became 358 KB.
+  - A symlinked file's `length` is the length of the link's target path, and a broken link lists as a file.
+  - Unreadable folders are skipped.
+- **Errors:**
+  - A missing folder, or a file where a folder was expected, is an empty 404.
+  - Anything else is a 500 with a JSON string. That includes a path outside the roots and bad base64.
+  - The check is on the resolved path, so either root's endpoint reaches the other through `..` (observed).
+  - A trailing `/` in a configured directory makes everything below that root a 500.
+
+### Deleting
+
+- **Deleting needs `remote_file_management`** (`SLSKD_REMOTE_FILE_MANAGEMENT`, `--remote-file-management`), which is
+  off by default. Without it every DELETE is an empty 403, before the path is read.
+  - It's read on each request, so a change applies without a restart.
+  - It can't be set through `PATCH /options`.
+- `remoteFileManagement` and `directories.{downloads,incomplete}` aren't redacted in `GET /options` or `OPTIONS`, which
+  is pushed again when they change (observed).
+- A root can't be deleted (a 500). Deleting a folder removes symlinks rather than their targets, and leaves emptied
+  parents behind. Every request deletes one path.
+- Deleting a missing file is a 204 when its folder exists and a 500 when it doesn't. Deleting a missing folder is a 404.
+- On Linux, deleting a file slskd is still downloading succeeds. From the source, the download keeps writing to the
+  deleted file, fails to move it at the end, and most likely ends `Completed, Succeeded` with no file anywhere
+  (`Transfers/Downloads/DownloadService.cs`).
+- Transfer records hold no local path, so deleting finished files changes nothing in the transfer lists.
+- `retention.files.{complete,incomplete}` (minutes, at least 30) deletes files by modification time every 30 minutes,
+  skipping hidden ones, whatever `remote_file_management` says (`Application.cs`).
+- After a download is moved, only its innermost folder in incomplete is removed, and only if it's empty, so
+  `<username>/…` folders pile up. On dev, 13 of the 49 folders in incomplete held no files.
+- Nothing serves a file's contents to a browser.
 
 ## Telemetry reports
 
@@ -728,6 +877,19 @@ Paths are relative to `slskd/src/web/src`.
     after about 32 s of retries it asks for a refresh.
   - Logs keeps the newest 500 records, newest first, and each `BUFFER` replaces them. It shows the time (`HH:mm:ss` in
     the browser's time zone), the level and the message, with no source and no filter, and keys rows by timestamp.
+  - Shares has two tables: the shares (host, local path, directories, files, alias, remote path), and the excluded
+    paths. While a scan runs, both are replaced by a loader with the percentage.
+    - Rescan turns yellow while `scanPending`, and Cancel replaces it during a scan. `cancelled`, `faulted`, the
+      filters and the hosts are never shown.
+    - It fetches `GET /shares` on mount and whenever `scanPending` or `scanning` changes.
+    - A share's contents open in a modal as plain text, with no error handling. Names are built by string
+      replacement, which mixes separators, and an alias that starts a file name removes it from the name.
+  - Files has Downloads and Incomplete sub-tabs, and lists one level at a time with a `..` row. It shows name,
+    modified time and size, and fetches on each navigation, with no polling.
+    - While remote file management is on, each row has a trash icon with a confirmation.
+    - Paths are encoded with `btoa` and not URL-encoded. So a character above U+00FF throws and the loader spins
+      forever, Latin-1 accents send the wrong bytes (a 404), and a `/` in the base64 breaks the request.
+    - After deleting it calls `window.fetch()` instead of refreshing, which throws.
 - Transfers (`components/Transfers/`): one card per user, then one table per remote directory, all expanded,
   unsorted except by file name within a directory, with no filtering or virtualisation. Selection is per user
   card, with a select-all per directory. Per-file actions are a click on the state (retry when failed, queue
