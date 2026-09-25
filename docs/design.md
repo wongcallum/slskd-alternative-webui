@@ -107,8 +107,10 @@ and we cache browsed share trees in IndexedDB), show when each result was fetche
 - Invalid search params fall back to their defaults, and defaults and invalid values stay out of the URL. Params
   that filter or sort a view replace the history entry. Opening a folder in Browse pushes one, so Back returns to
   the previous folder.
-- No router devtools, route code splitting or scroll restoration. The YAML editor is the one lazy chunk (see
-  [Options](#options)).
+- No router devtools or scroll restoration. Two chunks load on demand, and everything else is in the main one:
+  - Options and Events, the only pages that need `yaml`, which would otherwise be a tenth of the main chunk. The router
+    loads it before it leaves the page you're on, so nothing flashes.
+  - The YAML editor (see [Options](#options)).
 
 ### Shell
 
@@ -337,9 +339,9 @@ and we cache browsed share trees in IndexedDB), show when each result was fetche
 - Sources needs debug on at startup, which `GET /options/startup` says. It's read again each time the application hub
   connects, which covers a restart, rather than polled.
 - `PATCH /options` isn't used: its change is lost on restart, and editing the file covers it.
-- CodeMirror is lazy because most installs can't edit their file from here. Effective is coloured by `yaml` itself,
-  which the main chunk has for the dump anyway. The editor has its own search, since the browser's find can't see
-  lines CodeMirror hasn't drawn.
+- CodeMirror is a chunk of its own because most installs can't edit their file from here. Effective is coloured by
+  `yaml` itself, which the page has for the dump anyway. The editor has its own search, since the browser's find can't
+  see lines CodeMirror hasn't drawn.
 
 ### Health
 

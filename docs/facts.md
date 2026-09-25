@@ -1195,6 +1195,10 @@ in headless Chromium).
 - Unmatched paths render `defaultNotFoundComponent` or the nearest route's `notFoundComponent`
   (`notFoundMode: 'fuzzy'`); leaf routes can't handle not-found. Without either you get `<p>Not Found</p>`.
 - Preloading and scroll restoration are off by default, but `window` scrolls to the top on navigation.
+- `lazyRouteComponent(importer, name)` gives a component with a `preload`, which the router awaits as it loads the
+  match, so the page being left stays up until the chunk is in (`lazyRouteComponent.tsx`, router-core's
+  `load-client.ts`). An import that fails as a missing module, as after a newer build replaced it, reloads the page
+  once, remembered in sessionStorage by the error's message. Any other failure goes to the route's error component.
 
 ## Radix Themes
 
@@ -1339,7 +1343,7 @@ Checked against `yaml` 2.9.1.
 - With `version: '1.1'`, stringify quotes strings that YAML 1.1 would read as something else, such as `"on"` and
   timestamps. `lineWidth: 0` stops long strings from folding. A comment set on a node's `comment` is written after its
   value on the same line.
-- Stringify and parse together added about 34 kB gzipped to the main chunk.
+- Stringify and parse together come to about 94 kB minified and 34 kB gzipped.
 
 ## CodeMirror
 

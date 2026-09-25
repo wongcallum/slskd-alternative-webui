@@ -26,7 +26,7 @@ import { effectiveYaml } from './effective'
 import { type Options, options, optionsPollInterval, startupOptions, useLiveOptions } from './options'
 import { type OptionsSearch, type OptionView, optionViews } from './params'
 
-// CodeMirror is the one lazy chunk: most installs can't edit their file from here at all.
+// CodeMirror has a chunk of its own, since most installs can't edit their file from here at all.
 const YamlEditor = lazy(() => import('./YamlEditor').then((module) => ({ default: module.YamlEditor })))
 
 const viewLabels: Record<OptionView, string> = { effective: 'Effective', file: 'File', sources: 'Sources' }
