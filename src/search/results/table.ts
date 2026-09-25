@@ -61,7 +61,6 @@ export const columnLabels: Record<(typeof columnIds)[number], string> = {
 
 export const endAligned = new Set<string>(['files', 'size', 'length', 'speed', 'queue'])
 
-// Between md and lg the length column goes and the rest narrow.
 export const templates: Record<Exclude<Layout, 'stacked'>, string> = {
   wide: '40px minmax(280px, 1fr) 150px 90px 100px 160px 80px 110px 80px 132px',
   medium: '40px minmax(260px, 1fr) 120px 60px 90px 120px 90px 60px 132px',

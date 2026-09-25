@@ -17,7 +17,6 @@
     --text-field-height: var(--space-6);
   }
 
-  /* Small menus and selects get size 2's items. */
   .rt-BaseMenuContent:where(.rt-r-size-1) {
     --base-menu-item-height: var(--space-6);
   }

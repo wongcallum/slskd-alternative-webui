@@ -76,7 +76,6 @@ export const columnLabels: Record<Section, Record<ColumnId, string>> = {
   finished: { name: 'Name', user: 'User', status: 'Status', size: 'Size', speed: 'Speed', time: 'Ended' },
 }
 
-// Between md and lg the time column goes.
 export const templates: Record<Exclude<Layout, 'stacked'>, Record<Section, string>> = {
   wide: {
     active: '40px minmax(240px, 1fr) 160px 280px 170px 110px 90px 76px',

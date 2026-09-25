@@ -127,7 +127,6 @@ type RowProps = {
   onSelect: (id: string, shiftKey: boolean) => void
 }
 
-// Stacked, a row's details are its file count or folder, size and extras, on the line under its name.
 function Row({
   id,
   item,

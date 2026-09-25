@@ -12,8 +12,7 @@ import { NavTab, NavTabs } from '../ui/nav'
 import { AppMenu } from './AppMenu'
 import { sections, useSectionLabel } from './sections'
 
-// What the bar has no room for goes into the menu: the update notice below lg, the speeds below md, and the tabs below
-// sm. The speeds come first after the free space, so a speed that gets wider grows into it and nothing else moves.
+// The speeds come first after the free space, so a speed that gets wider grows into it and nothing else moves.
 export function Shell() {
   useUnreadInTitle()
   const sm = useFrom('sm')

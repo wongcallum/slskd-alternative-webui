@@ -10,7 +10,6 @@ import { Freshness, Polling } from '../ui/status'
 import { Composer } from './Composer'
 import { type Target, targetKey } from './messages'
 
-// Below sm the list isn't beside it, so the toolbar leads back to it.
 export function ChatToolbar({ title, children }: { title: ReactNode; children?: ReactNode }) {
   const sm = useFrom('sm')
   return (
