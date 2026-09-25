@@ -10,24 +10,22 @@ import { useRun } from '../lib/useRun'
 import { useSession } from '../session/session'
 import { reconnect } from '../soulseek/soulseek'
 import { ActionButton, ConfirmButton, type Detail, DetailList } from '../ui/controls'
-import { Freshness, Polling } from '../ui/status'
+import { Polling } from '../ui/status'
 import { type Application, application, applicationPollInterval, releaseNotes, useApplication } from './application'
 import { lifecycle, restart, restartPatience, shutDown } from './lifecycle'
 import { processInfo } from './process'
-import { SystemBar } from './SystemBar'
+import { SystemPage } from './SystemPage'
 
 export function InfoPage() {
   const { data, error, live, known } = useApplication()
   return (
-    <Flex direction="column" height="100%">
-      <SystemBar>
-        <Freshness
-          resource={application}
-          interval={applicationPollInterval}
-          error={data === undefined ? undefined : error}
-          live={live}
-        />
-      </SystemBar>
+    <SystemPage
+      resource={application}
+      interval={applicationPollInterval}
+      loaded={data !== undefined}
+      error={error}
+      live={live}
+    >
       <Box flexGrow="1" minHeight="0" overflow="auto">
         {data === undefined ? (
           <Polling what="slskd's state" error={error} />
@@ -43,7 +41,7 @@ export function InfoPage() {
           </Flex>
         )}
       </Box>
-    </Flex>
+    </SystemPage>
   )
 }
 

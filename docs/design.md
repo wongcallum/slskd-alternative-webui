@@ -161,6 +161,20 @@ and we cache browsed share trees in IndexedDB), show when each result was fetche
 - Check for updates is manual only: slskd's forced check ignores `no_version_check`, so a timer would override that
   opt-out.
 
+### Logs
+
+- The log follows the logs hub and polls `GET /logs` while the hub is down. Every buffer, poll and push is merged into
+  what's held, and a record counts as held when its timestamp and message match exactly, because every connect resends
+  the buffer and a record can arrive both ways (see the facts). The newest 1,000 are kept, sorted by timestamp. They
+  outlive leaving the page and slskd restarting, and go when the session ends.
+- Pushes are merged in batches every 250 ms, since slskd can push dozens a second. At 54 a second that cost about 4% of
+  the main thread, with no long tasks.
+- The list holds still while it's scrolled down or paused, and Resume says how many new records match the filter.
+  Otherwise records arriving at the top and being dropped at the bottom would move whatever is being read.
+- Rows have a fixed height and show the message's first line, with a count of the lines after it (usually a stack
+  trace). Clicking a row shows the whole record in a pane below the list.
+- Times are in the browser's time zone, to the millisecond, with the date when it isn't today.
+
 ### Health
 
 - Each surface shows its freshness in its own toolbar ("updated 12s ago"). It turns amber once the data is older

@@ -20,6 +20,7 @@ import { searches } from '../search/searches'
 import { type SearchesSearch, SearchesPage, searchesSearch, searchesSearchDefaults } from '../search/SearchesPage'
 import { SessionGate } from '../session/SessionGate'
 import { InfoPage } from '../system/InfoPage'
+import { type LogsSearch, LogsPage, logsSearch, logsSearchDefaults } from '../system/LogsPage'
 import {
   TransfersPage,
   type TransfersSearch,
@@ -174,6 +175,22 @@ const systemInfoRoute = createRoute({
   component: InfoPage,
 })
 
+const systemLogsRoute = createRoute({
+  getParentRoute: () => systemRoute,
+  path: 'logs',
+  head: () => title('Logs · System'),
+  validateSearch: logsSearch,
+  search: { middlewares: [stripSearchParams(logsSearchDefaults)] },
+  component: function Logs() {
+    return (
+      <LogsPage
+        search={systemLogsRoute.useSearch()}
+        onSearchChange={useSearchChange<LogsSearch>(systemLogsRoute.useNavigate())}
+      />
+    )
+  },
+})
+
 export const router = createRouter({
   routeTree: rootRoute.addChildren([
     indexRoute,
@@ -182,7 +199,7 @@ export const router = createRouter({
     downloadsRoute,
     uploadsRoute,
     browseRoute,
-    systemRoute.addChildren([systemIndexRoute, systemInfoRoute]),
+    systemRoute.addChildren([systemIndexRoute, systemInfoRoute, systemLogsRoute]),
   ]),
   basepath: window.urlBase,
   // A route with children and no notFoundComponent of its own renders this one for its unmatched paths.

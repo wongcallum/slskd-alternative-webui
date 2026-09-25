@@ -129,6 +129,8 @@ export const useWatchedHub = (hub: Hub) => useSyncExternalStore(hub.watch, hub.g
 
 export const applicationHub = createHub('application')
 
+export const logsHub = createHub('logs')
+
 export const metricsHub = createHub('metrics')
 
 export const searchHub = createHub('search')

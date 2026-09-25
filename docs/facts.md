@@ -23,7 +23,7 @@ are relative to `slskd/src/slskd`, and line numbers drift over time.
   - application hub: `STATE` on every change, and `OPTIONS` (redacted). See [Application hub](#application-hub).
   - search hub: `LIST` on connect, then `CREATE`/`UPDATE`/`DELETE` without responses. A `RESPONSE` method is
     declared but never sent. See [Search hub](#search-hub).
-  - logs hub: `BUFFER` on connect, then `LOG`
+  - logs hub: `BUFFER` on connect, then `LOG`. See [Logs](#logs).
   - metrics hub: `Update` every second, carrying aggregate transfer counts. See [Metrics hub](#metrics-hub).
 - Poll-only: transfers, browse, search response bodies, rooms and conversations.
 - REST JSON omits nulls (`WhenWritingNull`, `Program.cs:981`), but hub payloads keep them. Both use
@@ -295,6 +295,33 @@ observed on throwaway instances of the dev build and the 0.25.1 and 0.26.0 relea
   and `inProgress.files` dipped to -2. Each file was `InProgress` for only a few seconds, so `inProgress.files`
   mostly read 0. While nothing moved, the two matched exactly.
 
+## Logs
+
+- `/hub/logs` sends `BUFFER` to a client as it connects, then `LOG` to every client for each record. `GET /logs` returns
+  the same buffer with nulls omitted. Both are open to any authenticated caller (`Core/API/Hubs/LogsHub.cs`,
+  `Core/API/Controllers/LogsController.cs`).
+- The buffer is the last 100 records, held in memory (`Program.cs`, `LogBuffer`), so a restart empties it. It's in the
+  order the records were added, oldest first.
+- A record is `{timestamp, context, subContext, level, message}` (`Common/Logging/LogRecord.cs`, filled in by the
+  `DelegatingSink` in `Program.cs`):
+  - `timestamp` is the server's local time with its offset, with up to 7 fractional digits and trailing zeros dropped
+    (`"2026-09-25T11:52:29.833777+00:00"`).
+  - `context` is Serilog's `SourceContext`, a full type name like `slskd.Shares.SqliteShareRepository`. Soulseek.NET's
+    diagnostics are logged as `slskd.Application` with the Soulseek.NET class's full name in `subContext`
+    (`Application.cs`, `Client_DiagnosticGenerated`). Nothing else sets `subContext`.
+  - `level` is Serilog's level name: `Verbose`, `Debug`, `Information`, `Warning`, `Error` or `Fatal`. The minimum is
+    `Debug` with `debug` on and `Information` otherwise, so `Verbose` never arrives.
+  - `message` is the rendered template, which puts string values in quotes. When there's an exception, its whole
+    `ToString()` is appended after `": "`, stack trace and all, over several lines.
+- Neither the buffer nor the pushes are in timestamp order: records are added and pushed from whichever thread logged
+  them, and each push is fired without being awaited (`Application.cs`, `LogEmitted`). Observed: 156 of 813 pushes had
+  an earlier timestamp than the push before.
+- A record logged while a client connects can reach it twice, in `BUFFER` and as a `LOG`, and the `LOG` can arrive
+  first: SignalR adds the connection to the broadcast list before it calls the hub's `OnConnectedAsync`
+  (ASP.NET Core's `HubConnectionHandler.cs`). Not observed. Every reconnect sends the whole buffer again.
+- Pushes can be frequent. Observed: 54 a second on the dev instance while logged in to Soulseek with no share scan,
+  each one a `no such table: filenames` warning with a 7-line stack trace (see [Endpoints](#endpoints-1) under Search).
+
 ## Telemetry reports
 
 Paths are relative to `Telemetry/`. Stock's dashboard (`components/Dashboard/`) is built on these; we have no
@@ -550,6 +577,8 @@ Paths are relative to `slskd/src/web/src`.
     opens a modal linking to the releases list.
   - After Restart or Shut Down, the hub's reconnecting replaces the whole app with "Lost connection to slskd", and
     after about 32 s of retries it asks for a refresh.
+  - Logs keeps the newest 500 records, newest first, and each `BUFFER` replaces them. It shows the time (`HH:mm:ss` in
+    the browser's time zone), the level and the message, with no source and no filter, and keys rows by timestamp.
 - Transfers (`components/Transfers/`): one card per user, then one table per remote directory, all expanded,
   unsorted except by file name within a directory, with no filtering or virtualisation. Selection is per user
   card, with a select-all per directory. Per-file actions are a click on the state (retry when failed, queue
