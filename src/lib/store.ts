@@ -108,10 +108,12 @@ export type Measure = <R>(work: () => R) => R
 // Main-thread work per tick is capped at 1/costFactor of the time between ticks.
 const costFactor = 10
 
+// A hidden tab stops polling until it's shown again, unless it's to keep the tab's title current.
 export function poll<T>(
   sink: Sink<T>,
   request: (signal: AbortSignal, measure: Measure) => Promise<T>,
   interval: number | (() => number),
+  { whileHidden = false } = {},
 ): Source {
   const controller = new AbortController()
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -120,7 +122,7 @@ export function poll<T>(
 
   async function tick() {
     timer = undefined
-    if (document.hidden) return
+    if (document.hidden && !whileHidden) return
     inFlight = true
     again = false
     let cost = 0
