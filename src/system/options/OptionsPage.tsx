@@ -224,6 +224,7 @@ function FileView({ control, gate, known }: { control: ReactNode; gate?: string;
   const check = useMemo(() => (text === undefined ? undefined : checkConfig(text)), [text])
   const slskd = useSlskdCheck(file.draft, available && check?.syntax === true)
   const blocked = saveGate(file, gate, known, check, slskd)
+  const overwriteBlocked = saveGate({ ...file, conflict: undefined }, gate, known, check, slskd)
   const dirty = file.draft !== undefined
 
   let content: ReactNode
@@ -238,7 +239,7 @@ function FileView({ control, gate, known }: { control: ReactNode; gate?: string;
         {!available && (
           <Unavailable>{gate}, so the file can't be read or saved here. What's below can still be copied.</Unavailable>
         )}
-        {available && file.conflict !== undefined && <ConflictCallout dirty={dirty} />}
+        {available && file.conflict !== undefined && <ConflictCallout gate={overwriteBlocked} saving={file.saving} />}
         <Box flexGrow="1" minHeight="0" mt="2">
           <Suspense fallback={<Loading />}>
             <YamlEditor
@@ -283,21 +284,20 @@ function FileView({ control, gate, known }: { control: ReactNode; gate?: string;
   )
 }
 
-function ConflictCallout({ dirty }: { dirty: boolean }) {
+function ConflictCallout({ gate, saving }: { gate?: string; saving: boolean }) {
   return (
     <Box px="4" pt="3" flexShrink="0">
       <PendingCallout>
         <Callout.Text>The file changed on disk since it was read.</Callout.Text>
         <Flex gap="2">
-          <Button
-            size="1"
-            variant="soft"
+          <ActionButton
+            label="Overwrite"
+            busy="Saving"
+            loading={saving}
+            gate={gate}
             color="amber"
-            {...disabledProps(!dirty)}
-            onClick={() => dirty && void save({ overwrite: true })}
-          >
-            Overwrite
-          </Button>
+            onClick={() => void save({ overwrite: true })}
+          />
           <Button size="1" variant="soft" color="gray" onClick={discard}>
             Discard my changes
           </Button>
