@@ -67,10 +67,10 @@ function OpenConversation({ username }: { username: string }) {
             newFrom={data.newFrom}
             note={
               data.messages.length >= conversationMessageLimit
-                ? `slskd only returns the newest ${conversationMessageLimit} messages.`
+                ? `slskd returns only the newest ${conversationMessageLimit} messages.`
                 : undefined
             }
-            empty="No messages yet. Nothing is sent until you write."
+            empty="No messages yet."
           />
         )
       }

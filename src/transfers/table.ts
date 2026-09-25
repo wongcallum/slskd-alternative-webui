@@ -84,7 +84,6 @@ export const templates: Record<Section, string> = {
 export const minWidth = 1166
 export const barHeight = 44
 
-// Active groups start expanded and finished ones collapsed.
 const initialExpansion = (): Record<Section, Expansion> => ({ active: { all: true, toggled: {} }, finished: collapsed })
 
 export const expansions: Record<Direction, Atom<Record<Section, Expansion>>> = {

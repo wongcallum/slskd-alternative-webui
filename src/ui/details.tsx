@@ -14,7 +14,6 @@ export function Preformatted({ children }: { children: ReactNode }) {
   )
 }
 
-// The whole of a list's selected row, in a pane below the list.
 export function DetailsPane({
   header,
   onClose,

@@ -47,7 +47,7 @@ import { Shell } from './Shell'
 
 function title(name: string) {
   const unread = unreadCount()
-  return { meta: [{ title: `${unread > 0 ? `(${unread}) ` : ''}${name} · slskd` }] }
+  return { meta: [{ title: `${unread > 0 ? `(${unread}) ` : ''}${name} – slskd` }] }
 }
 
 // Params that filter or sort replace the history entry. Changing a navigation param pushes one, so Back returns to it.
@@ -109,7 +109,10 @@ const searchesRoute = createRoute({
 const searchRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'searches/$id',
-  head: ({ params }) => title(searches.getSnapshot().data?.byId.get(params.id)?.text ?? 'Search'),
+  head: ({ params }) => {
+    const text = searches.getSnapshot().data?.byId.get(params.id)?.text
+    return title(text === undefined ? 'Search' : `${text} – Search`)
+  },
   validateSearch: resultsSearch,
   search: { middlewares: [stripSearchParams(resultsSearchDefaults)] },
   component: function SearchResults() {
@@ -162,7 +165,7 @@ const uploadsRoute = createRoute({
 const browseRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'browse',
-  head: ({ match }) => title(match.search.user === '' ? 'Browse' : `${match.search.user} · Browse`),
+  head: ({ match }) => title(match.search.user === '' ? 'Browse' : `${match.search.user} – Browse`),
   validateSearch: browseSearch,
   search: { middlewares: [stripSearchParams(browseSearchDefaults)] },
   component: function Browse() {
@@ -176,7 +179,7 @@ const browseRoute = createRoute({
 const usersRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'users',
-  head: ({ match }) => title(match.search.user === '' ? 'Users' : `${match.search.user} · Users`),
+  head: ({ match }) => title(match.search.user === '' ? 'Users' : `${match.search.user} – Users`),
   validateSearch: usersSearch,
   search: { middlewares: [stripSearchParams(usersSearchDefaults)] },
   component: function Users() {
@@ -196,7 +199,7 @@ const chatRoute = createRoute({
 const roomsRoute = createRoute({
   getParentRoute: () => chatRoute,
   path: 'rooms',
-  head: ({ match }) => title(match.search.room === '' ? 'Chat' : `${match.search.room} · Chat`),
+  head: ({ match }) => title(match.search.room === '' ? 'Chat' : `${match.search.room} – Chat`),
   validateSearch: roomsSearch,
   search: { middlewares: [stripSearchParams(roomsSearchDefaults)] },
   component: function Rooms() {
@@ -207,7 +210,7 @@ const roomsRoute = createRoute({
 const conversationRoute = createRoute({
   getParentRoute: () => chatRoute,
   path: 'chat',
-  head: ({ match }) => title(match.search.user === '' ? 'Chat' : `${match.search.user} · Chat`),
+  head: ({ match }) => title(match.search.user === '' ? 'Chat' : `${match.search.user} – Chat`),
   validateSearch: chatSearch,
   search: { middlewares: [stripSearchParams(chatSearchDefaults)] },
   component: function Conversation() {
@@ -231,14 +234,14 @@ const systemIndexRoute = createRoute({
 const systemInfoRoute = createRoute({
   getParentRoute: () => systemRoute,
   path: 'info',
-  head: () => title('System'),
+  head: () => title('Info – System'),
   component: InfoPage,
 })
 
 const systemOptionsRoute = createRoute({
   getParentRoute: () => systemRoute,
   path: 'options',
-  head: () => title('Options · System'),
+  head: () => title('Options – System'),
   validateSearch: optionsSearch,
   search: { middlewares: [stripSearchParams(optionsSearchDefaults)] },
   component: function Options() {
@@ -254,7 +257,7 @@ const systemOptionsRoute = createRoute({
 const systemSharesRoute = createRoute({
   getParentRoute: () => systemRoute,
   path: 'shares',
-  head: () => title('Shares · System'),
+  head: () => title('Shares – System'),
   validateSearch: sharesSearch,
   search: { middlewares: [stripSearchParams(sharesSearchDefaults)] },
   component: function Shares() {
@@ -270,7 +273,7 @@ const systemSharesRoute = createRoute({
 const systemFilesRoute = createRoute({
   getParentRoute: () => systemRoute,
   path: 'files',
-  head: () => title('Files · System'),
+  head: () => title('Files – System'),
   validateSearch: filesSearch,
   search: { middlewares: [stripSearchParams(filesSearchDefaults)] },
   component: function Files() {
@@ -286,7 +289,7 @@ const systemFilesRoute = createRoute({
 const systemEventsRoute = createRoute({
   getParentRoute: () => systemRoute,
   path: 'events',
-  head: () => title('Events · System'),
+  head: () => title('Events – System'),
   validateSearch: eventsSearch,
   search: { middlewares: [stripSearchParams(eventsSearchDefaults)] },
   component: function Events() {
@@ -302,7 +305,7 @@ const systemEventsRoute = createRoute({
 const systemLogsRoute = createRoute({
   getParentRoute: () => systemRoute,
   path: 'logs',
-  head: () => title('Logs · System'),
+  head: () => title('Logs – System'),
   validateSearch: logsSearch,
   search: { middlewares: [stripSearchParams(logsSearchDefaults)] },
   component: function Logs() {

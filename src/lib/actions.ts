@@ -57,7 +57,7 @@ export function begin<K extends string, S extends Actions<K>>(
 
 export type Operation = ReturnType<typeof begin>
 
-// Acts on four items at a time, unless told otherwise, and collects what failed. Returns undefined once the session has ended.
+// Returns a line for each item that failed, or undefined once the session has ended.
 export async function actOnEach<T extends { id: string }>(
   operation: Operation,
   items: T[],
@@ -104,7 +104,7 @@ export function summarise(
     summary:
       failed === 0
         ? `${verb} ${plural(done, noun, nouns)}`
-        : `${verb} ${done.toLocaleString()} of ${plural(total, noun, nouns)} · ${failed.toLocaleString()} failed`,
+        : `${verb} ${done.toLocaleString()} of ${plural(total, noun, nouns)}, ${failed.toLocaleString()} failed`,
     failed: failed > 0,
     details,
   }

@@ -101,7 +101,7 @@ export function EventsPage({ search, onSearchChange }: Props) {
   } else if (shown.length === 0) {
     content = (
       <Empty actions={!replaced && <OlderButton data={data} filtered={filtered} />}>
-        {held.length === 0 ? 'No events yet.' : 'Nothing loaded matches.'}
+        {held.length === 0 ? 'No events yet.' : 'None of the loaded events match.'}
       </Empty>
     )
   } else {
@@ -138,8 +138,13 @@ export function EventsPage({ search, onSearchChange }: Props) {
         {data !== undefined && (
           <Text size="2" color="gray">
             {filtered
-              ? `${shown.length.toLocaleString()} of ${held.length.toLocaleString()} loaded match · ${data.total.toLocaleString()} in total`
+              ? `${shown.length.toLocaleString()} of the ${held.length.toLocaleString()} loaded events match`
               : `${held.length.toLocaleString()} of ${plural(data.total, 'event')} loaded`}
+          </Text>
+        )}
+        {data !== undefined && filtered && (
+          <Text size="2" color="gray">
+            {data.total.toLocaleString()} in total
           </Text>
         )}
       </HeldToolbar>
@@ -221,7 +226,7 @@ function OlderButton({ data, filtered }: { data: Events; filtered: boolean }) {
 function ListEnd({ data, filtered, replaced }: { data: Events; filtered: boolean; replaced: boolean }) {
   let content: ReactNode
   if (replaced) content = 'Resume to see the newest events and load older ones.'
-  else if (!hasOlder(data)) content = `All ${plural(data.total, 'event')} are loaded.`
+  else if (!hasOlder(data)) content = 'All events are loaded.'
   else content = <OlderButton data={data} filtered={filtered} />
   return (
     <Flex align="center" px="4" py="3" minHeight={`${rowHeight}px`}>
@@ -268,7 +273,7 @@ const EventRow = memo(function EventRow({ record, selected, onSelect }: EventRow
         </Text>
         {replayed === true && (
           <Badge size="1" color="gray" style={{ flexShrink: 0 }}>
-            replayed
+            Replayed
           </Badge>
         )}
       </Flex>

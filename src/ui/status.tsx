@@ -95,12 +95,12 @@ export function Freshness({
       {error !== undefined && (
         <Tooltip content={describeError(error)}>
           <Text size="1" color="red">
-            Last poll failed
+            Update failed
           </Text>
         </Tooltip>
       )}
       <Text size="1" color={live || !stale ? 'gray' : 'amber'}>
-        {live ? 'live' : age === undefined ? 'not loaded yet' : `updated ${formatAge(age)} ago`}
+        {live ? 'Live' : age === undefined ? 'Not loaded yet' : `Updated ${formatAge(age)} ago`}
       </Text>
     </Flex>
   )
@@ -170,13 +170,13 @@ export function Fetched({
       {error !== undefined && (
         <Tooltip content={describeError(error)}>
           <Text size="1" color="red">
-            Last load failed
+            Update failed
           </Text>
         </Tooltip>
       )}
       {fetchedAt !== undefined && (
         <Text size="1" color="gray">
-          fetched <Ago time={fetchedAt} />
+          Updated <Ago time={fetchedAt} />
         </Text>
       )}
       <ActionButton label={label} busy="Refreshing" loading={loading} gate={gate} onClick={onRefresh} />

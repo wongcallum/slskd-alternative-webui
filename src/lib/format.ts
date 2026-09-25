@@ -26,7 +26,7 @@ export const formatTime = (time: number) => absolute.format(time)
 export function formatAge(age: number) {
   const seconds = Math.max(0, Math.floor(age / 1000))
   if (seconds < 60) return `${seconds} s`
-  if (seconds < 3600) return `${Math.floor(seconds / 60)} m`
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} min`
   if (seconds < 86_400) return `${Math.floor(seconds / 3600)} h`
   return `${Math.floor(seconds / 86_400)} d`
 }
@@ -60,7 +60,6 @@ const fullTime = new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 's
 
 const isToday = (time: number) => new Date(time).toDateString() === new Date().toDateString()
 
-// To the millisecond, with the date only when it isn't today.
 export const formatPreciseTime = (time: number) => (isToday(time) ? timeOnly : dayAndTime).format(time)
 
 export const formatFullPreciseTime = (time: number) => fullTime.format(time)

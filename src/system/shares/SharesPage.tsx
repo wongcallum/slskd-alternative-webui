@@ -82,8 +82,8 @@ function ScanBar({ data, known }: { data: Application; known: boolean }) {
     return (
       <Bar error={run.error}>
         <Busy>
-          {data.scanFolders > 0 ? `Scanning ${plural(data.scanFolders, 'folder')}…` : 'Scanning…'}{' '}
-          {Math.floor(data.scanProgress * 100)}% · {plural(data.scanFiles, 'file')} so far
+          {data.scanFolders > 0 ? `Scanning ${plural(data.scanFolders, 'folder')}` : 'Scanning'}:{' '}
+          {Math.floor(data.scanProgress * 100)}%, {plural(data.scanFiles, 'file')} so far
         </Busy>
         <ActionButton
           label="Cancel"
@@ -141,7 +141,7 @@ function ShareTable({ onOpen }: { onOpen: (path: string) => void }) {
       {error !== undefined && (
         <Box px="4" pt="3">
           <Text size="2" color="red">
-            Can't load the shares again: {describeError(error)}
+            Couldn't update the shares: {describeError(error)}
           </Text>
         </Box>
       )}
@@ -189,7 +189,7 @@ function Count({ value }: { value?: number }) {
   if (value !== undefined) return value.toLocaleString()
   return (
     <Tooltip content="Counted at the next scan">
-      <span>—</span>
+      <span>–</span>
     </Tooltip>
   )
 }
@@ -240,7 +240,7 @@ function ScanningNote() {
   return (
     scanning && (
       <Text size="2" color="amber">
-        Changing while the scan runs
+        Contents change as the scan runs
       </Text>
     )
   )

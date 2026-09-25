@@ -22,16 +22,17 @@ needs to upgrade it, which would otherwise wait for every tab to close.
 
 ### Live store
 
-**One hand-rolled live store**, with no TanStack Query, SWR or RTK Query. This is a deliberate exception to
-"prefer established dependencies". Those libraries either assume refetching is cheap (TanStack Query's
+**One hand-rolled live store**, with no TanStack Query, SWR or RTK Query. This is an exception to "prefer
+established dependencies". Those libraries either assume refetching is cheap (TanStack Query's
 structural sharing deep-allocates over the whole payload every tick) or assume the server emits deltas.
 
 - **An update equal to the current data keeps the old snapshot and notifies nobody.** Hub payloads are mapped
   at ingestion to flat objects holding only the fields we read, so a shallow compare is enough. `updatedAt` is
   kept out of the snapshot and only freshness displays re-render on a clock, so identical pushes and polls cost
   nothing.
-- **The poll interval is floored at 10× the last tick's main-thread cost** (parse plus merge). That caps it at
-  about 10% of the main thread, where stock out-polls it. Freshness thresholds use the effective interval.
+- **The poll interval is floored at 10× the last tick's main-thread cost** (parse plus merge). That keeps it to
+  about 10% of the main thread, where stock polls at 1 Hz whatever the cost. Freshness thresholds use the
+  effective interval.
 - The work stays on the main thread; a one-off check at 20k rows didn't justify more. If it ever does, a worker
   fetches, parses and diffs, and posts only the changes.
 - List polls have no timeout: uncompressed, a heavy list takes about 10 s over a 3 Mbit/s link. Other requests
@@ -47,13 +48,13 @@ structural sharing deep-allocates over the whole payload every tick) or assume t
 
 ### Array identity
 
-**Array identity is load-bearing.** TanStack Table's core row model memoises on the identity of the `data`
+**Arrays must keep their identity.** TanStack Table's core row model memoises on the identity of the `data`
 array, and a fresh array rebuilds every row (9–91 ms at 20k rows depending on the sort, see the facts). So we
 **split transfers on mutability**: active rows and terminal (`Completed, *`) rows live in separate arrays, each
 in its own table, and are never concatenated. Each poll is merged into the existing arrays rather than replacing
 them.
 
-A terminal transfer _almost_ never changes, but it can (auto-retry reuses the id, failures flip states, and a
+A terminal transfer almost never changes, but it can (auto-retry reuses the id, failures flip states, and a
 failed move adds an `exception`; see the facts). So the merge doesn't assume immutability: it reuses the old row
 only when no field that can still change has changed. Computed fields aren't mapped, because `elapsedTime`
 changes on every poll. In practice the terminal array's identity changes rarely, and a poll with no changes
@@ -66,8 +67,8 @@ returns the same snapshot, so nothing renders.
 - There's no login route: the session gate renders login in place of the app at whatever URL you're on, so deep
   links survive.
 - The token is a bare string in localStorage, with no remember-me and no handling of `expires`.
-- **A 401 ends the session only if the request carried the current token.** That one rule is the
-  latch and suppresses the burst, including late 401s from before a re-login.
+- **A 401 ends the session only if the request carried the current token.** That rule alone stops
+  a burst of 401s from ending it more than once, including late 401s from before a re-login.
   - Ending deletes the stored token only if it's still the one that got the 401, so a stale tab can't
     wipe a newer token.
   - The app unmounts, so polls and hubs stop through their reference counts.
@@ -145,8 +146,8 @@ and we cache browsed share trees in IndexedDB), show when each result was fetche
 
 - Rows have a fixed height and `contain: strict`, which makes scrolling far cheaper: scrolling 25k search results
   in 1,500 px jumps went from 28 long tasks in 30 jumps to 0–4.
-- Cancel all, Retry failed and Clear finished act on the whole section whatever the filter. They ask for
-  confirmation, and so do Restart and Shut down; nothing else does.
+- Cancel all, Retry failed and Clear finished act on the whole section whatever the filter, and ask for
+  confirmation first. Elsewhere only Restart, Shut down and deleting files ask.
 - `Completed, Cancelled` is an outcome of its own, not a failure: it isn't counted as failed and Retry failed skips
   it, but a selected cancelled download can still be retried. A cancel during a retry backoff ends as
   `Completed, Errored` (see the facts), so it still counts as failed.
@@ -301,8 +302,8 @@ and we cache browsed share trees in IndexedDB), show when each result was fetche
 - Save is blocked on what slskd's validator passes but then breaks on (see the facts): duplicate keys, unquoted
   yes/no/on/off, and a file with no settings. slskd's own validate is asked 500 ms after typing stops, and `yaml` adds
   the line and column slskd doesn't give.
-- A save reads the file first and won't overwrite a change made since it was read. That's a conflict to resolve
-  (Overwrite or Discard my changes), not a confirmation.
+- A save reads the file first and won't overwrite a change made since it was read. It shows the conflict
+  instead, with Overwrite and Discard my changes.
 - A view that becomes unavailable while it's open stays open, read-only, so a draft stays in front of whoever wrote it.
 - Sources needs debug on at startup, which `GET /options/startup` says. It's read again each time the application hub
   connects, which covers a restart, rather than polled.
@@ -313,7 +314,7 @@ and we cache browsed share trees in IndexedDB), show when each result was fetche
 
 ### Health
 
-- Each surface shows its freshness in its own toolbar ("updated 12s ago"). It turns amber once the data is older
+- Each surface shows its freshness in its own toolbar ("Updated 12 s ago"). It turns amber once the data is older
   than `min(3 × interval, 20s)`. There are no global banners or toasts.
 - Keep three things separate and never collapse them into one "connected" flag: REST poll health, hub
   health, and slskd's own connection to the Soulseek server.
@@ -324,5 +325,5 @@ and we cache browsed share trees in IndexedDB), show when each result was fetche
   - Actions that need Soulseek (search, browse, download, user lookup) are also gated on slskd being
     logged in to the Soulseek server (`server.isLoggedIn`). That state is pushed through `STATE`. While
     the application hub is down, `GET /application` is polled so the gate never acts on stale state. In
-    `no_connect` dev these actions are always disabled, which is expected.
+    `no_connect` dev these actions are always disabled.
   - Hub health never gates anything.

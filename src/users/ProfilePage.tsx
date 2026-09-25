@@ -50,7 +50,9 @@ export function ProfilePage({ username }: { username: string }) {
       <Flex direction="column" align="start" gap="3">
         <Heading size="4">{errors === undefined ? 'Not looked up yet' : 'Nothing found'}</Heading>
         {errors !== undefined && <LookupErrorLine username={username} errors={errors} />}
-        <Text color="gray">Looking up asks the server for {username}'s status, and them for their profile.</Text>
+        <Text color="gray">
+          Looking up asks the Soulseek server for {username}'s status, and {username} for their profile.
+        </Text>
         <ActionButton label={`Look up ${username}`} busy="" gate={gate} onClick={() => void lookUp(username)} />
       </Flex>
     )
@@ -63,7 +65,7 @@ export function ProfilePage({ username }: { username: string }) {
         {record !== undefined && (
           <Flex ml="auto" align="center" gap="3" flexShrink="0">
             <Text size="2" color="gray">
-              updated <Ago time={lookedUpAt(record)} />
+              Updated <Ago time={lookedUpAt(record)} />
             </Text>
             <ActionButton
               label="Look up again"
@@ -121,7 +123,7 @@ function Profile({ record, errors }: { record: UserRecord; errors?: LookupErrors
                 {info.freeSlot ? 'Free upload slot' : 'No free upload slot'}
               </Text>
               <Text size="2" color="gray">
-                {plural(info.slots, 'upload slot')} · {info.queue.toLocaleString()} queued
+                {plural(info.slots, 'upload slot')}, {info.queue.toLocaleString()} queued
               </Text>
               {info.fetchedAt < newest && <AsOf time={info.fetchedAt} />}
             </Flex>
@@ -180,7 +182,7 @@ function CachedShare({ username }: { username: string }) {
   if (share === undefined) return null
   return (
     <Text size="2" color="gray">
-      Share cached: {plural(share.files, 'file')} · {formatBytes(share.size)} · fetched <Ago time={share.fetchedAt} />
+      Share browsed <Ago time={share.fetchedAt} />: {plural(share.files, 'file')}, {formatBytes(share.size)}
     </Text>
   )
 }
@@ -249,7 +251,7 @@ function Direction({
         ) : (
           <>
             <Text size="2">
-              {history.succeeded.toLocaleString()} succeeded · {formatBytes(history.bytes)}
+              {history.succeeded.toLocaleString()} succeeded ({formatBytes(history.bytes)})
             </Text>
             {history.failed > 0 && (
               <Tooltip content={reasons.join('\n')} style={{ whiteSpace: 'pre-line' }}>

@@ -14,7 +14,7 @@ export function ChatBadge() {
   return (
     <Tooltip content={plural(unread, 'unread private message')}>
       <Badge ml="2" radius="full" color="red">
-        {unread}
+        {unread.toLocaleString()}
       </Badge>
     </Tooltip>
   )

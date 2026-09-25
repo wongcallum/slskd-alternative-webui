@@ -4,6 +4,7 @@ import { Badge, Flex, IconButton, Text, Tooltip } from '@radix-ui/themes'
 import { Outlet, Link as RouterLink, useLocation, useNavigate } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 
+import { plural } from '../lib/format'
 import { useResource } from '../lib/store'
 import { useRun } from '../lib/useRun'
 import { useSoulseekGate } from '../soulseek/soulseek'
@@ -158,13 +159,13 @@ function RoomItem({ room, open }: { room: string; open: boolean }) {
   if (news) {
     badge =
       mentions > 0 ? (
-        <Tooltip content={`${mentions.toLocaleString()} new mentioning you`}>
+        <Tooltip content={`${plural(mentions, 'new message')} ${mentions === 1 ? 'mentions' : 'mention'} you`}>
           <Badge color="amber" radius="full">
             {mentions.toLocaleString()}
           </Badge>
         </Tooltip>
       ) : (
-        <Tooltip content={`${unread.toLocaleString()} new`}>
+        <Tooltip content={plural(unread, 'new message')}>
           <span className="chat-dot" />
         </Tooltip>
       )
@@ -210,7 +211,7 @@ function ConversationItem({
   const soulseekGate = useSoulseekGate()
   const navigate = useNavigate()
   const { running, error, run } = useRun()
-  // Closing acknowledges what's unread, which takes the Soulseek server.
+  // Closing acknowledges what's unread, which needs a Soulseek login.
   const gate = running ? 'Closing' : unread > 0 ? soulseekGate : undefined
   return (
     <Item
