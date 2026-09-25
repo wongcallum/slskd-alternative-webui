@@ -101,17 +101,28 @@ function Header({ search, known, live, error }: { search: Search; known: boolean
   const { running } = useAtom(listActions)
   const again = useCreateSearch()
 
+  // Below md the title, the summary and the actions each take a line.
   return (
-    <Flex align="center" gap="3" px="4" py="3" flexShrink="0" style={toolbarStyle}>
-      <IconButton asChild variant="ghost" color="gray" aria-label="Back to searches">
-        <RouterLink to="/searches">
-          <ArrowLeftIcon />
-        </RouterLink>
-      </IconButton>
-      <Heading size="4" truncate title={search.text}>
-        {search.text}
-      </Heading>
-      <Flex align="center" gap="3" flexShrink="0">
+    <Flex
+      align="center"
+      gap="3"
+      wrap={{ initial: 'wrap', md: 'nowrap' }}
+      px="4"
+      py="3"
+      flexShrink="0"
+      style={toolbarStyle}
+    >
+      <Flex align="center" gap="3" minWidth="0" flexBasis={{ initial: '100%', md: 'auto' }}>
+        <IconButton asChild variant="ghost" color="gray" aria-label="Back to searches">
+          <RouterLink to="/searches">
+            <ArrowLeftIcon />
+          </RouterLink>
+        </IconButton>
+        <Heading size="4" truncate title={search.text}>
+          {search.text}
+        </Heading>
+      </Flex>
+      <Flex align="center" gap="3" flexShrink={{ initial: '1', md: '0' }} wrap="wrap">
         <SearchState search={search} />
         <Text size="2" color="gray">
           {describeCounts(search)}

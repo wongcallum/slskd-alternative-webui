@@ -5,7 +5,15 @@ import * as v from 'valibot'
 
 import { textParam } from '../lib/params'
 import { useAtom } from '../lib/store'
-import { ActionButton, FilterField, OutcomeLine, SelectionActions, toolbarStyle, useFilterText } from '../ui/controls'
+import {
+  ActionButton,
+  FilterField,
+  OutcomeLine,
+  SelectionActions,
+  Toolbar,
+  ToolbarEnd,
+  useFilterText,
+} from '../ui/controls'
 import { Empty, Freshness, Polling } from '../ui/status'
 import { NewSearch } from './NewSearch'
 import {
@@ -56,13 +64,8 @@ export function SearchesPage({ search, onSearchChange }: Props) {
   return (
     <Flex direction="column" height="100%">
       <NewSearch />
-      <Flex align="center" gap="3" px="4" py="2" flexShrink="0" style={toolbarStyle}>
-        <FilterField
-          placeholder="Filter searches"
-          value={filter.text}
-          onChange={filter.change}
-          style={{ width: 280 }}
-        />
+      <Toolbar>
+        <FilterField placeholder="Filter searches" value={filter.text} onChange={filter.change} width="280px" />
         {selected.length > 0 && (
           <SelectionActions count={selected.length} onClear={() => setRowSelection({})}>
             <ActionButton
@@ -75,11 +78,11 @@ export function SearchesPage({ search, onSearchChange }: Props) {
             />
           </SelectionActions>
         )}
-        <Flex ml="auto" align="center" gap="4" flexShrink="0">
+        <ToolbarEnd>
           <OutcomeLine atom={listActions} />
           <Freshness resource={searches} interval={searchPollInterval} error={error} live={live} />
-        </Flex>
-      </Flex>
+        </ToolbarEnd>
+      </Toolbar>
       {content}
     </Flex>
   )

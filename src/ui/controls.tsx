@@ -1,10 +1,13 @@
+import './controls.css'
 import { Cross2Icon, InfoCircledIcon, MagnifyingGlassIcon } from '@radix-ui/react-icons'
 import {
   AlertDialog,
+  Box,
   Button,
   Checkbox,
   DataList,
   Flex,
+  type FlexProps,
   IconButton,
   Popover,
   Text,
@@ -15,12 +18,37 @@ import {
 import { type CSSProperties, type ReactElement, type ReactNode, useDeferredValue, useState } from 'react'
 
 import { type Actions, dismissOutcome, type Progress } from '../lib/actions'
-import { useTouch } from '../lib/media'
+import { useFrom, useTouch } from '../lib/media'
 import { type Atom, useAtom } from '../lib/store'
 
 export type Color = NonNullable<TextProps['color']>
 
 export const toolbarStyle = { boxShadow: 'inset 0 -1px 0 0 var(--gray-a5)' }
+
+// A toolbar wraps rather than overflows. Below sm, selection actions take a line of their own under the rest.
+export function Toolbar({
+  gap = '3',
+  py = '2',
+  children,
+}: {
+  gap?: FlexProps['gap']
+  py?: FlexProps['py']
+  children: ReactNode
+}) {
+  return (
+    <Flex className="toolbar" align="center" gap={gap} wrap="wrap" px="4" py={py} flexShrink="0" style={toolbarStyle}>
+      {children}
+    </Flex>
+  )
+}
+
+export function ToolbarEnd({ children }: { children: ReactNode }) {
+  return (
+    <Flex ml="auto" align="center" gap="4" flexShrink="0">
+      {children}
+    </Flex>
+  )
+}
 
 // Disabled actions stay focusable so their tooltip can say why.
 export const disabledProps = (disabled: boolean) => ({
@@ -197,18 +225,21 @@ export function useFilterText(q: string, onChange: (q: string) => void) {
   }
 }
 
+// Given a width, the field has it from sm and fills its line below.
 export function FilterField({
   placeholder,
   value,
   onChange,
+  width,
   style,
 }: {
   placeholder: string
   value: string
   onChange: (value: string) => void
-  style: CSSProperties
+  width?: string
+  style?: CSSProperties
 }) {
-  return (
+  const field = (
     <TextField.Root
       size="2"
       placeholder={placeholder}
@@ -220,6 +251,12 @@ export function FilterField({
         <MagnifyingGlassIcon />
       </TextField.Slot>
     </TextField.Root>
+  )
+  if (width === undefined) return field
+  return (
+    <Box flexGrow={{ initial: '1', sm: '0' }} flexBasis={{ initial: '160px', sm: width }} minWidth="0">
+      {field}
+    </Box>
   )
 }
 
@@ -251,17 +288,25 @@ export function SelectionActions({
   onClear: () => void
   children: ReactNode
 }) {
+  const sm = useFrom('sm')
   return (
-    <Flex align="center" gap="2">
+    <Flex className="toolbar-selection" align="center" gap="2" wrap="wrap">
       {count !== undefined && (
         <Text size="2" color="gray">
           {count.toLocaleString()} selected
         </Text>
       )}
+      {!sm && (
+        <IconButton size="1" variant="ghost" color="gray" aria-label="Clear selection" onClick={onClear}>
+          <Cross2Icon />
+        </IconButton>
+      )}
       {children}
-      <Button size="1" variant="ghost" color="gray" onClick={onClear}>
-        Clear selection
-      </Button>
+      {sm && (
+        <Button size="1" variant="ghost" color="gray" onClick={onClear}>
+          Clear selection
+        </Button>
+      )}
     </Flex>
   )
 }
