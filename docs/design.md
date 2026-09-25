@@ -255,7 +255,8 @@ and we cache browsed share trees in IndexedDB), show when each result was fetche
     room's list is hundreds of KB.
   - The conversation list every 10 s wherever the app is open, for the unread count on the Chat tab and at the start
     of the page title. It keeps polling in a hidden tab, where the title is what shows. The open conversation every
-    2 s.
+    2 s, except one that hasn't started: slskd answers it with a 404, which the browser logs as an error, so it's
+    asked again only once it's in the list or a message is sent.
 - `STATE.rooms` lists a room being joined before slskd can answer for it, and keeps a left room for a few seconds
   (see the facts). So a room this tab is joining shows once the join returns, and a room it leaves goes at once.
 - slskd has no read state for rooms, so the newest message time seen in each room is kept in localStorage, in slskd's
