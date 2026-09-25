@@ -13,6 +13,11 @@ import { useCallback, useEffect } from 'react'
 import { BrowsePage } from '../browse/BrowsePage'
 import { type BrowseSearch, browseSearch, browseSearchDefaults } from '../browse/params'
 import { SharePage } from '../browse/share/SharePage'
+import { unreadCount } from '../chat/ChatBadge'
+import { ChatPage } from '../chat/ChatPage'
+import { ConversationView } from '../chat/ConversationView'
+import { chatSearch, chatSearchDefaults, roomsSearch, roomsSearchDefaults } from '../chat/params'
+import { RoomView } from '../chat/RoomView'
 import { useResource } from '../lib/store'
 import { type ResultsSearch, resultsSearch, resultsSearchDefaults } from '../search/results/params'
 import { ResultsPage } from '../search/results/ResultsPage'
@@ -30,7 +35,10 @@ import {
 import { NotFound, RouteError } from './pages'
 import { Shell } from './Shell'
 
-const title = (name: string) => ({ meta: [{ title: `${name} · slskd` }] })
+function title(name: string) {
+  const unread = unreadCount()
+  return { meta: [{ title: `${unread > 0 ? `(${unread}) ` : ''}${name} · slskd` }] }
+}
 
 // Params that filter or sort replace the history entry. Changing a navigation param pushes one, so Back returns to it.
 function useSearchChange<T extends object>(
@@ -155,6 +163,35 @@ const browseRoute = createRoute({
   },
 })
 
+// The rooms and conversations share one page, whose sidebar stays mounted while switching between them.
+const chatRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  id: 'chat',
+  component: ChatPage,
+})
+
+const roomsRoute = createRoute({
+  getParentRoute: () => chatRoute,
+  path: 'rooms',
+  head: ({ match }) => title(match.search.room === '' ? 'Chat' : `${match.search.room} · Chat`),
+  validateSearch: roomsSearch,
+  search: { middlewares: [stripSearchParams(roomsSearchDefaults)] },
+  component: function Rooms() {
+    return <RoomView room={roomsRoute.useSearch().room} />
+  },
+})
+
+const conversationRoute = createRoute({
+  getParentRoute: () => chatRoute,
+  path: 'chat',
+  head: ({ match }) => title(match.search.user === '' ? 'Chat' : `${match.search.user} · Chat`),
+  validateSearch: chatSearch,
+  search: { middlewares: [stripSearchParams(chatSearchDefaults)] },
+  component: function Conversation() {
+    return <ConversationView user={conversationRoute.useSearch().user} />
+  },
+})
+
 const systemRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'system',
@@ -199,6 +236,7 @@ export const router = createRouter({
     downloadsRoute,
     uploadsRoute,
     browseRoute,
+    chatRoute.addChildren([roomsRoute, conversationRoute]),
     systemRoute.addChildren([systemIndexRoute, systemInfoRoute, systemLogsRoute]),
   ]),
   basepath: window.urlBase,

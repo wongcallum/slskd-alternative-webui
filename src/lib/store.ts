@@ -90,6 +90,19 @@ export function createResource<T extends object>(start: (sink: Sink<T>) => Sourc
   }
 }
 
+// One resource per key, such as a room, made when it's first asked for.
+export function createResourceMap<T>(create: (key: string) => Resource<T>) {
+  const resources = new Map<string, Resource<T>>()
+  return {
+    get: (key: string) => {
+      let resource = resources.get(key)
+      if (resource === undefined) resources.set(key, (resource = create(key)))
+      return resource
+    },
+    forget: (key: string) => resources.delete(key),
+  }
+}
+
 export type Measure = <R>(work: () => R) => R
 
 // Main-thread work per tick is capped at 1/costFactor of the time between ticks.
@@ -98,7 +111,7 @@ const costFactor = 10
 export function poll<T>(
   sink: Sink<T>,
   request: (signal: AbortSignal, measure: Measure) => Promise<T>,
-  interval: number,
+  interval: number | (() => number),
 ): Source {
   const controller = new AbortController()
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -126,7 +139,7 @@ export function poll<T>(
     }
     inFlight = false
     if (controller.signal.aborted) return
-    const next = Math.max(interval, costFactor * cost)
+    const next = Math.max(typeof interval === 'number' ? interval : interval(), costFactor * cost)
     sink.pace(next)
     timer = setTimeout(tick, again ? 0 : next)
   }

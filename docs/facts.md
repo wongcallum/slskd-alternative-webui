@@ -556,6 +556,134 @@ observations come from browsing one real peer: 168,159 files in 21,852 directori
 - Stock caches browse results in IndexedDB (`slskd-browse` / `browse`) and `localStorage['slskd-browse-state']`.
   We share an origin with stock, so use different names.
 
+## Rooms
+
+Paths are relative to `Messaging/` unless they start with `SN:` (Soulseek.NET 10.0.2) or another directory. The
+observations come from one throwaway room created on the dev account.
+
+### Endpoints
+
+Everything is under `/rooms` (`API/Controllers/RoomsController.cs`), returns 403 in relay agent mode, and takes its
+body as a bare JSON string. The room name is a path segment, so encode it with `encodeURIComponent` (`%2F` works).
+404s are empty, and every other failure is a 500 carrying the message as a JSON string. There's no concurrency limit
+and no 429.
+
+- `GET available` asks the Soulseek server every time, with no cache, and gives up after 5 s. It returns
+  `[{name, userCount, isPrivate, isOwned, isModerated}]`, where `isModerated` means we're an operator. Observed: about
+  700 rooms and 64 KB in 0.5–1 s, sorted case-sensitively by name (so every uppercase name before every lowercase
+  one), with 0 to 1,328 users, and 433 rooms with 2 users or fewer.
+- `GET joined` returns the tracked names as a bare `string[]`. `GET joined/{room}` returns
+  `{name, isPrivate, operatorCount?, operators?, owner?, users, messages}`, and `GET joined/{room}/messages` and
+  `.../users` return just the lists. They only read local state, and an untracked room is a 404.
+- `POST joined` with the name is a Soulseek action that waits up to 5 s for the server.
+  - It returns 201 with the room, whose `messages` is empty and whose `users` come from the server's reply, including
+    ourselves with `self`. Observed: about 1.5 s. A room that's already tracked gets a 200 with an empty body.
+  - **Joining a name that doesn't exist creates a public room** (observed), which then shows in `GET available`.
+    slskd never sets the private flag, so it can't create a private room.
+  - A refused join is a 500 (`"The server rejected the request to join room X"`): the 403 branch tests the inner
+    exception, but Soulseek.NET throws it directly. No reply within 5 s is a 500 that says the room is probably
+    already joined. Not being logged in and a blank name are 500s too.
+- `DELETE joined/{room}` is a Soulseek action that waits up to 5 s, and returns 204, or 404 when it isn't tracked. The
+  room is only untracked once the server acknowledges, so **while disconnected, or without a reply, it's a 500 and
+  the room stays joined**.
+- `POST joined/{room}/messages` with the text writes to the server without waiting, and returns an empty 201. An empty
+  string is a 500, but whitespace passes. There's no length limit in slskd or Soulseek.NET.
+- `POST joined/{room}/ticker` sets our ticker, and `POST joined/{room}/members` adds a user to a private room. Tickers
+  can't be read (slskd subscribes to no ticker event), a ticker can't be cleared, and nothing else about private room
+  membership or operators is exposed.
+
+### Records
+
+- A message is `{timestamp, username, message, roomName, self?}`, oldest first, with **no id**. `self` is `true` or
+  omitted, from an exact comparison with our username.
+- `timestamp` is when slskd handled the message (`DateTime.UtcNow`, with the `Z`), because the server sends none.
+  Soulseek.NET raises each message on its own task, so messages arriving close together may be stored out of order
+  (inferred).
+- **Our own messages aren't stored as they're sent.** They arrive when the server echoes them back: observed after
+  1–1.5 s, with `self: true`, in the order sent.
+- A user is
+  `{username, status ("Online"|"Away"|"Offline"), countryCode, averageSpeed, fileCount, directoryCount, uploadCount, slotsFree, self?}`.
+  **The values are a snapshot** from the join reply or from that user's join notification, and nothing updates them.
+  Another user joining or leaving only adds or removes them. Nothing is recorded as a message.
+
+### Lifetime
+
+- Rooms live in memory (`RoomTracker.cs`), keyed case-sensitively, and **each keeps its last 250 messages**
+  (`Program.cs:772`). A restart loses them, and only the `rooms` option (`--rooms`, `SLSKD_ROOMS`) is joined again.
+  `MessagingDbContext.RoomMessages` exists but is never used.
+- Every received message not from a blacklisted user is also written to `events.db` as a `RoomMessageReceived` event,
+  which is never pruned. `GET /events` can't filter by type.
+- A Soulseek disconnect clears nothing: the rooms, messages and users stay, and the GETs keep working. On every login
+  slskd joins the `rooms` option and then rejoins every tracked room (`RoomService.cs`), and failures are only logged.
+  - The rejoin doesn't refresh the users, so users who left meanwhile stay listed and newcomers are missing.
+  - A rejoin that fails leaves a room that can't be left until a restart (inferred).
+- The blacklist only drops incoming messages; blacklisted users are still listed.
+- The only push is `STATE.rooms` on the application hub: the joined names, updated on the server's join and leave
+  notifications and not on disconnect. Observed: it still listed a room a few seconds after its DELETE returned, while
+  `GET joined` was right at once.
+
+## Private messages
+
+Paths are relative to `Messaging/` unless they start with `SN:`. Everything is under `/conversations`
+(`API/Controllers/ConversationsController.cs`), returns 403 in relay agent mode, and takes its body as a bare JSON
+string. The username is a path segment.
+
+### Records
+
+- A conversation is `{username, isActive, unAcknowledgedMessageCount, hasUnAcknowledgedMessages, messages?}`, and a
+  message is `{timestamp, id, username, direction ("In"|"Out"), message, isAcknowledged, wasReplayed}`. `username` is
+  always the other party.
+- Everything is kept in SQLite (`messaging.db`) with no retention, cap or delete. **Every endpoint returns at most the
+  newest 100 messages**, oldest first, and there's no pagination, so older history can't be reached
+  (`ConversationService.cs`).
+- Incoming timestamps are the server's, in whole seconds, while sent ones are slskd's clock to 100 ns. Messages sort by
+  timestamp alone, so a quick reply can sort above the message it answers, and messages that waited on the server
+  while slskd was offline land by their original time.
+- A sent message is stored after it's written to the server, with `id: 0`, `direction: "Out"` and
+  `isAcknowledged: true`. So a key needs more than the id: `direction`, `id` and `timestamp` together work.
+- Usernames compare case-sensitively. `.` and `..` can't be reached through any endpoint.
+- Messaging our own username works: the server echoes it back within a second as an unread `In` message, next to the
+  `Out` copy. Observed: the echo's whole-second timestamp sorted it above the message it echoed.
+
+### Endpoints
+
+- `GET /conversations` lists the active conversations, sorted case-sensitively by username, with no last-message time
+  and no preview. `includeInactive` and `unAcknowledgedOnly` filter it. It loads every unread message in the database
+  to count them, so it's cheap only while few are unread.
+- `GET /conversations/{u}` (with messages unless `includeMessages=false`) and `GET /conversations/{u}/messages` only
+  read local state, include closed conversations, and are an empty 404 when there's none. The unread count from
+  `GET /conversations/{u}` only covers its 100 messages, so it can disagree with the list.
+- `POST /conversations/{u}` sends.
+  - It returns an empty 201 once the message is stored, so the next GET has it.
+  - **It returns an empty 200 when the user is blacklisted, having sent and stored nothing.**
+  - An empty body is a 400, but whitespace passes. Not being logged in is a 500.
+  - Nothing comes back from the server, so sending to an offline or nonexistent user also gets a 201. There's no
+    delivery or online status.
+  - It activates the conversation before sending, so a failed send leaves an active conversation with no messages.
+- `PUT /conversations/{u}` acknowledges all of its unread messages, `PUT /conversations/{u}/{id}` one, and
+  `DELETE /conversations/{u}` acknowledges all and then closes it. Their 404s never fire, because the lookup isn't
+  awaited, so an unknown user or id succeeds.
+
+### Acknowledging
+
+- slskd turns off Soulseek.NET's automatic acknowledgement, so a message stays unread until a UI acknowledges it.
+  **Each acknowledgement sends MessageAcked to the server**, one per message. The server re-delivers a message at
+  every login until it's acknowledged. The sender gets no read receipt.
+- Acknowledging needs a Soulseek login: a PUT or DELETE with anything unread is a 500 while logged out.
+- Acknowledging all also covers messages that arrived after the UI's last fetch.
+- **Acknowledging a sent message by id fails**: they all have id 0, so with two or more of them the lookup throws a
+  500 (`"Sequence contains more than one element"`).
+- A re-delivered message matches its stored copy on `(username, id, timestamp)` and is set unread again, with
+  `wasReplayed`, instead of being duplicated. It raises `PrivateMessageReceived` again, so the event log and webhooks
+  get a duplicate at each login.
+- Messages from blacklisted users are dropped before they're stored, with no event.
+
+### Lifetime
+
+- Closing only sets `isActive: false`. The history is kept, and an incoming message or a send reopens it. No endpoint
+  opens a conversation without sending.
+- Nothing is pushed, and `STATE` has nothing about conversations.
+
 ## Stock UI
 
 Paths are relative to `slskd/src/web/src`.
@@ -613,6 +741,18 @@ Paths are relative to `slskd/src/web/src`.
     5,000 files.
   - Download groups the selection by first-level subfolder, one batch each with `destination = <selected>/<child>`,
     so deeper levels are flattened. The folder's own files go through the obsolete per-user POST.
+- Rooms (`components/Rooms/`):
+  - Joined rooms are tabs. It polls `GET rooms/joined` at 2 Hz, and the open room's messages and then its users at
+    1 Hz, without waiting for the previous request. The open room is kept in sessionStorage `slskd-active-room`.
+  - Joining is only from the available list, in a modal, so a room can't be created or typed. A failed list leaves
+    the modal spinning. Leaving has no confirmation.
+  - The user list shows a flag and the name. Right-clicking a message offers Reply, User Profile and Browse Shares,
+    which pass the user through router state on paths that ignore `urlBase`.
+  - Nothing handles errors or the Soulseek connection.
+- Chat (`components/Chat/`): it polls `GET conversations` every 5 s and, on the same tick, acknowledges the open
+  conversation if it has unread messages and then fetches it. Tabs show unread counts, and there's no nav badge.
+  Starting a conversation takes a username and a first message together. The open conversation is kept in
+  sessionStorage `slskd-active-chat`.
 
 ### Search filter syntax
 
@@ -729,6 +869,8 @@ Checked against the `@radix-ui/themes` 3.3.0 package source.
   hidden, to reserve its bold width), so keep stateful components and `id`s out of it. A `Badge` inside works
   but needs its own margin.
 - The root `Theme` provides a `Tooltip.Provider` with a 200 ms delay.
+- `DropdownMenu.Trigger` and `Dialog.Trigger` always render with `asChild`, so their child must be one element that
+  takes a ref.
 - next-themes 0.4.6, which the Radix docs recommend, is mostly unmaintained. Its anti-flash script does nothing
   when rendered client-side only (React 19 doesn't run rendered `<script>`s) and logs a warning in dev.
 
