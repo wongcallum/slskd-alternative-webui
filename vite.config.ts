@@ -17,7 +17,7 @@ export default defineConfig(({ command }) => ({
   // The build must not know its url_base: slskd rewrites "./static" in index.html to "{urlBase}/static".
   base: command === 'serve' ? `${urlBase}/` : './',
   plugins: [react(), injectUrlBase],
-  build: { assetsDir: 'static' },
+  build: { assetsDir: 'static', chunkSizeWarningLimit: 1000 },
   server: {
     strictPort: true,
     proxy: {
