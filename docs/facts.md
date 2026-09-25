@@ -215,6 +215,34 @@ Error bodies are JSON strings. Encode the username segment with `encodeURICompon
   and `inProgress.files` dipped to -2. Each file was `InProgress` for only a few seconds, so `inProgress.files`
   mostly read 0. While nothing moved, the two matched exactly.
 
+## Telemetry reports
+
+Paths are relative to `Telemetry/`. Stock's dashboard (`components/Dashboard/`) is built on these; we have no
+dashboard yet.
+
+- `GET /telemetry/reports/transfers/{summary,histogram,leaderboard,exceptions,exceptions/pareto,directories}`
+  (`API/ReportsController.cs`, `ReportsService.cs`) only read SQLite, never Soulseek, and need no option. Stock
+  sends its nine requests when the page opens and when the range changes, and never polls.
+- Each request runs raw SQL, uncached. The window filters on `EndedAt`, which no index covers without a username, so
+  every request reads every finished row, and recent exceptions sort them all before the limit. Observed 2–50 ms
+  over 154 finished rows; not measured at scale. An unparseable `start` or `end` silently becomes the default.
+- Only finished transfers count, and **removed records are included**, so a retried file counts as a failure and a
+  success.
+- `summary` is `{Download: {<state>: stats}, Upload: {...}}`, keyed by the final state without `Completed`
+  (`Succeeded`, `Errored`, ...). Stats are `{totalBytes (SUM(size)), count, distinctUsers, averageSpeed, averageWait, averageDuration}`,
+  with durations in whole seconds. `histogram` gives the same per bucket, keyed by the bucket start. Starts align to
+  multiples of the width since 1970, so it can return `buckets + 1` entries, and a `start` before 2020-12-30 means
+  the oldest record.
+- `summary` and `leaderboard` average each transfer's speed, while `histogram` divides total bytes by total seconds
+  (observed 16.7 against 3.39 MB/s over one window).
+- `leaderboard` counts successes only, and its `sortBy` (`Count|TotalBytes|AverageSpeed`) and `sortOrder` are
+  case-sensitive. `directories` counts successful **uploads** only. `exceptions` covers every other final state,
+  cancelled included, keeps only the message after the first `": "`, and returns dates without the `Z`. Neither
+  `leaderboard` nor `exceptions` caps `limit`.
+- Stock's numbers inherit all this. "Downloaded" sums the full size of failed and cancelled transfers (on dev,
+  1.4 GB of them against 709 MB that succeeded), "Distinct peers" adds the two directions' counts, and "Recent
+  errors" times are shifted by the browser's UTC offset.
+
 ## Soulseek server connection
 
 - `STATE.server` (application hub) and `GET /server` give
