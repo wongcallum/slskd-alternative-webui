@@ -140,6 +140,10 @@ export function useSearches() {
 // Stop and Delete act on slskd's stored list, so they wait until it's known.
 export const listGate = (known: boolean) => (known ? undefined : 'The list is out of date')
 
+// slskd refuses a search without a term, and still stores it as errored. Like Soulseek.NET, this splits on single
+// spaces, and a word of one character doesn't count, since it's dropped.
+export const hasSearchTerm = (text: string) => text.split(' ').some((word) => word.length > 1 && !word.startsWith('-'))
+
 export async function createSearch(text: string) {
   const signal = sessionSignal()
   const raw = await resendOn429(
