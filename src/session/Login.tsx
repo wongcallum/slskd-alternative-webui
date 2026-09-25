@@ -31,8 +31,8 @@ export function Login({ ended }: { ended: boolean }) {
   }
 
   return (
-    <Flex align="center" justify="center" minHeight="100vh" p="4">
-      <Card size="3" style={{ width: 360 }}>
+    <Flex align="center" justify="center" minHeight="100dvh" p="4">
+      <Card size="3" style={{ width: '100%', maxWidth: 360 }}>
         <form onSubmit={submit}>
           <Flex direction="column" gap="3">
             <Heading size="5">slskd</Heading>
