@@ -5,11 +5,11 @@ import { formatBytes, formatProgress } from '../lib/format'
 import { stop } from '../ui/table'
 import { type Browse, dismissFailure, type Failure } from './browse'
 
-export function BrowseProgress({ username, running }: { username: string; running: Browse }) {
+export function BrowseProgress({ running }: { running: Browse }) {
   let text: string
-  if (running.phase === 'waiting') text = `Waiting for ${username} to respond…`
+  if (running.phase === 'waiting') text = 'Waiting for a response…'
   else if (running.phase === 'receiving') {
-    text = `Receiving from ${username}: ${formatProgress(running.transferred, running.total)}`
+    text = `Receiving the share: ${formatProgress(running.transferred, running.total)}`
   } else if (running.phase === 'loading') text = `Loading from slskd: ${formatBytes(running.loaded)}`
   else text = 'Processing…'
   return (

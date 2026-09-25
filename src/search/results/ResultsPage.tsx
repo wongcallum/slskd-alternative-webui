@@ -168,12 +168,7 @@ function Running({ search }: { search: Search }) {
   else if (search.isComplete) message = 'Saving the results…'
   else message = 'Results appear when the search ends. Stop it to see them now.'
   return (
-    <Flex direction="column" align="center" gap="2" p="6">
-      {search.state === 'InProgress' && (
-        <Text size="5" weight="medium">
-          {describeCounts(search)}
-        </Text>
-      )}
+    <Flex justify="center" p="6">
       <Text color="gray">{message}</Text>
     </Flex>
   )
