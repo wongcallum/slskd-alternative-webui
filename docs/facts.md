@@ -58,6 +58,9 @@ Paths below are relative to `Transfers/` unless they start with another director
     `bytesTransferred` and `averageSpeed`. They're overwritten by the next attempt's first state change.
     `placeInQueue` is already cleared.
   - Cancelling during that wait ends as `Completed, Errored`, not `Cancelled`.
+  - A comment in `Downloads/DownloadService.cs` says a download the peer doesn't acknowledge within 3 minutes is
+    recorded as `Cancelled`. From reading the code, the `TimeoutException` is probably recorded first, which makes
+    it `TimedOut` (not observed).
   - A failure before Soulseek reports any state flips the state
     `Completed, Errored` → `Queued, Locally` → `Completed, Errored` within milliseconds, for example when
     enqueueing while disconnected. This affects downloads and uploads.

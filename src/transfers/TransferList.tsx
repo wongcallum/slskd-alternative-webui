@@ -194,12 +194,15 @@ function SectionHeader({
   const groups = section === 'active' ? active : finished
   let summary: string
   if (filtered || (section === 'finished' && show !== 'all')) {
-    const total = section === 'active' ? data.transferring + data.queued : data.succeeded + data.failed
+    const total = section === 'active' ? data.transferring + data.queued : data.succeeded + data.failed + data.cancelled
     summary = `${countFiles(groups).toLocaleString()} of ${total.toLocaleString()}`
   } else if (section === 'active') {
     summary = `${data.transferring.toLocaleString()} ${direction}ing · ${data.queued.toLocaleString()} queued`
     if (data.speed > 0) summary += ` · ${formatSpeed(data.speed)}`
-  } else summary = `${data.succeeded.toLocaleString()} succeeded · ${data.failed.toLocaleString()} failed`
+  } else {
+    summary = `${data.succeeded.toLocaleString()} succeeded · ${data.failed.toLocaleString()} failed`
+    if (data.cancelled > 0) summary += ` · ${data.cancelled.toLocaleString()} cancelled`
+  }
 
   const everything = allFiles(section === 'active' ? data.active : data.finished)
   const failed = everything.filter((file) => isFailed(file.state))
@@ -242,6 +245,7 @@ function SectionHeader({
                 <SegmentedControl.Item value="all">All</SegmentedControl.Item>
                 <SegmentedControl.Item value="succeeded">Succeeded</SegmentedControl.Item>
                 <SegmentedControl.Item value="failed">Failed</SegmentedControl.Item>
+                <SegmentedControl.Item value="cancelled">Cancelled</SegmentedControl.Item>
               </SegmentedControl.Root>
               {direction === 'download' && (
                 <ConfirmButton
@@ -250,7 +254,7 @@ function SectionHeader({
                   progress={running.retry}
                   gate={failed.length === 0 ? 'Nothing has failed' : gates.soulseek}
                   title={`Retry ${plural(failed.length, 'download')}?`}
-                  description="Every failed download is enqueued again, including any hidden by the filter."
+                  description="Every failed download is enqueued again, including any hidden by the filter. Cancelled ones aren't."
                   action="Retry"
                   onConfirm={() => retry(failed)}
                 />
@@ -261,7 +265,7 @@ function SectionHeader({
                 progress={running.clear}
                 gate={everything.length === 0 ? 'Nothing has finished' : gates.list}
                 title={`Clear ${plural(everything.length, `finished ${direction}`)}?`}
-                description={`Every finished ${direction} is removed from the list, succeeded and failed, including any hidden by the filter. Files on disk aren't touched.`}
+                description={`Every finished ${direction} is removed from the list, whatever its outcome, including any hidden by the filter. Files on disk aren't touched.`}
                 action="Clear"
                 onConfirm={() => clearFinished(direction)}
               />

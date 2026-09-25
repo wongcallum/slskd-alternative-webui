@@ -15,8 +15,8 @@ import {
   type Direction,
   filterGroups,
   type Group,
-  isFailed,
   isFinished,
+  isRetryable,
   pollInterval,
   type Transfer,
   type Transfers,
@@ -25,7 +25,7 @@ import {
 
 export const transfersSearch = v.object({
   q: textParam,
-  show: oneOf(['all', 'succeeded', 'failed'], 'all'),
+  show: oneOf(['all', 'succeeded', 'failed', 'cancelled'], 'all'),
   activeSort: sortOf(columnIds.active),
   finishedSort: sortOf(columnIds.finished),
 })
@@ -142,7 +142,7 @@ type ToolbarProps = {
 
 function Toolbar({ direction, resource, error, text, onTextChange, selected, onClearSelection, gates }: ToolbarProps) {
   const { running } = useAtom(actions[direction])
-  const retryable = direction === 'download' ? selected.filter((file) => isFailed(file.state)) : []
+  const retryable = direction === 'download' ? selected.filter((file) => isRetryable(file.state)) : []
   const cancellable = selected.filter((file) => !isFinished(file.state))
   const removable = selected.filter((file) => isFinished(file.state))
   return (
@@ -155,7 +155,7 @@ function Toolbar({ direction, resource, error, text, onTextChange, selected, onC
               label={`Retry ${retryable.length.toLocaleString()}`}
               busy="Retrying"
               progress={running.retry}
-              gate={retryable.length === 0 ? 'Nothing selected has failed' : gates.soulseek}
+              gate={retryable.length === 0 ? 'Nothing selected has failed or been cancelled' : gates.soulseek}
               onClick={() => retry(retryable)}
             />
           )}
