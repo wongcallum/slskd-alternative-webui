@@ -1240,8 +1240,8 @@ Checked against the `@radix-ui/themes` 3.3.0 package source.
 - The `TabNav` list scrolls sideways with its scrollbar hidden (`_internal/base-tab-list.css`), and nothing scrolls the
   active tab into view.
 - `DropdownMenu.Item` takes `asChild`, but `DropdownMenu.RadioItem` doesn't.
-- `Button` and `IconButton` default `disabled` to `loading` (`_internal/base-button.tsx`), so a focused button that starts
-  loading loses focus to `<body>` (observed) unless `disabled={false}` is passed.
+- `Button` and `IconButton` default `disabled` to `loading` (`_internal/base-button.tsx`), so a focused button that
+  starts loading loses focus to `<body>` (observed) unless `disabled={false}` is passed.
 - Text fields of size 1, 2 and 3 are 24, 32 and 40 px high with 12, 14 and 16 px text. Menu and select items are 24 px
   at size 1 and 32 px at size 2, through `--base-menu-item-height` and `--select-item-height`.
 - **Tooltips never open from touch** (`@radix-ui/react-tooltip` 1.2.16, `TooltipTrigger`): a touch pointer's move is
