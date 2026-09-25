@@ -11,7 +11,13 @@ import {
 import { useEffect } from 'react'
 import { NotFound, Placeholder, RouteError } from './pages'
 import { useResource } from './store'
-import { type ResultsSearch, resultsSearch, resultsSearchDefaults, SearchResultsPage } from './SearchResults'
+import {
+  rememberedFilters,
+  type ResultsSearch,
+  resultsSearch,
+  resultsSearchDefaults,
+  SearchResultsPage,
+} from './SearchResults'
 import { type SearchesSearch, SearchesPage, searchesSearch, searchesSearchDefaults } from './Searches'
 import { searches } from './searches'
 import { SessionGate } from './SessionGate'
@@ -71,6 +77,10 @@ const searchRoute = createRoute({
   head: ({ params }) => title(searches.getSnapshot().data?.byId.get(params.id)?.text ?? 'Search'),
   validateSearch: resultsSearch,
   search: { middlewares: [stripSearchParams(resultsSearchDefaults)] },
+  beforeLoad: ({ search, params }) => {
+    const filters = rememberedFilters(search)
+    if (filters !== undefined) throw redirect({ to: '/searches/$id', params, search: { ...search, ...filters } })
+  },
   component: function SearchResults() {
     const { id } = searchRoute.useParams()
     const navigate = searchRoute.useNavigate()

@@ -8,6 +8,7 @@ import {
   InfoCircledIcon,
   LockClosedIcon,
   MagnifyingGlassIcon,
+  MixerHorizontalIcon,
 } from '@radix-ui/react-icons'
 import {
   Badge,
@@ -17,10 +18,12 @@ import {
   Checkbox,
   DataList,
   Flex,
+  Grid,
   Heading,
   IconButton,
   Link,
   Popover,
+  Select,
   Spinner,
   Text,
   TextField,
@@ -48,6 +51,7 @@ import {
   useCallback,
   useDeferredValue,
   useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -67,9 +71,19 @@ import {
   toolbarStyle,
   VirtualTable,
 } from './controls'
-import { formatBytes, formatDuration, formatSpeed, formatTime } from './format'
+import { formatBytes, formatDuration, formatSpeed, formatTime, plural } from './format'
 import { DelayedSpinner } from './pages'
-import { formatSort, oneOf, parseSort, sortOf, textParam } from './params'
+import {
+  decimalParam,
+  formatSort,
+  integerParam,
+  oneOf,
+  parseSort,
+  positiveDecimal,
+  positiveInteger,
+  sortOf,
+  textParam,
+} from './params'
 import {
   download,
   downloadsOf,
@@ -77,12 +91,14 @@ import {
   type FolderFetch,
   fetchFolder,
   loadResults,
+  losslessQuality,
   type Mark,
   openResults,
   type ResultFile,
   type ResultGroup,
   type Results,
   availability,
+  unfiltered,
   viewGroups,
 } from './results'
 import { describeCounts, SearchState } from './Searches'
@@ -103,16 +119,59 @@ import { compareNames } from './transfers'
 
 const columnIds = ['name', 'user', 'files', 'size', 'quality', 'length', 'speed', 'queue'] as const
 
+const qualities = [
+  ['any', 'Any', 0],
+  ['128', '128 kbps', 128],
+  ['192', '192 kbps', 192],
+  ['256', '256 kbps', 256],
+  ['320', '320 kbps', 320],
+  ['lossless', 'Lossless', losslessQuality(0)],
+  ['24bit', '24-bit lossless', losslessQuality(24)],
+] as const
+
 export const resultsSearch = v.object({
   q: textParam,
   sort: sortOf(columnIds),
   locked: oneOf(['hide', 'show'], 'hide'),
   free: oneOf(['all', 'only'], 'all'),
+  quality: oneOf(qualities.map(([value]) => value), 'any'),
+  size: decimalParam,
+  length: decimalParam,
+  files: integerParam,
 })
 
-export const resultsSearchDefaults = { q: '', locked: 'hide', free: 'all' } as const
-
 export type ResultsSearch = v.InferOutput<typeof resultsSearch>
+
+const filterKeys = ['quality', 'size', 'length', 'files', 'free'] as const
+
+const filterSearch = v.pick(resultsSearch, filterKeys)
+
+type FilterSearch = v.InferOutput<typeof filterSearch>
+
+const noFilters: FilterSearch = { quality: 'any', size: '', length: '', files: '', free: 'all' }
+
+export const resultsSearchDefaults = { q: '', locked: 'hide', ...noFilters } as const
+
+const filtersKey = 'slskd-alt-result-filters'
+
+const countFilters = (search: FilterSearch) => filterKeys.filter((key) => search[key] !== noFilters[key]).length
+
+function saveFilters(search: FilterSearch) {
+  if (countFilters(search) === 0) localStorage.removeItem(filtersKey)
+  else localStorage.setItem(filtersKey, JSON.stringify(search, [...filterKeys]))
+}
+
+// A results page opened without any filters gets the last ones used, so a quality preference carries over.
+export function rememberedFilters(search: FilterSearch) {
+  const saved = countFilters(search) === 0 ? localStorage.getItem(filtersKey) : null
+  if (saved === null) return undefined
+  try {
+    const filters = v.parse(filterSearch, JSON.parse(saved))
+    return countFilters(filters) > 0 ? filters : undefined
+  } catch {
+    return undefined
+  }
+}
 
 const features = tableFeatures({
   rowSortingFeature,
@@ -383,12 +442,16 @@ function ResultsView({ searchId, results, folders, params, onSearchChange }: Vie
   const query = useDeferredValue(text)
   const locked = params.locked === 'show'
   const free = params.free === 'only'
+  const quality = useDeferredValue(qualities.find(([value]) => value === params.quality)?.[2] ?? 0)
+  const size = useDeferredValue(Number(params.size) * 2 ** 20)
+  const length = useDeferredValue(Number(params.length) * 60)
+  const files = useDeferredValue(Number(params.files))
   const groups = useMemo(
-    () => viewGroups(results, folders, { query, locked, free }),
-    [results, folders, query, locked, free],
+    () => viewGroups(results, folders, { query, locked, free, quality, size, length, files }),
+    [results, folders, query, locked, free, quality, size, length, files],
   )
   const total = useMemo(
-    () => countFiles(viewGroups(results, folders, { query: '', locked, free: false })),
+    () => countFiles(viewGroups(results, folders, { ...unfiltered, locked })),
     [results, folders, locked],
   )
   const shown = useMemo(() => countFiles(groups), [groups])
@@ -426,24 +489,30 @@ function ResultsView({ searchId, results, folders, params, onSearchChange }: Vie
   const soulseekGate = useSoulseekGate()
   const downloads = useAtom(downloadsOf(searchId))
 
+  function changeFilters(patch: Partial<FilterSearch>) {
+    saveFilters({ ...params, ...patch })
+    onSearchChange(patch)
+  }
+
   return (
     <>
       <Flex align="center" gap="4" px="4" py="2" flexShrink="0" style={toolbarStyle}>
         <TextField.Root
           size="2"
-          placeholder="Filter by user or path"
+          placeholder="Filter by user or path, -word to exclude"
           value={text}
           onChange={(event) => {
             setText(event.target.value)
             setUrlText(event.target.value)
             onSearchChange({ q: event.target.value })
           }}
-          style={{ width: 280 }}
+          style={{ width: 330 }}
         >
           <TextField.Slot>
             <MagnifyingGlassIcon />
           </TextField.Slot>
         </TextField.Root>
+        <FiltersButton filters={params} onChange={changeFilters} />
         {results.locked > 0 && (
           <Text as="label" size="2">
             <Flex gap="2" align="center">
@@ -455,15 +524,6 @@ function ResultsView({ searchId, results, folders, params, onSearchChange }: Vie
             </Flex>
           </Text>
         )}
-        <Text as="label" size="2">
-          <Flex gap="2" align="center">
-            <Checkbox
-              checked={free}
-              onCheckedChange={(checked) => onSearchChange({ free: checked === true ? 'only' : 'all' })}
-            />
-            Free slot only
-          </Flex>
-        </Text>
         <Button
           size="1"
           variant="soft"
@@ -508,6 +568,125 @@ function ResultsView({ searchId, results, folders, params, onSearchChange }: Vie
           folderGate={soulseekGate}
         />
       )}
+    </>
+  )
+}
+
+type FiltersProps = { filters: FilterSearch; onChange: (patch: Partial<FilterSearch>) => void }
+
+function FiltersButton({ filters, onChange }: FiltersProps) {
+  const active = countFilters(filters)
+  const qualityId = useId()
+  return (
+    <Popover.Root>
+      <Popover.Trigger>
+        <Button size="1" variant="soft" color={active > 0 ? undefined : 'gray'}>
+          <MixerHorizontalIcon />
+          {active > 0 ? `Filters (${active})` : 'Filters'}
+        </Button>
+      </Popover.Trigger>
+      <Popover.Content width="320px">
+        <Grid columns="auto 1fr" gap="3" align="center">
+          <Text as="label" size="2" htmlFor={qualityId}>
+            Quality at least
+          </Text>
+          <Select.Root
+            size="1"
+            value={filters.quality}
+            onValueChange={(quality) => onChange({ quality: quality as FilterSearch['quality'] })}
+          >
+            <Select.Trigger id={qualityId} />
+            <Select.Content>
+              {qualities.map(([value, label]) => (
+                <Select.Item key={value} value={value}>
+                  {label}
+                </Select.Item>
+              ))}
+            </Select.Content>
+          </Select.Root>
+          <AmountField
+            label="Min file size"
+            unit="MiB"
+            value={filters.size}
+            schema={positiveDecimal}
+            onChange={(size) => onChange({ size })}
+          />
+          <AmountField
+            label="Min length"
+            unit="min"
+            value={filters.length}
+            schema={positiveDecimal}
+            onChange={(length) => onChange({ length })}
+          />
+          <AmountField
+            label="Min files per folder"
+            value={filters.files}
+            schema={positiveInteger}
+            onChange={(files) => onChange({ files })}
+          />
+        </Grid>
+        <Flex justify="between" align="center" mt="4">
+          <Text as="label" size="2">
+            <Flex gap="2" align="center">
+              <Checkbox
+                checked={filters.free === 'only'}
+                onCheckedChange={(checked) => onChange({ free: checked === true ? 'only' : 'all' })}
+              />
+              Free slot only
+            </Flex>
+          </Text>
+          <Button
+            size="1"
+            variant="soft"
+            color="gray"
+            disabled={active === 0}
+            onClick={() => onChange(noFilters)}
+          >
+            Clear
+          </Button>
+        </Flex>
+      </Popover.Content>
+    </Popover.Root>
+  )
+}
+
+type AmountProps = {
+  label: string
+  unit?: string
+  value: string
+  schema: typeof positiveDecimal | typeof positiveInteger
+  onChange: (value: string) => void
+}
+
+// While focused, the field shows what's typed rather than the URL, which the router updates a little after each
+// keystroke. Following it would put stale values back into the field.
+function AmountField({ label, unit, value, schema, onChange }: AmountProps) {
+  const id = useId()
+  const [draft, setDraft] = useState<string>()
+  const text = draft ?? value
+  const invalid = text.trim() !== '' && !v.is(schema, text.trim())
+  return (
+    <>
+      <Text as="label" size="2" htmlFor={id}>
+        {label}
+      </Text>
+      <TextField.Root
+        id={id}
+        size="1"
+        inputMode="decimal"
+        color={invalid ? 'red' : undefined}
+        aria-invalid={invalid}
+        value={text}
+        onFocus={() => setDraft(value)}
+        onBlur={() => setDraft(undefined)}
+        onChange={(event) => {
+          setDraft(event.target.value)
+          const amount = event.target.value.trim()
+          onChange(v.is(schema, amount) ? String(Number(amount)) : '')
+        }}
+      >
+        {unit !== undefined && <TextField.Slot side="right">{unit}</TextField.Slot>}
+      </TextField.Root>
     </>
   )
 }
@@ -764,6 +943,7 @@ const GroupRow = memo(function GroupRow({
   const { peer } = group
   const open = group.files.filter((file) => !file.locked)
   const extra = group.files.length - group.matched
+  const hidden = group.total - group.files.length
   const fetched = fetch?.files !== undefined
   const details: [string, ReactNode][] = [
     ['Folder', group.directory],
@@ -774,6 +954,7 @@ const GroupRow = memo(function GroupRow({
     ['Matched files', group.matched.toLocaleString()],
   ]
   if (fetched) details.push(['Fetched files', `${extra.toLocaleString()} more`])
+  if (hidden > 0) details.push(['Filtered out', plural(hidden, 'file')])
   if (fetch?.at !== undefined) {
     details.push([fetch.error === undefined ? 'Folder fetched' : 'Folder fetch failed', formatTime(fetch.at)])
   }
@@ -803,10 +984,15 @@ const GroupRow = memo(function GroupRow({
       <div className="table-cell" title={group.username}>
         <Text size="2">{group.username}</Text>
       </div>
-      <div className="table-cell" data-align="end">
+      <div
+        className="table-cell"
+        data-align="end"
+        title={hidden > 0 ? `${plural(hidden, 'file')} filtered out` : undefined}
+      >
         <Text size="2" color="gray">
-          {group.matched.toLocaleString()}
-          {fetched && ` + ${extra.toLocaleString()}`}
+          {hidden > 0
+            ? `${group.files.length.toLocaleString()} of ${group.total.toLocaleString()}`
+            : `${group.matched.toLocaleString()}${fetched ? ` + ${extra.toLocaleString()}` : ''}`}
         </Text>
       </div>
       <div className="table-cell" data-align="end">
