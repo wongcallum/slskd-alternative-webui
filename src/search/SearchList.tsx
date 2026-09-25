@@ -57,7 +57,11 @@ export function useListTable(
 }
 
 export function SearchList({ table, gate }: { table: ReturnType<typeof useListTable>; gate?: string }) {
-  const { pending } = useAtom(listActions)
+  const { pending, running } = useAtom(listActions)
+  // Two stops or deletes at once would share one progress count and outcome.
+  const rowGate =
+    gate ??
+    (running.stop !== undefined || running.delete !== undefined ? 'Another stop or delete is running' : undefined)
   const rows = table.getRowModel().rows
   const onSelect = useRowToggle(table)
   const layout = useListLayout()
@@ -90,7 +94,7 @@ export function SearchList({ table, gate }: { table: ReturnType<typeof useListTa
           layout={layout}
           selected={row.getIsSelected()}
           pending={pending.has(row.original.id)}
-          gate={gate}
+          gate={rowGate}
           onSelect={onSelect}
         />
       )}
