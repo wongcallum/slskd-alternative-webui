@@ -18,8 +18,10 @@ export function SystemLink() {
         color="gray"
         style={{ position: 'relative' }}
       >
-        {/* TODO: send a pending rescan alone to /system/shares once it exists (README roadmap: System shares) */}
-        <Link to="/system/info" aria-label="System">
+        <Link
+          to={pending.length === 1 && pending[0] === 'rescan' ? '/system/shares' : '/system/info'}
+          aria-label="System"
+        >
           <GearIcon width={18} height={18} />
           {pending.length > 0 && (
             <Box position="absolute" top="0" right="0" style={{ lineHeight: 0 }}>

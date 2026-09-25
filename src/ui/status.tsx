@@ -5,7 +5,7 @@ import { type ReactNode, useEffect, useState } from 'react'
 import { describeError } from '../lib/api'
 import { formatAge, formatTime, useAgo } from '../lib/format'
 import { isStale, type Resource, useFreshness } from '../lib/store'
-import type { Color } from './controls'
+import { ActionButton, type Color } from './controls'
 import { stop } from './table'
 
 export function StatusDot({ color }: { color: Color }) {
@@ -145,6 +145,37 @@ export function Busy({ children }: { children: ReactNode }) {
       <Text size="2" color="gray" truncate>
         {children}
       </Text>
+    </Flex>
+  )
+}
+
+// For data that's loaded on demand rather than polled.
+export function Fetched({
+  fetchedAt,
+  error,
+  loading,
+  onRefresh,
+}: {
+  fetchedAt?: number
+  error: unknown
+  loading: boolean
+  onRefresh: () => void
+}) {
+  return (
+    <Flex align="center" gap="3">
+      {error !== undefined && (
+        <Tooltip content={describeError(error)}>
+          <Text size="1" color="red">
+            Last load failed
+          </Text>
+        </Tooltip>
+      )}
+      {fetchedAt !== undefined && (
+        <Text size="1" color="gray">
+          fetched <Ago time={fetchedAt} />
+        </Text>
+      )}
+      <ActionButton label="Refresh" busy="Refreshing" loading={loading} onClick={onRefresh} />
     </Flex>
   )
 }

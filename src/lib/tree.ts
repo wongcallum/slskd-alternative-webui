@@ -1,9 +1,11 @@
-import { describeRange, qualityOf, type RawDirectory } from '../lib/files'
-import { byName, parseQuery } from '../lib/text'
+import { describeRange, qualityOf, type RawFile } from './files'
+import { byName, parseQuery } from './text'
 
-export type RawShare = { directories: RawDirectory[]; lockedDirectories: RawDirectory[] }
+export type InputFile = RawFile & { modifiedAt?: number; hidden?: boolean; link?: boolean }
 
-export type ShareFile = {
+export type InputDirectory = { name: string; files: InputFile[]; modifiedAt?: number; hidden?: boolean }
+
+export type TreeFile = {
   kind: 'file'
   id: string
   filename: string
@@ -15,9 +17,12 @@ export type ShareFile = {
   quality: number
   qualityLabel: string
   locked: boolean
+  hidden: boolean
+  link: boolean
+  modifiedAt?: number
 }
 
-// Totals are recursive. The share's top is a folder too, with an empty path.
+// Totals are recursive. The tree's top is a folder too, with an empty path.
 export type Folder = {
   kind: 'folder'
   id: string
@@ -25,8 +30,10 @@ export type Folder = {
   name: string
   parent?: Folder
   folders: Folder[]
-  files: ShareFile[]
+  files: TreeFile[]
   locked: boolean
+  hidden: boolean
+  modifiedAt?: number
   fileCount: number
   lockedCount: number
   size: number
@@ -34,13 +41,16 @@ export type Folder = {
   length: number
   quality: number
   qualityLabel: string
-  worst?: ShareFile
-  best?: ShareFile
+  worst?: TreeFile
+  best?: TreeFile
   search: string
 }
 
-export type Share = {
-  username: string
+export type Item = Folder | TreeFile
+
+// The key names the tree across rebuilds, such as a user's share fetched again.
+export type Tree = {
+  key: string
   separator: string
   top: Folder
   byPath: ReadonlyMap<string, Folder>
@@ -57,6 +67,7 @@ function createFolder(path: string, name: string, parent?: Folder): Folder {
     folders: [],
     files: [],
     locked: false,
+    hidden: false,
     fileCount: 0,
     lockedCount: 0,
     size: 0,
@@ -68,17 +79,17 @@ function createFolder(path: string, name: string, parent?: Folder): Folder {
   }
 }
 
-function detectSeparator({ directories, lockedDirectories }: RawShare) {
+function detectSeparator(directories: readonly InputDirectory[]) {
   let backslashes = 0
   let slashes = 0
-  for (const { name } of [...directories, ...lockedDirectories]) {
+  for (const { name } of directories) {
     if (name.includes('\\')) backslashes++
     else if (name.includes('/')) slashes++
   }
   return slashes > backslashes ? '/' : '\\'
 }
 
-// Files are left in the peer's order, and sorted where a folder is shown: sorting them all takes longer than the
+// Files are left in the listed order, and sorted where a folder is shown: sorting them all takes longer than the
 // rest of the build.
 function total(folder: Folder) {
   folder.folders.sort(byName)
@@ -111,11 +122,24 @@ function total(folder: Folder) {
   ;[folder.quality, folder.qualityLabel] = describeRange(folder.worst, folder.best)
 }
 
+type TreeInput = {
+  key: string
+  name: string
+  separator?: string
+  directories: readonly InputDirectory[]
+  lockedDirectories?: readonly InputDirectory[]
+}
+
 // The list is flat and unordered. Folders missing from it are synthesised, and a trailing separator belongs to
 // the folder's own name rather than starting an empty one.
-export function buildShare(username: string, raw: RawShare): Share {
-  const separator = detectSeparator(raw)
-  const top = createFolder('', username)
+export function buildTree({
+  key,
+  name,
+  directories,
+  lockedDirectories = [],
+  separator = detectSeparator([...directories, ...lockedDirectories]),
+}: TreeInput): Tree {
+  const top = createFolder('', name)
   const byPath = new Map<string, Folder>([['', top]])
   const listed = new Map<Folder, boolean>()
 
@@ -130,12 +154,14 @@ export function buildShare(username: string, raw: RawShare): Share {
     return folder
   }
 
-  for (const [directories, locked] of [
-    [raw.directories, false],
-    [raw.lockedDirectories, true],
+  for (const [list, locked] of [
+    [directories, false],
+    [lockedDirectories, true],
   ] as const) {
-    for (const directory of directories) {
+    for (const directory of list) {
       const folder = folderAt(directory.name)
+      folder.modifiedAt ??= directory.modifiedAt
+      folder.hidden ||= directory.hidden === true
       const seen = listed.has(folder) ? new Set(folder.files.map((file) => file.filename)) : undefined
       listed.set(folder, (listed.get(folder) ?? true) && locked)
       const prefix = directory.name + separator
@@ -155,39 +181,42 @@ export function buildShare(username: string, raw: RawShare): Share {
           quality,
           qualityLabel,
           locked,
+          hidden: file.hidden === true,
+          link: file.link === true,
+          modifiedAt: file.modifiedAt,
         })
       }
     }
   }
   for (const [folder, locked] of listed) folder.locked = locked
   total(top)
-  return { username, separator, top, byPath, folderCount: byPath.size - 1 }
+  return { key, separator, top, byPath, folderCount: byPath.size - 1 }
 }
 
-export function nearestFolder(share: Share, path: string) {
+export function nearestFolder(tree: Tree, path: string) {
   let current = path
   for (;;) {
-    const folder = share.byPath.get(current)
+    const folder = tree.byPath.get(current)
     if (folder !== undefined) return folder
-    const cut = current.lastIndexOf(share.separator, current.length - 2)
-    if (cut <= 0) return share.top
+    const cut = current.lastIndexOf(tree.separator, current.length - 2)
+    if (cut <= 0) return tree.top
     current = current.slice(0, cut)
   }
 }
 
 // Matching files per folder, and the recursive count of matches for every folder that leads to one.
-export type Matches = { own: ReadonlyMap<Folder, ShareFile[]>; counts: ReadonlyMap<Folder, number> }
+export type Matches = { own: ReadonlyMap<Folder, TreeFile[]>; counts: ReadonlyMap<Folder, number> }
 
-export function matchShare(share: Share, query: string): Matches | undefined {
+export function matchTree(tree: Tree, query: string): Matches | undefined {
   const { include, exclude } = parseQuery(query)
   if (include.length + exclude.length === 0) return undefined
-  const own = new Map<Folder, ShareFile[]>()
+  const own = new Map<Folder, TreeFile[]>()
   const counts = new Map<Folder, number>()
   function visit(folder: Folder) {
     let count = 0
-    const matched: ShareFile[] = []
+    const matched: TreeFile[] = []
     for (const file of folder.files) {
-      const search = folder.search + share.separator + file.name.toLowerCase()
+      const search = folder.search + tree.separator + file.name.toLowerCase()
       if (include.every((term) => search.includes(term)) && !exclude.some((term) => search.includes(term))) {
         matched.push(file)
       }
@@ -200,12 +229,12 @@ export function matchShare(share: Share, query: string): Matches | undefined {
     if (count > 0) counts.set(folder, count)
     return count
   }
-  visit(share.top)
+  visit(tree.top)
   return { own, counts }
 }
 
 export function matchesUnder(folder: Folder, matches: Matches) {
-  const files: ShareFile[] = []
+  const files: TreeFile[] = []
   function visit(current: Folder) {
     files.push(...(matches.own.get(current) ?? []))
     for (const child of current.folders) if (matches.counts.has(child)) visit(child)
@@ -215,7 +244,7 @@ export function matchesUnder(folder: Folder, matches: Matches) {
 }
 
 export function filesUnder(folder: Folder) {
-  const files: ShareFile[] = []
+  const files: TreeFile[] = []
   function visit(current: Folder) {
     for (const file of current.files) if (!file.locked) files.push(file)
     for (const child of current.folders) visit(child)
@@ -224,6 +253,6 @@ export function filesUnder(folder: Folder) {
   return files
 }
 
-export function relativePath(share: Share, from: Folder, folder: Folder) {
-  return from.path === '' ? folder.path : folder.path.slice(from.path.length + share.separator.length)
+export function relativePath(tree: Tree, from: Folder, folder: Folder) {
+  return from.path === '' ? folder.path : folder.path.slice(from.path.length + tree.separator.length)
 }

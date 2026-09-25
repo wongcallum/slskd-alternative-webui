@@ -5,7 +5,7 @@ import * as v from 'valibot'
 
 import { oneOf, textParam } from '../lib/params'
 import { type Color, FilterField, toolbarStyle, useFilterText } from '../ui/controls'
-import { Empty, Polling } from '../ui/status'
+import { Empty, Freshness, Polling } from '../ui/status'
 import { Cell, ColumnHeader, GridRow, HeaderRow, VirtualTable } from '../ui/table'
 import {
   type Level,
@@ -140,7 +140,16 @@ export function LogsPage({ search, onSearchChange }: Props) {
   }
 
   return (
-    <SystemPage resource={logs} interval={logPollInterval} loaded={data !== undefined} error={error} live={live}>
+    <SystemPage
+      status={
+        <Freshness
+          resource={logs}
+          interval={logPollInterval}
+          error={data === undefined ? undefined : error}
+          live={live}
+        />
+      }
+    >
       <Flex align="center" gap="3" px="4" py="2" flexShrink="0" style={toolbarStyle}>
         <FilterField
           placeholder="Filter by message or source"

@@ -238,3 +238,37 @@ export function without<V>(map: ReadonlyMap<string, V>, key: string) {
   next.delete(key)
   return next
 }
+
+// Loaded as it starts, unless skipped, and again on refresh, but never on a timer. A newer load aborts the one before.
+export function load<T>(
+  sink: Sink<T>,
+  request: (signal: AbortSignal) => Promise<T>,
+  { loading, skip = false }: { loading?: Atom<boolean>; skip?: boolean } = {},
+): Required<Source> {
+  let controller: AbortController | undefined
+  function run() {
+    controller?.abort()
+    const current = (controller = new AbortController())
+    loading?.set(true)
+    request(current.signal).then(
+      (data) => {
+        if (current.signal.aborted) return
+        sink.set(data)
+        loading?.set(false)
+      },
+      (error: unknown) => {
+        if (current.signal.aborted) return
+        sink.fail(error)
+        loading?.set(false)
+      },
+    )
+  }
+  if (!skip) run()
+  return {
+    stop() {
+      controller?.abort()
+      loading?.set(false)
+    },
+    refresh: run,
+  }
+}
