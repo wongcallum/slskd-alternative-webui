@@ -198,7 +198,7 @@ function SectionHeader({
     summary = `${countFiles(groups).toLocaleString()} of ${total.toLocaleString()}`
   } else if (section === 'active') {
     summary = `${data.transferring.toLocaleString()} ${direction}ing · ${data.queued.toLocaleString()} queued`
-    if (data.speed > 0) summary += ` · ${formatSpeed(data.speed)}`
+    if (data.speed !== undefined && data.speed > 0) summary += ` · ${formatSpeed(data.speed)}`
   } else {
     summary = `${data.succeeded.toLocaleString()} succeeded · ${data.failed.toLocaleString()} failed`
     if (data.cancelled > 0) summary += ` · ${data.cancelled.toLocaleString()} cancelled`

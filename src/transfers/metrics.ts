@@ -1,11 +1,31 @@
 import { metricsHub } from '../lib/hubs'
-import { createResource } from '../lib/store'
+import { createResource, type Resource } from '../lib/store'
+import type { Direction } from './transfers'
 
-type Metrics = { downloads: { inProgress: { files: number }; queued: { files: number } } }
+type RawDirection = {
+  inProgress: { files: number; averageSpeed: number; totalSpeed: number }
+  queued: { files: number }
+}
 
-// slskd's gauges lag the downloads list by a few seconds and can briefly dip below zero (see docs/facts.md).
-export const unfinishedDownloads = createResource<{ count: number }>((sink) => ({
-  stop: metricsHub.on<Metrics>('Update', ({ downloads }) =>
-    sink.set({ count: Math.max(0, downloads.inProgress.files) + Math.max(0, downloads.queued.files) }),
-  ),
-}))
+type RawMetrics = { downloads: RawDirection; uploads: RawDirection }
+
+export type Metrics = { running: number; queued: number; speed: number }
+
+// slskd's gauges lag the lists by a few seconds and can briefly dip below zero (see docs/facts.md).
+const createMetrics = (direction: Direction): Resource<Metrics> =>
+  createResource((sink) => ({
+    stop: metricsHub.on<RawMetrics>('Update', (metrics) => {
+      const { inProgress, queued } = metrics[`${direction}s`]
+      sink.set({
+        running: Math.max(0, inProgress.files),
+        queued: Math.max(0, queued.files),
+        // totalSpeed only counts files running at its 5 s recount, so it misses short files that averageSpeed catches.
+        speed: Math.max(inProgress.totalSpeed, inProgress.averageSpeed),
+      })
+    }),
+  }))
+
+export const metrics: Record<Direction, Resource<Metrics>> = {
+  download: createMetrics('download'),
+  upload: createMetrics('upload'),
+}

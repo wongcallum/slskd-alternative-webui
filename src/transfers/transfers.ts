@@ -1,7 +1,8 @@
 import { api } from '../lib/api'
 import { nameOf } from '../lib/files'
 import { toTime } from '../lib/format'
-import { createResource, poll, type Resource } from '../lib/store'
+import { createRate } from '../lib/rate'
+import { createResource, isStale, poll, type Resource } from '../lib/store'
 import { byName, compareNames } from '../lib/text'
 
 export type Direction = 'download' | 'upload'
@@ -56,7 +57,8 @@ export type Transfers = {
   succeeded: number
   failed: number
   cancelled: number
-  speed: number
+  // From bytesTransferred between polls, so undefined until there are two polls to compare.
+  speed?: number
 }
 
 export const isFinished = (state: string) => state.startsWith('Completed')
@@ -134,12 +136,17 @@ const byNewest = (a: Group, b: Group) => b.time - a.time || compareNames(a.name,
 
 // Everything that didn't change keeps its identity: files, groups, both section arrays, and the whole
 // snapshot when nothing changed at all. See "Array identity" in docs/design.md.
-function merge(previous: Transfers | undefined, users: RawUser[]): Transfers {
+function merge(
+  previous: Transfers | undefined,
+  users: RawUser[],
+  measureSpeed: (moved: number) => number | undefined,
+): Transfers {
   const byId = new Map<string, Transfer>()
   const previousGroups = new Map<string, Group>()
   for (const group of previous?.active ?? []) previousGroups.set(group.id, group)
   for (const group of previous?.finished ?? []) previousGroups.set(group.id, group)
-  const totals = { transferring: 0, queued: 0, succeeded: 0, failed: 0, cancelled: 0, speed: 0 }
+  const totals = { transferring: 0, queued: 0, succeeded: 0, failed: 0, cancelled: 0 }
+  let moved = 0
   const sections: Record<Section, Group[]> = { active: [], finished: [] }
 
   function place(section: Section, username: string, directory: string, files: Transfer[], folder: Folder) {
@@ -163,6 +170,8 @@ function merge(previous: Transfers | undefined, users: RawUser[]): Transfers {
       let cancelled = 0
       for (const raw of files) {
         const old = previous?.byId.get(raw.id)
+        // A retry can reuse the id and start again from 0.
+        moved += Math.max(0, raw.bytesTransferred - (old?.bytesTransferred ?? 0))
         const file = old !== undefined && unchanged(old, raw) ? old : toTransfer(raw, username, directory)
         byId.set(file.id, file)
         if (isFinished(file.state)) {
@@ -171,10 +180,8 @@ function merge(previous: Transfers | undefined, users: RawUser[]): Transfers {
           else if (isCancelled(file.state)) cancelled++
         } else {
           active.push(file)
-          if (isTransferring(file.state)) {
-            totals.transferring++
-            totals.speed += file.averageSpeed
-          } else totals.queued++
+          if (isTransferring(file.state)) totals.transferring++
+          else totals.queued++
         }
       }
       const failed = finished.length - succeeded - cancelled
@@ -194,8 +201,11 @@ function merge(previous: Transfers | undefined, users: RawUser[]): Transfers {
 
   const active = settle(sections.active, previous?.active)
   const finished = settle(sections.finished, previous?.finished)
-  if (previous !== undefined && active === previous.active && finished === previous.finished) return previous
-  return { active, finished, byId, ...totals }
+  const speed = measureSpeed(moved)
+  if (previous !== undefined && active === previous.active && finished === previous.finished) {
+    return speed === previous.speed ? previous : { ...previous, speed }
+  }
+  return { active, finished, byId, ...totals, speed }
 }
 
 export type Show = 'all' | 'succeeded' | 'failed' | 'cancelled'
@@ -222,12 +232,20 @@ export function filterGroups(groups: Group[], query: string, show: Show) {
 export const pollInterval = 1000
 
 function createTransfers(direction: Direction) {
+  const rate = createRate()
   const resource: Resource<Transfers> = createResource((sink) =>
     poll(
       sink,
       async (signal, measure) => {
         const text = await api.get(`transfers/${direction}s`, { signal, timeout: false }).text()
-        return measure(() => merge(resource.getSnapshot().data, JSON.parse(text) as RawUser[]))
+        const now = Date.now()
+        const last = resource.getUpdatedAt()
+        // After a gap the freshness display would call stale, this poll only sets a new baseline.
+        const elapsed =
+          last === undefined || isStale(now - last, resource.getInterval() ?? pollInterval) ? undefined : now - last
+        if (elapsed === undefined) rate.reset()
+        const measureSpeed = (moved: number) => (elapsed === undefined ? undefined : rate.add(now, elapsed, moved))
+        return measure(() => merge(resource.getSnapshot().data, JSON.parse(text) as RawUser[], measureSpeed))
       },
       pollInterval,
     ),
