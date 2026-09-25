@@ -1,7 +1,7 @@
-import { Text, Tooltip } from '@radix-ui/themes'
+import { Text } from '@radix-ui/themes'
 
 import { plural } from '../lib/format'
-import type { Color } from '../ui/controls'
+import { type Color, Tip } from '../ui/controls'
 import type { Search } from './searches'
 
 const stateLabels: Record<string, [string, Color, string?]> = {
@@ -23,7 +23,7 @@ export function SearchState({ search }: { search: Search }) {
       {label}
     </Text>
   )
-  return hint === undefined ? text : <Tooltip content={hint}>{text}</Tooltip>
+  return hint === undefined ? text : <Tip content={hint}>{text}</Tip>
 }
 
 export function describeCounts(search: Search) {

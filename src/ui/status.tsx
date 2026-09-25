@@ -1,11 +1,11 @@
 import { Cross2Icon } from '@radix-ui/react-icons'
-import { Box, Button, Callout, Flex, IconButton, Spinner, Text, Tooltip } from '@radix-ui/themes'
+import { Box, Button, Callout, Flex, IconButton, Spinner, Text } from '@radix-ui/themes'
 import { type ReactNode, useEffect, useState } from 'react'
 
 import { describeError } from '../lib/api'
 import { formatAge, formatTime, useAgo } from '../lib/format'
 import { type Atom, isStale, type Resource, useAtom, useFreshness, useResource } from '../lib/store'
-import { ActionButton, type Color } from './controls'
+import { ActionButton, type Color, Tip } from './controls'
 import { stop } from './table'
 
 export function StatusDot({ color }: { color: Color }) {
@@ -93,11 +93,11 @@ export function Freshness({
   return (
     <Flex align="center" gap="2">
       {error !== undefined && (
-        <Tooltip content={describeError(error)}>
+        <Tip content={describeError(error)}>
           <Text size="1" color="red">
             Update failed
           </Text>
-        </Tooltip>
+        </Tip>
       )}
       <Text size="1" color={live || !stale ? 'gray' : 'amber'}>
         {live ? 'Live' : age === undefined ? 'Not loaded yet' : `Updated ${formatAge(age)} ago`}
@@ -168,11 +168,11 @@ export function Fetched({
   return (
     <Flex align="center" gap="3">
       {error !== undefined && (
-        <Tooltip content={describeError(error)}>
+        <Tip content={describeError(error)}>
           <Text size="1" color="red">
             Update failed
           </Text>
-        </Tooltip>
+        </Tip>
       )}
       {fetchedAt !== undefined && (
         <Text size="1" color="gray">
