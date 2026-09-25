@@ -1,6 +1,6 @@
 import * as v from 'valibot'
+import { losslessQuality } from '../../lib/files'
 import { decimalParam, integerParam, oneOf, sortOf, textParam } from '../../lib/params'
-import { losslessQuality } from '../../lib/quality'
 import { columnIds } from './table'
 
 export const qualities = [

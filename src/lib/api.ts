@@ -27,7 +27,7 @@ export const api = http.extend({
   },
 })
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+export const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 // slskd answers 429 without doing anything when a concurrency limit is reached, so the request is resent as part
 // of the same gesture rather than reported as a failure.

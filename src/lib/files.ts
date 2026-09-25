@@ -8,6 +8,16 @@ export type RawFile = {
   isVariableBitRate?: boolean
 }
 
+export type RawDirectory = { name: string; files: RawFile[] }
+
+export const lastSeparator = (path: string, from = path.length) =>
+  Math.max(path.lastIndexOf('/', from), path.lastIndexOf('\\', from))
+
+export const nameOf = (path: string) => path.slice(lastSeparator(path) + 1)
+
+export const countFiles = (groups: readonly { files: readonly unknown[] }[]) =>
+  groups.reduce((count, group) => count + group.files.length, 0)
+
 // Lossless ranks above any bitrate, by depth and then sample rate. A file without attributes ranks lowest.
 export const losslessQuality = (bitDepth: number, sampleRate = 0) => 100_000 + bitDepth * 1000 + sampleRate / 1000
 

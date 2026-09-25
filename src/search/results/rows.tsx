@@ -1,49 +1,14 @@
-import {
-  CardStackPlusIcon,
-  ChevronDownIcon,
-  ChevronRightIcon,
-  DownloadIcon,
-  InfoCircledIcon,
-  LockClosedIcon,
-} from '@radix-ui/react-icons'
-import { Badge, Checkbox, DataList, Flex, IconButton, Popover, Spinner, Text } from '@radix-ui/themes'
-import { memo, type ReactNode } from 'react'
+import { CardStackPlusIcon, DownloadIcon, LockClosedIcon } from '@radix-ui/react-icons'
+import { Badge, Flex, IconButton, Spinner, Text } from '@radix-ui/themes'
+import { memo } from 'react'
 import { BrowseUserButton } from '../../browse/BrowseUserButton'
 import { formatBytes, formatDuration, formatSpeed, formatTime, plural } from '../../lib/format'
 import type { Mark } from '../../transfers/enqueue'
 import { MarkBadge } from '../../transfers/MarkBadge'
-import { GatedIconButton } from '../../ui/controls'
-import { preventShiftSelection, stop } from '../../ui/table'
+import { type Detail, DetailList, DetailsButton, GatedIconButton } from '../../ui/controls'
+import { ActionsCell, Cell, CheckCell, GridRow, GroupNameCell } from '../../ui/table'
 import { download, type FolderFetch, fetchFolder, type ResultFile, type ResultGroup } from './results'
 import { template } from './table'
-
-function Details({ rows }: { rows: [string, ReactNode][] }) {
-  return (
-    <DataList.Root size="1">
-      {rows.map(([label, value]) => (
-        <DataList.Item key={label}>
-          <DataList.Label minWidth="120px">{label}</DataList.Label>
-          <DataList.Value style={{ wordBreak: 'break-word' }}>{value}</DataList.Value>
-        </DataList.Item>
-      ))}
-    </DataList.Root>
-  )
-}
-
-function DetailsButton({ rows }: { rows: [string, ReactNode][] }) {
-  return (
-    <Popover.Root>
-      <Popover.Trigger>
-        <IconButton size="1" variant="ghost" color="gray" aria-label="Details">
-          <InfoCircledIcon />
-        </IconButton>
-      </Popover.Trigger>
-      <Popover.Content width="480px">
-        <Details rows={rows} />
-      </Popover.Content>
-    </Popover.Root>
-  )
-}
 
 type FileRowProps = {
   searchId: string
@@ -64,7 +29,7 @@ export const FileRow = memo(function FileRow({
   gate,
   onSelect,
 }: FileRowProps) {
-  const details: [string, ReactNode][] = [
+  const details: Detail[] = [
     ['User', file.username],
     ['Folder', file.directory],
     ['File', file.name],
@@ -80,17 +45,13 @@ export const FileRow = memo(function FileRow({
     ['Locked', file.locked ? 'Yes, only shared with some users' : 'No'],
   )
   return (
-    <div
-      className="table-row"
-      style={{ gridTemplateColumns: template }}
-      data-selected={selected || undefined}
-      data-dimmed={file.locked || undefined}
-      onMouseDown={preventShiftSelection}
+    <GridRow
+      template={template}
+      selected={selected}
+      dimmed={file.locked}
       onClick={(event) => !file.locked && onSelect(file.id, event.shiftKey)}
     >
-      <div className="table-cell table-check" onClick={stop}>
-        <Checkbox checked={selected} disabled={file.locked} onClick={(event) => onSelect(file.id, event.shiftKey)} />
-      </div>
+      <CheckCell selected={selected} disabled={file.locked} onToggle={(shiftKey) => onSelect(file.id, shiftKey)} />
       <Flex className="table-cell" align="center" gap="2" style={{ paddingLeft: 36 }} title={file.filename}>
         {file.locked && <LockClosedIcon style={{ flexShrink: 0 }} />}
         <Text size="2" truncate>
@@ -102,24 +63,12 @@ export const FileRow = memo(function FileRow({
       </Flex>
       <div className="table-cell" />
       <div className="table-cell" />
-      <div className="table-cell" data-align="end">
-        <Text size="2" color="gray">
-          {formatBytes(file.size)}
-        </Text>
-      </div>
-      <div className="table-cell">
-        <Text size="2" color="gray">
-          {file.qualityLabel}
-        </Text>
-      </div>
-      <div className="table-cell" data-align="end">
-        <Text size="2" color="gray">
-          {file.length !== undefined && formatDuration(file.length)}
-        </Text>
-      </div>
+      <Cell end>{formatBytes(file.size)}</Cell>
+      <Cell>{file.qualityLabel}</Cell>
+      <Cell end>{file.length !== undefined && formatDuration(file.length)}</Cell>
       <div className="table-cell" />
       <div className="table-cell" />
-      <Flex className="table-cell" gap="3" align="center" justify="end" onClick={stop}>
+      <ActionsCell>
         {!file.locked && (
           <GatedIconButton label="Download" gate={gate} onClick={() => void download(searchId, [file])}>
             <DownloadIcon />
@@ -131,9 +80,11 @@ export const FileRow = memo(function FileRow({
         <IconButton size="1" variant="ghost" aria-hidden tabIndex={-1} style={{ visibility: 'hidden' }}>
           <CardStackPlusIcon />
         </IconButton>
-        <DetailsButton rows={details} />
-      </Flex>
-    </div>
+        <DetailsButton>
+          <DetailList rows={details} />
+        </DetailsButton>
+      </ActionsCell>
+    </GridRow>
   )
 })
 
@@ -167,7 +118,7 @@ export const GroupRow = memo(function GroupRow({
   const extra = group.files.length - group.matched
   const hidden = group.total - group.files.length
   const fetched = fetch?.files !== undefined
-  const details: [string, ReactNode][] = [
+  const details: Detail[] = [
     ['Folder', group.directory],
     ['User', group.username],
     ['Upload speed', formatSpeed(peer.speed)],
@@ -182,61 +133,32 @@ export const GroupRow = memo(function GroupRow({
   }
   if (fetch?.error !== undefined) details.push(['Error', fetch.error])
   return (
-    <div
-      className="table-row table-group"
-      style={{ gridTemplateColumns: template }}
-      data-selected={selected || undefined}
-      data-dimmed={open.length === 0 || undefined}
-      onMouseDown={preventShiftSelection}
+    <GridRow
+      template={template}
+      group
+      selected={selected}
+      dimmed={open.length === 0}
       onClick={() => onToggle(group.id)}
     >
-      <div className="table-cell table-check" onClick={stop}>
-        <Checkbox
-          checked={selected ? true : partial ? 'indeterminate' : false}
-          disabled={open.length === 0}
-          onClick={(event) => onSelect(group.id, event.shiftKey)}
-        />
-      </div>
-      <Flex className="table-cell" align="center" gap="2" title={group.directory}>
-        {expanded ? <ChevronDownIcon style={{ flexShrink: 0 }} /> : <ChevronRightIcon style={{ flexShrink: 0 }} />}
-        <Text size="2" weight="medium" truncate>
-          {group.name}
-        </Text>
-      </Flex>
+      <CheckCell
+        selected={selected}
+        partial={partial}
+        disabled={open.length === 0}
+        onToggle={(shiftKey) => onSelect(group.id, shiftKey)}
+      />
+      <GroupNameCell expanded={expanded} name={group.name} title={group.directory} />
       <div className="table-cell" title={group.username}>
         <Text size="2">{group.username}</Text>
       </div>
-      <div
-        className="table-cell"
-        data-align="end"
-        title={hidden > 0 ? `${plural(hidden, 'file')} filtered out` : undefined}
-      >
-        <Text size="2" color="gray">
-          {hidden > 0
-            ? `${group.files.length.toLocaleString()} of ${group.total.toLocaleString()}`
-            : `${group.matched.toLocaleString()}${fetched ? ` + ${extra.toLocaleString()}` : ''}`}
-        </Text>
-      </div>
-      <div className="table-cell" data-align="end">
-        <Text size="2" color="gray">
-          {formatBytes(group.size)}
-        </Text>
-      </div>
-      <div className="table-cell" title={group.qualityLabel}>
-        <Text size="2" color="gray">
-          {group.qualityLabel}
-        </Text>
-      </div>
-      <div className="table-cell" data-align="end">
-        <Text size="2" color="gray">
-          {group.length > 0 && formatDuration(group.length)}
-        </Text>
-      </div>
-      <div className="table-cell" data-align="end">
-        <Text size="2" color="gray">
-          {formatSpeed(peer.speed)}
-        </Text>
-      </div>
+      <Cell end title={hidden > 0 ? `${plural(hidden, 'file')} filtered out` : undefined}>
+        {hidden > 0
+          ? `${group.files.length.toLocaleString()} of ${group.total.toLocaleString()}`
+          : `${group.matched.toLocaleString()}${fetched ? ` + ${extra.toLocaleString()}` : ''}`}
+      </Cell>
+      <Cell end>{formatBytes(group.size)}</Cell>
+      <Cell title={group.qualityLabel}>{group.qualityLabel}</Cell>
+      <Cell end>{group.length > 0 && formatDuration(group.length)}</Cell>
+      <Cell end>{formatSpeed(peer.speed)}</Cell>
       <div className="table-cell" data-align="end">
         {peer.free ? (
           <Text size="2" color="green">
@@ -248,7 +170,7 @@ export const GroupRow = memo(function GroupRow({
           </Text>
         )}
       </div>
-      <Flex className="table-cell" gap="3" align="center" justify="end" onClick={stop}>
+      <ActionsCell>
         {open.length > 0 && (
           <GatedIconButton label="Download folder" gate={gate} onClick={() => void download(searchId, open)}>
             <DownloadIcon />
@@ -273,8 +195,10 @@ export const GroupRow = memo(function GroupRow({
           </GatedIconButton>
         )}
         <BrowseUserButton username={group.username} directory={group.directory} />
-        <DetailsButton rows={details} />
-      </Flex>
-    </div>
+        <DetailsButton>
+          <DetailList rows={details} />
+        </DetailsButton>
+      </ActionsCell>
+    </GridRow>
   )
 })

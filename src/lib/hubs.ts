@@ -2,6 +2,8 @@ import { type HubConnection, HubConnectionBuilder } from '@microsoft/signalr'
 import { useSyncExternalStore } from 'react'
 import { getSession } from '../session/session'
 import { api } from './api'
+import { createListeners } from './listeners'
+import { type Measure, poll, type Resource, type Sink, type Source, useStale } from './store'
 import { urlBase } from './urlBase'
 
 export type HubStatus = { state: 'stopped' | 'connecting' | 'connected' | 'reconnecting'; attempt: number }
@@ -31,7 +33,7 @@ function accessToken() {
 
 function createHub(name: string): Hub {
   let status: HubStatus = { state: 'stopped', attempt: 0 }
-  const listeners = new Set<() => void>()
+  const listeners = createListeners()
   const handlers = new Map<string, Set<Handler>>()
   let references = 0
   let connection: HubConnection | undefined
@@ -40,7 +42,7 @@ function createHub(name: string): Hub {
 
   function setStatus(state: HubStatus['state'], attempt = 0) {
     status = { state, attempt }
-    for (const listener of listeners) listener()
+    listeners.notify()
   }
 
   function connect() {
@@ -93,23 +95,16 @@ function createHub(name: string): Hub {
     }
   }
 
-  function watch(listener: () => void) {
-    listeners.add(listener)
-    return () => {
-      listeners.delete(listener)
-    }
-  }
-
   return {
     subscribe(listener) {
-      const unwatch = watch(listener)
+      const unwatch = listeners.add(listener)
       const release = retain()
       return () => {
         unwatch()
         release()
       }
     },
-    watch,
+    watch: listeners.add,
     getStatus: () => status,
     on(method, typed) {
       const handler = typed as Handler
@@ -136,3 +131,56 @@ export const applicationHub = createHub('application')
 export const metricsHub = createHub('metrics')
 
 export const searchHub = createHub('search')
+
+export type Via = 'hub' | 'poll'
+
+// A resource follows its hub's pushes and polls while the hub is down. A hub only sends its snapshot as it connects,
+// so a resource that starts while its hub is already connected (after a quick log out and in) fetches it over REST.
+export function followHub<T>(
+  hub: Hub,
+  sink: Sink<T>,
+  {
+    snapshot,
+    request,
+    interval,
+  }: {
+    snapshot: (signal: AbortSignal) => Promise<T>
+    request: (signal: AbortSignal, measure: Measure) => Promise<T>
+    interval: number
+  },
+): Source {
+  let polling: Source | undefined
+  function sync() {
+    if (hub.getStatus().state === 'connected') {
+      polling?.stop()
+      polling = undefined
+    } else polling ??= poll(sink, request, interval)
+  }
+  const unsubscribe = hub.subscribe(sync)
+  sync()
+  const controller = new AbortController()
+  if (hub.getStatus().state === 'connected') {
+    snapshot(controller.signal).then(
+      (data) => sink.set(data),
+      (error: unknown) => {
+        if (!controller.signal.aborted) sink.fail(error)
+      },
+    )
+  }
+  return {
+    stop() {
+      controller.abort()
+      polling?.stop()
+      unsubscribe()
+    },
+    refresh: () => polling?.refresh?.(),
+  }
+}
+
+// Pushed data is current while its hub is connected, and polled data while it's fresh.
+export function useLive(via: Via | undefined, hub: Hub, resource: Resource<unknown>, interval: number) {
+  const status = useHub(hub)
+  const polled = !useStale(resource, interval)
+  const live = via === 'hub' && status.state === 'connected'
+  return { live, known: live || (via === 'poll' && polled) }
+}

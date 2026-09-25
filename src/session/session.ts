@@ -1,6 +1,7 @@
 import { isHTTPError } from 'ky'
 import { useSyncExternalStore } from 'react'
 import { http } from '../lib/api'
+import { createListeners } from '../lib/listeners'
 
 export type Session =
   | { status: 'checking' }
@@ -12,8 +13,8 @@ export type Session =
 const tokenKey = 'slskd-alt-token'
 
 let session: Session = { status: 'checking' }
-const listeners = new Set<() => void>()
-const endListeners = new Set<() => void>()
+const listeners = createListeners()
+const endListeners = createListeners()
 let run = 0
 let retryTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -22,8 +23,8 @@ const inApp = ({ status }: Session) => status === 'open' || status === 'authenti
 function set(next: Session) {
   const ended = inApp(session) && !inApp(next)
   session = next
-  if (ended) for (const listener of endListeners) listener()
-  for (const listener of listeners) listener()
+  if (ended) endListeners.notify()
+  listeners.notify()
 }
 
 function settle(next: Session) {
@@ -32,16 +33,9 @@ function settle(next: Session) {
   set(next)
 }
 
-function subscribe(listener: () => void) {
-  listeners.add(listener)
-  return () => {
-    listeners.delete(listener)
-  }
-}
-
 export const getSession = () => session
 
-export const useSession = () => useSyncExternalStore(subscribe, getSession)
+export const useSession = () => useSyncExternalStore(listeners.add, getSession)
 
 export function onSessionEnd(listener: () => void) {
   endListeners.add(listener)

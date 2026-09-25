@@ -1,11 +1,9 @@
-import { isHTTPError } from 'ky'
-import { type Actions, begin, idle, summarise } from '../../lib/actions'
 import { api, describeError } from '../../lib/api'
-import { describeRange, qualityOf, type RawFile } from '../../lib/quality'
-import { type Atom, createAtom } from '../../lib/store'
-import { compareNames, parseQuery } from '../../lib/text'
+import { describeRange, lastSeparator, nameOf, qualityOf, type RawDirectory, type RawFile } from '../../lib/files'
+import { createAtom } from '../../lib/store'
+import { byName, compareNames, parseQuery } from '../../lib/text'
 import { sessionSignal } from '../../session/session'
-import { enqueue, type Mark } from '../../transfers/enqueue'
+import { createDownloads, enqueueDownloads } from '../../transfers/enqueue'
 
 type RawResponse = {
   username: string
@@ -15,8 +13,6 @@ type RawResponse = {
   queueLength: number
   uploadSpeed: number
 }
-
-type RawDirectory = { name: string; files: RawFile[] }
 
 export type Peer = { username: string; free: boolean; queueLength: number; speed: number }
 
@@ -64,12 +60,7 @@ export type Results = {
   locked: number
 }
 
-const lastSeparator = (path: string, from = path.length) =>
-  Math.max(path.lastIndexOf('/', from), path.lastIndexOf('\\', from))
-
 const directoryOf = (filename: string) => filename.slice(0, Math.max(0, lastSeparator(filename)))
-
-export const nameOf = (path: string) => path.slice(lastSeparator(path) + 1)
 
 function folderName(directory: string) {
   const last = lastSeparator(directory)
@@ -138,8 +129,6 @@ function buildGroup(id: string, peer: Peer, directory: string, files: ResultFile
     qualityLabel,
   }
 }
-
-const byName = (a: ResultFile, b: ResultFile) => compareNames(a.name, b.name)
 
 // A free upload slot means a download can start at once, whatever the queue length says.
 export const availability = (peer: Peer) => (peer.free ? -1 : peer.queueLength)
@@ -323,56 +312,16 @@ export async function fetchFolder(searchId: string, group: ResultGroup) {
   }
 }
 
-export type Downloads = Actions<'download'> & { marks: ReadonlyMap<string, Mark> }
-
-const downloadAtoms = new Map<string, Atom<Downloads>>()
-
-export function downloadsOf(searchId: string) {
-  let atom = downloadAtoms.get(searchId)
-  if (atom === undefined) downloadAtoms.set(searchId, (atom = createAtom<Downloads>({ ...idle, marks: new Map() })))
-  return atom
-}
+export const downloadsOf = createDownloads()
 
 // One batch per user, carrying the search so slskd's SEARCH_ID and SEARCH_TEXT destination variables work.
-export async function download(searchId: string, files: ResultFile[]) {
-  const atom = downloadsOf(searchId)
-  const operation = begin(
-    atom,
-    'download',
-    files.map((file) => file.id),
+export const download = (searchId: string, files: ResultFile[]) =>
+  enqueueDownloads(
+    downloadsOf(searchId),
+    [...Map.groupBy(files, (file) => file.username)].map(([username, batch]) => ({
+      username,
+      label: username,
+      files: batch,
+      searchId,
+    })),
   )
-  const users = new Map<string, ResultFile[]>()
-  for (const file of files) users.set(file.username, [...(users.get(file.username) ?? []), file])
-  const details: string[] = []
-  let failed = 0
-  try {
-    for (const [username, batch] of users) {
-      const marks = new Map<string, Mark>()
-      try {
-        const { failures } = await enqueue(
-          { searchId, username, files: batch.map(({ filename, size }) => ({ filename, size })) },
-          operation.signal,
-        )
-        const messages = new Map(failures.map((failure) => [failure.filename, failure.message]))
-        for (const file of batch) {
-          const message = messages.get(file.filename)
-          marks.set(file.id, message === undefined ? { ok: true } : { ok: false, message })
-        }
-        failed += failures.length
-        for (const failure of failures) details.push(`${username}: ${nameOf(failure.filename)}: ${failure.message}`)
-      } catch (error) {
-        if (operation.signal.aborted) throw error
-        const message = isHTTPError(error) && error.response.status === 404 ? 'offline' : describeError(error)
-        for (const file of batch) marks.set(file.id, { ok: false, message })
-        failed += batch.length
-        details.push(`${username}: ${message}`)
-      } finally {
-        if (!operation.signal.aborted) atom.set((state) => ({ ...state, marks: new Map([...state.marks, ...marks]) }))
-        operation.advance(batch.map((file) => file.id))
-      }
-    }
-  } catch {
-    return
-  }
-  operation.finish(summarise('Enqueued', files.length, failed, details, 'download'))
-}

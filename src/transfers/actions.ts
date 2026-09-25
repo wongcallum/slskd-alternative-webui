@@ -1,10 +1,8 @@
-import { isHTTPError } from 'ky'
-import pMap from 'p-map'
-import { type Actions, begin as beginAction, idle, type Outcome, summarise } from '../lib/actions'
+import { type Actions, actOnEach, begin as beginAction, idle, type Outcome, summarise } from '../lib/actions'
 import { api, describeError } from '../lib/api'
 import { type Atom, createAtom } from '../lib/store'
 import { sessionSignal } from '../session/session'
-import { enqueue } from './enqueue'
+import { enqueueBatches } from './enqueue'
 import { type Direction, type Transfer, transfers } from './transfers'
 
 export type ActionKind = 'retry' | 'cancel' | 'remove' | 'clear'
@@ -30,28 +28,14 @@ async function deleteEach(direction: Direction, kind: 'cancel' | 'remove', files
     kind,
     files.map((file) => file.id),
   )
-  const errors: string[] = []
-  try {
-    await pMap(
-      files,
-      async (file) => {
-        try {
-          await api.delete(transferPath(direction, file), {
-            searchParams: { remove: kind === 'remove' },
-            signal: operation.signal,
-          })
-        } catch (error) {
-          if (operation.signal.aborted) throw error
-          errors.push(`${file.name}: ${describeError(error)}`)
-        } finally {
-          operation.advance([file.id])
-        }
-      },
-      { concurrency: 4, signal: operation.signal },
-    )
-  } catch {
-    return
-  }
+  const errors = await actOnEach(
+    operation,
+    files,
+    (file) => file.name,
+    (file, signal) =>
+      api.delete(transferPath(direction, file), { searchParams: { remove: kind === 'remove' }, signal }),
+  )
+  if (errors === undefined) return
   operation.finish(
     summarise(kind === 'cancel' ? 'Cancelled' : 'Removed', files.length, errors.length, errors, direction),
   )
@@ -84,53 +68,31 @@ export async function retry(files: Transfer[]) {
     'retry',
     files.map((file) => file.id),
   )
-  const { signal } = operation
-  const batches = new Map<string, Transfer[]>()
-  for (const file of files) {
-    const key = `${file.username}\n${file.batchId ?? ''}`
-    batches.set(key, [...(batches.get(key) ?? []), file])
-  }
-  const details: string[] = []
-  let failed = 0
-  try {
-    const infos = new Map<string, BatchInfo>()
-    for (const batchId of new Set(files.map((file) => file.batchId))) {
-      if (batchId === undefined) continue
-      try {
-        infos.set(batchId, await api.get(`transfers/downloads/batches/${batchId}`, { signal }).json<BatchInfo>())
-      } catch (error) {
-        if (signal.aborted) throw error
-      }
+  const infos = new Map<string, BatchInfo>()
+  for (const batchId of new Set(files.map((file) => file.batchId))) {
+    if (batchId === undefined) continue
+    try {
+      const info = api.get(`transfers/downloads/batches/${batchId}`, { signal: operation.signal })
+      infos.set(batchId, await info.json<BatchInfo>())
+    } catch {
+      if (operation.signal.aborted) return
     }
-    for (const batch of batches.values()) {
-      const [{ username, batchId }] = batch as [Transfer]
-      const info = batchId === undefined ? undefined : infos.get(batchId)
-      const destination = info?.options?.destination
-      try {
-        const { failures } = await enqueue(
-          {
-            username,
-            files: batch.map(({ filename, size }) => ({ filename, size })),
-            ...(info?.searchId !== undefined && { searchId: info.searchId }),
-            ...(destination !== undefined && { options: { destination } }),
-          },
-          signal,
-        )
-        failed += failures.length
-        for (const failure of failures) details.push(`${username}: ${failure.filename}: ${failure.message}`)
-      } catch (error) {
-        if (signal.aborted) throw error
-        failed += batch.length
-        const offline = isHTTPError(error) && error.response.status === 404
-        details.push(`${username}: ${offline ? 'offline' : describeError(error)}`)
-      } finally {
-        operation.advance(batch.map((file) => file.id))
-      }
-    }
-  } catch {
-    return
   }
-  operation.finish(summarise('Retried', files.length, failed, details, 'download'))
+  const groups = Map.groupBy(files, (file) => `${file.username}\n${file.batchId ?? ''}`)
+  const batches = [...groups.values()].map((batch) => {
+    const [{ username, batchId }] = batch as [Transfer]
+    const info = batchId === undefined ? undefined : infos.get(batchId)
+    return {
+      username,
+      label: username,
+      files: batch,
+      searchId: info?.searchId,
+      destination: info?.options?.destination,
+    }
+  })
+  const result = await enqueueBatches(operation, batches)
+  if (result === undefined) return
+  operation.finish(summarise('Retried', files.length, result.failed, result.details, 'download'))
 }
 
 function setLookup(id: string, lookup: Lookup) {

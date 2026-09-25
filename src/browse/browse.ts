@@ -1,10 +1,9 @@
 import { type DBSchema, type IDBPDatabase, openDB } from 'idb'
 import { isHTTPError } from 'ky'
-import { type Actions, begin, idle, summarise } from '../lib/actions'
-import { api, describeError } from '../lib/api'
-import { type Atom, createAtom } from '../lib/store'
+import { api, describeError, sleep } from '../lib/api'
+import { createAtom } from '../lib/store'
 import { sessionSignal } from '../session/session'
-import { enqueue, type Mark } from '../transfers/enqueue'
+import { createDownloads, enqueueDownloads } from '../transfers/enqueue'
 import { buildShare, type Folder, type RawShare, relativePath, type Share, type ShareFile } from './shareTree'
 
 export type ShareRecord = {
@@ -25,14 +24,12 @@ interface Schema extends DBSchema {
 
 let opening: Promise<IDBPDatabase<Schema>> | undefined
 
-const nextTask = () => new Promise((resolve) => setTimeout(resolve))
-
 // Parsing, building and the first render are separate tasks, so the page can paint between them.
 async function parseShare(username: string, blob: Blob) {
   const raw = JSON.parse(await blob.text()) as RawShare
-  await nextTask()
+  await sleep(0)
   const share = buildShare(username, raw)
-  await nextTask()
+  await sleep(0)
   return share
 }
 
@@ -72,10 +69,15 @@ const kept = 2
 
 const viewing = new Map<string, number>()
 
+const without = <V>(map: ReadonlyMap<string, V>, key: string) => {
+  const next = new Map(map)
+  next.delete(key)
+  return next
+}
+
 function setLoaded(username: string, loaded: Loaded | undefined) {
   loadedShares.set((current) => {
-    const next = new Map(current)
-    next.delete(username)
+    const next = without(current, username)
     if (loaded === undefined) return next
     next.set(username, loaded)
     let ready = [...next].filter(([, each]) => each.status === 'ready').length
@@ -214,16 +216,9 @@ export type Failure = { error: string; at: number }
 
 export const failures = createAtom<ReadonlyMap<string, Failure>>(new Map())
 
-export const dismissFailure = (username: string) =>
-  failures.set((current) => {
-    const next = new Map(current)
-    next.delete(username)
-    return next
-  })
+export const dismissFailure = (username: string) => failures.set((current) => without(current, username))
 
 type Status = { bytesTransferred: number; size: number; percentComplete: number }
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const statusPollInterval = 500
 
@@ -326,13 +321,7 @@ export async function browse(username: string) {
     }
   } finally {
     arrived = true
-    if (!signal.aborted) {
-      browses.set((current) => {
-        const next = new Map(current)
-        next.delete(username)
-        return next
-      })
-    }
+    if (!signal.aborted) browses.set((current) => without(current, username))
   }
 }
 
@@ -347,16 +336,7 @@ export async function browseIfMissing(username: string) {
   void browse(username)
 }
 
-export type ShareDownloads = Actions<'download'> & { marks: ReadonlyMap<string, Mark> }
-
-const downloadAtoms = new Map<string, Atom<ShareDownloads>>()
-
-export function shareDownloadsOf(username: string) {
-  let atom = downloadAtoms.get(username)
-  if (atom === undefined)
-    downloadAtoms.set(username, (atom = createAtom<ShareDownloads>({ ...idle, marks: new Map() })))
-  return atom
-}
+export const shareDownloadsOf = createDownloads()
 
 // slskd puts every file of a batch in one folder, so each remote folder gets its own batch to keep the tree, rooted
 // at the folder the download started from.
@@ -368,61 +348,13 @@ function destinationOf(share: Share, base: Folder, folder: Folder) {
     .join('/')
 }
 
-export async function downloadFiles(share: Share, base: Folder, files: ShareFile[]) {
-  const atom = shareDownloadsOf(share.username)
-  const operation = begin(
-    atom,
-    'download',
-    files.map((file) => file.id),
+export const downloadFiles = (share: Share, base: Folder, files: ShareFile[]) =>
+  enqueueDownloads(
+    shareDownloadsOf(share.username),
+    [...Map.groupBy(files, (file) => file.folder)].map(([folder, batch]) => ({
+      username: share.username,
+      label: folder.name,
+      files: batch,
+      destination: destinationOf(share, base, folder) || undefined,
+    })),
   )
-  const folders = new Map<Folder, ShareFile[]>()
-  for (const file of files) {
-    const batch = folders.get(file.folder)
-    if (batch === undefined) folders.set(file.folder, [file])
-    else batch.push(file)
-  }
-  const details: string[] = []
-  let failed = 0
-  let offline = false
-  try {
-    for (const [folder, batch] of folders) {
-      const marks = new Map<string, Mark>()
-      try {
-        if (offline) {
-          for (const file of batch) marks.set(file.id, { ok: false, message: 'offline' })
-          failed += batch.length
-          continue
-        }
-        const destination = destinationOf(share, base, folder)
-        const { failures: rejected } = await enqueue(
-          {
-            username: share.username,
-            files: batch.map(({ path, size }) => ({ filename: path, size })),
-            ...(destination === '' ? {} : { options: { destination } }),
-          },
-          operation.signal,
-        )
-        const messages = new Map(rejected.map((failure) => [failure.filename, failure.message]))
-        for (const file of batch) {
-          const message = messages.get(file.path)
-          marks.set(file.id, message === undefined ? { ok: true } : { ok: false, message })
-          if (message !== undefined) details.push(`${file.name}: ${message}`)
-        }
-        failed += rejected.length
-      } catch (error) {
-        if (operation.signal.aborted) throw error
-        offline = isHTTPError(error) && error.response.status === 404
-        const message = offline ? 'offline' : describeError(error)
-        for (const file of batch) marks.set(file.id, { ok: false, message })
-        failed += batch.length
-        details.push(offline ? `${share.username} is offline` : `${folder.name}: ${message}`)
-      } finally {
-        if (!operation.signal.aborted) atom.set((state) => ({ ...state, marks: new Map([...state.marks, ...marks]) }))
-        operation.advance(batch.map((file) => file.id))
-      }
-    }
-  } catch {
-    return
-  }
-  operation.finish(summarise('Enqueued', files.length, failed, details, 'download'))
-}

@@ -1,8 +1,9 @@
 import { MixerHorizontalIcon } from '@radix-ui/react-icons'
-import { Button, Checkbox, Flex, Grid, Popover, Select, Text, TextField } from '@radix-ui/themes'
+import { Button, Flex, Grid, Popover, Select, Text, TextField } from '@radix-ui/themes'
 import { useId, useState } from 'react'
 import * as v from 'valibot'
 import { positiveDecimal, positiveInteger } from '../../lib/params'
+import { CheckboxField } from '../../ui/controls'
 import { countFilters, type FilterSearch, noFilters, qualities } from './params'
 
 type FiltersProps = { filters: FilterSearch; onChange: (patch: Partial<FilterSearch>) => void }
@@ -59,15 +60,12 @@ export function FiltersButton({ filters, onChange }: FiltersProps) {
           />
         </Grid>
         <Flex justify="between" align="center" mt="4">
-          <Text as="label" size="2">
-            <Flex gap="2" align="center">
-              <Checkbox
-                checked={filters.free === 'only'}
-                onCheckedChange={(checked) => onChange({ free: checked === true ? 'only' : 'all' })}
-              />
-              Free slot only
-            </Flex>
-          </Text>
+          <CheckboxField
+            checked={filters.free === 'only'}
+            onChange={(checked) => onChange({ free: checked ? 'only' : 'all' })}
+          >
+            Free slot only
+          </CheckboxField>
           <Button size="1" variant="soft" color="gray" disabled={active === 0} onClick={() => onChange(noFilters)}>
             Clear
           </Button>

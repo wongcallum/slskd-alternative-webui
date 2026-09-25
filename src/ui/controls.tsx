@@ -1,25 +1,30 @@
-import { Cross2Icon } from '@radix-ui/react-icons'
-import { AlertDialog, Button, Flex, IconButton, Popover, Spinner, Text, Tooltip } from '@radix-ui/themes'
-import { type ReactNode, useEffect, useState } from 'react'
+import { Cross2Icon, InfoCircledIcon, MagnifyingGlassIcon } from '@radix-ui/react-icons'
+import {
+  AlertDialog,
+  Button,
+  Checkbox,
+  DataList,
+  Flex,
+  IconButton,
+  Popover,
+  Text,
+  TextField,
+  type TextProps,
+  Tooltip,
+} from '@radix-ui/themes'
+import { type CSSProperties, type ReactNode, useDeferredValue, useState } from 'react'
 import { type Actions, dismissOutcome, type Progress } from '../lib/actions'
-import { describeError } from '../lib/api'
-import { formatAge, formatTime, useAgo } from '../lib/format'
-import { type Atom, isStale, type Resource, useAtom, useFreshness } from '../lib/store'
+import { type Atom, useAtom } from '../lib/store'
 
-export function DelayedSpinner() {
-  const [visible, setVisible] = useState(false)
-  useEffect(() => {
-    const timer = setTimeout(() => setVisible(true), 300)
-    return () => clearTimeout(timer)
-  }, [])
-  return visible && <Spinner size="3" />
-}
-
-export function Ago({ time }: { time: number }) {
-  return <span title={formatTime(time)}>{useAgo(time)}</span>
-}
+export type Color = NonNullable<TextProps['color']>
 
 export const toolbarStyle = { boxShadow: 'inset 0 -1px 0 0 var(--gray-a5)' }
+
+// Disabled actions stay focusable so their tooltip can say why.
+export const disabledProps = (disabled: boolean) => ({
+  'aria-disabled': disabled || undefined,
+  'data-disabled': disabled || undefined,
+})
 
 export function GatedIconButton({
   label,
@@ -41,8 +46,7 @@ export function GatedIconButton({
         variant="ghost"
         color={color}
         aria-label={label}
-        aria-disabled={gate !== undefined || undefined}
-        data-disabled={gate !== undefined || undefined}
+        {...disabledProps(gate !== undefined)}
         onClick={() => gate === undefined && onClick()}
       >
         {children}
@@ -69,8 +73,7 @@ export function ActionButton({ label, busy, progress, loading, gate, color, onCl
       variant="soft"
       color={color}
       loading={loading}
-      aria-disabled={disabled || undefined}
-      data-disabled={disabled || undefined}
+      {...disabledProps(disabled)}
       onClick={() => !disabled && onClick()}
     >
       {progress === undefined
@@ -148,31 +151,118 @@ export function OutcomeLine<S extends Actions<string>>({ atom }: { atom: Atom<S>
   )
 }
 
-export function Freshness({
-  resource,
-  interval,
-  error,
-  live,
+// The field shows what's typed, and follows the URL only when it changes from elsewhere, such as on Back.
+export function useFilterText(q: string, onChange: (q: string) => void) {
+  const [text, setText] = useState(q)
+  const [urlText, setUrlText] = useState(q)
+  if (q !== urlText) {
+    setUrlText(q)
+    setText(q)
+  }
+  return {
+    text,
+    query: useDeferredValue(text),
+    change: (value: string) => {
+      setText(value)
+      setUrlText(value)
+      onChange(value)
+    },
+  }
+}
+
+export function FilterField({
+  placeholder,
+  value,
+  onChange,
+  style,
 }: {
-  resource: Resource<unknown>
-  interval: number
-  error: unknown
-  live?: boolean
+  placeholder: string
+  value: string
+  onChange: (value: string) => void
+  style: CSSProperties
 }) {
-  const age = useFreshness(resource)
-  const stale = isStale(age, resource.getInterval() ?? interval)
+  return (
+    <TextField.Root
+      size="2"
+      placeholder={placeholder}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      style={style}
+    >
+      <TextField.Slot>
+        <MagnifyingGlassIcon />
+      </TextField.Slot>
+    </TextField.Root>
+  )
+}
+
+export function CheckboxField({
+  checked,
+  onChange,
+  children,
+}: {
+  checked: boolean
+  onChange: (checked: boolean) => void
+  children: ReactNode
+}) {
+  return (
+    <Text as="label" size="2">
+      <Flex gap="2" align="center">
+        <Checkbox checked={checked} onCheckedChange={(value) => onChange(value === true)} />
+        {children}
+      </Flex>
+    </Text>
+  )
+}
+
+export function SelectionActions({
+  count,
+  onClear,
+  children,
+}: {
+  count?: number
+  onClear: () => void
+  children: ReactNode
+}) {
   return (
     <Flex align="center" gap="2">
-      {error !== undefined && (
-        <Tooltip content={describeError(error)}>
-          <Text size="1" color="red">
-            Last poll failed
-          </Text>
-        </Tooltip>
+      {count !== undefined && (
+        <Text size="2" color="gray">
+          {count.toLocaleString()} selected
+        </Text>
       )}
-      <Text size="1" color={live || !stale ? 'gray' : 'amber'}>
-        {live ? 'live' : age === undefined ? 'not loaded yet' : `updated ${formatAge(age)} ago`}
-      </Text>
+      {children}
+      <Button size="1" variant="ghost" color="gray" onClick={onClear}>
+        Clear selection
+      </Button>
     </Flex>
+  )
+}
+
+export type Detail = [string, ReactNode]
+
+export function DetailList({ rows }: { rows: Detail[] }) {
+  return (
+    <DataList.Root size="1">
+      {rows.map(([label, value]) => (
+        <DataList.Item key={label}>
+          <DataList.Label minWidth="120px">{label}</DataList.Label>
+          <DataList.Value style={{ wordBreak: 'break-word' }}>{value}</DataList.Value>
+        </DataList.Item>
+      ))}
+    </DataList.Root>
+  )
+}
+
+export function DetailsButton({ children }: { children: ReactNode }) {
+  return (
+    <Popover.Root>
+      <Popover.Trigger>
+        <IconButton size="1" variant="ghost" color="gray" aria-label="Details">
+          <InfoCircledIcon />
+        </IconButton>
+      </Popover.Trigger>
+      <Popover.Content width="480px">{children}</Popover.Content>
+    </Popover.Root>
   )
 }

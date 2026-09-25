@@ -1,14 +1,12 @@
-import { describeRange, qualityOf, type RawFile } from '../lib/quality'
-import { compareNames, parseQuery } from '../lib/text'
-
-type RawDirectory = { name: string; files: RawFile[] }
+import { describeRange, qualityOf, type RawDirectory } from '../lib/files'
+import { byName, parseQuery } from '../lib/text'
 
 export type RawShare = { directories: RawDirectory[]; lockedDirectories: RawDirectory[] }
 
 export type ShareFile = {
   kind: 'file'
   id: string
-  path: string
+  filename: string
   name: string
   folder: Folder
   size: number
@@ -80,10 +78,6 @@ function detectSeparator({ directories, lockedDirectories }: RawShare) {
   return slashes > backslashes ? '/' : '\\'
 }
 
-// Names are exact: some shares have folders differing only by case, or segments starting with a space.
-export const byName = <T extends { name: string }>(a: T, b: T) =>
-  compareNames(a.name, b.name) || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)
-
 // Files are left in the peer's order, and sorted where a folder is shown: sorting them all takes longer than the
 // rest of the build.
 function total(folder: Folder) {
@@ -142,18 +136,18 @@ export function buildShare(username: string, raw: RawShare): Share {
   ] as const) {
     for (const directory of directories) {
       const folder = folderAt(directory.name)
-      const seen = listed.has(folder) ? new Set(folder.files.map((file) => file.path)) : undefined
+      const seen = listed.has(folder) ? new Set(folder.files.map((file) => file.filename)) : undefined
       listed.set(folder, (listed.get(folder) ?? true) && locked)
       const prefix = directory.name + separator
       for (const file of directory.files) {
-        const path = file.filename.startsWith(prefix) ? file.filename : prefix + file.filename
-        if (seen?.has(path)) continue
+        const filename = file.filename.startsWith(prefix) ? file.filename : prefix + file.filename
+        if (seen?.has(filename)) continue
         const [quality, qualityLabel] = qualityOf(file)
         folder.files.push({
           kind: 'file',
-          id: path,
-          path,
-          name: path.slice(prefix.length),
+          id: filename,
+          filename,
+          name: filename.slice(prefix.length),
           folder,
           size: file.size,
           length: file.length,

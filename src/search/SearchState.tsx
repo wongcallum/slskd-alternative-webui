@@ -1,7 +1,6 @@
 import { Text, Tooltip } from '@radix-ui/themes'
+import type { Color } from '../ui/controls'
 import type { Search } from './searches'
-
-type Color = 'gray' | 'green' | 'red' | 'blue'
 
 const stateLabels: Record<string, [string, Color, string?]> = {
   None: ['Requested', 'gray'],

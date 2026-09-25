@@ -2,23 +2,21 @@ import {
   createColumnHelper,
   createExpandedRowModel,
   createSortedRowModel,
-  type ExpandedStateList,
-  functionalUpdate,
   type Row,
   rowExpandingFeature,
   rowSelectionFeature,
   type RowSelectionState,
   rowSortingFeature,
-  type SortFn,
+  sortFn_basic,
   tableFeatures,
   type Updater,
   useTable,
 } from '@tanstack/react-table'
 import { useMemo } from 'react'
 import { toTime } from '../lib/format'
-import { formatSort, parseSort } from '../lib/params'
+import { useSortParam } from '../lib/params'
 import { type Atom, createAtom } from '../lib/store'
-import { compareNames } from '../lib/text'
+import { collapsed, type Expansion, expandedState, sortByName } from '../ui/table'
 import { type Direction, type Group, isFailed, isTransferring, type Section, type Transfer } from './transfers'
 
 export const columnIds = {
@@ -42,10 +40,6 @@ export type TableRow = Row<typeof features, Item>
 
 const helper = createColumnHelper<typeof features, Item>()
 
-const byNumber: SortFn<typeof features, Item> = (a, b, id) => a.getValue<number>(id) - b.getValue<number>(id)
-
-const byName: SortFn<typeof features, Item> = (a, b, id) => compareNames(a.getValue<string>(id), b.getValue<string>(id))
-
 export const fraction = (item: Item) => (item.size > 0 ? item.bytesTransferred / item.size : 0)
 
 const speedOf = (item: Item) =>
@@ -64,12 +58,14 @@ function statusOf(section: Section, item: Item) {
 
 const columnsFor = (section: Section) =>
   helper.columns([
-    helper.accessor((item) => item.name, { id: 'name', sortFn: byName, sortDescFirst: false }),
-    helper.accessor((item) => item.username, { id: 'user', sortFn: byName, sortDescFirst: false }),
-    helper.accessor((item) => statusOf(section, item), { id: 'status', sortFn: byNumber, sortDescFirst: true }),
-    helper.accessor((item) => item.size, { id: 'size', sortFn: byNumber, sortDescFirst: true }),
-    ...(section === 'active' ? [helper.accessor(speedOf, { id: 'speed', sortFn: byNumber, sortDescFirst: true })] : []),
-    helper.accessor((item) => timeOf(section, item), { id: 'time', sortFn: byNumber, sortDescFirst: true }),
+    helper.accessor((item) => item.name, { id: 'name', sortFn: sortByName, sortDescFirst: false }),
+    helper.accessor((item) => item.username, { id: 'user', sortFn: sortByName, sortDescFirst: false }),
+    helper.accessor((item) => statusOf(section, item), { id: 'status', sortFn: sortFn_basic, sortDescFirst: true }),
+    helper.accessor((item) => item.size, { id: 'size', sortFn: sortFn_basic, sortDescFirst: true }),
+    ...(section === 'active'
+      ? [helper.accessor(speedOf, { id: 'speed', sortFn: sortFn_basic, sortDescFirst: true })]
+      : []),
+    helper.accessor((item) => timeOf(section, item), { id: 'time', sortFn: sortFn_basic, sortDescFirst: true }),
   ])
 
 const columns = { active: columnsFor('active'), finished: columnsFor('finished') }
@@ -87,11 +83,12 @@ export const templates: Record<Section, string> = {
 export const minWidth = 1166
 export const barHeight = 44
 
-type Expansion = Record<Section, ExpandedStateList>
+// Active groups start expanded and finished ones collapsed.
+const initialExpansion = (): Record<Section, Expansion> => ({ active: { all: true, toggled: {} }, finished: collapsed })
 
-export const expansions: Record<Direction, Atom<Expansion>> = {
-  download: createAtom<Expansion>({ active: {}, finished: {} }),
-  upload: createAtom<Expansion>({ active: {}, finished: {} }),
+export const expansions: Record<Direction, Atom<Record<Section, Expansion>>> = {
+  download: createAtom(initialExpansion()),
+  upload: createAtom(initialExpansion()),
 }
 
 export const openSections: Record<Direction, Atom<Record<Section, boolean>>> = {
@@ -99,26 +96,17 @@ export const openSections: Record<Direction, Atom<Record<Section, boolean>>> = {
   upload: createAtom<Record<Section, boolean>>({ active: true, finished: true }),
 }
 
-// Active groups start expanded and finished ones collapsed, so only toggles are stored.
-export const expandedByDefault = (section: Section) => section === 'active'
-
-export function useSectionTable(
+export function useSectionTable<S extends string>(
   section: Section,
   data: Group[],
-  sort: string | undefined,
-  toggled: ExpandedStateList,
+  sort: S | undefined,
+  expansion: Expansion,
   rowSelection: RowSelectionState,
   onRowSelectionChange: (updater: Updater<RowSelectionState>) => void,
-  onSortChange: (value: string | undefined) => void,
+  onSortChange: (sort: S | undefined) => void,
 ) {
-  const sorting = useMemo(() => parseSort(sort), [sort])
-  // TanStack skips expansion entirely while the expanded state is empty, so defaults have to be spelled out.
-  const expanded = useMemo(() => {
-    if (!expandedByDefault(section)) return toggled
-    const all: ExpandedStateList = {}
-    for (const group of data) all[group.id] = toggled[group.id] ?? true
-    return all
-  }, [section, data, toggled])
+  const { sorting, onSortingChange } = useSortParam(sort, onSortChange)
+  const expanded = useMemo(() => expandedState(expansion, data), [expansion, data])
   return useTable({
     features,
     columns: columns[section],
@@ -128,7 +116,7 @@ export function useSectionTable(
     autoResetExpanded: false,
     enableMultiSort: false,
     state: { sorting, expanded, rowSelection },
-    onSortingChange: (updater) => onSortChange(formatSort(functionalUpdate(updater, sorting))),
+    onSortingChange,
     onRowSelectionChange,
   })
 }

@@ -29,6 +29,16 @@ import { Shell } from './Shell'
 
 const title = (name: string) => ({ meta: [{ title: `${name} · slskd` }] })
 
+// Params that change as you type or click replace the history entry.
+function useSearchChange<T extends object>(
+  navigate: (options: { search: (previous: T) => T; replace: true }) => Promise<void>,
+) {
+  return useCallback(
+    (patch: Partial<T>) => navigate({ search: (previous) => ({ ...previous, ...patch }), replace: true }),
+    [navigate],
+  )
+}
+
 const rootRoute = createRootRoute({
   // Every page route sets its own title, so only unmatched paths are left with this one.
   head: () => title('Page not found'),
@@ -62,13 +72,10 @@ const searchesRoute = createRoute({
   validateSearch: searchesSearch,
   search: { middlewares: [stripSearchParams(searchesSearchDefaults)] },
   component: function Searches() {
-    const navigate = searchesRoute.useNavigate()
     return (
       <SearchesPage
         search={searchesRoute.useSearch()}
-        onSearchChange={(patch: Partial<SearchesSearch>) =>
-          navigate({ search: (previous) => ({ ...previous, ...patch }), replace: true })
-        }
+        onSearchChange={useSearchChange<SearchesSearch>(searchesRoute.useNavigate())}
       />
     )
   },
@@ -86,23 +93,14 @@ const searchRoute = createRoute({
   },
   component: function SearchResults() {
     const { id } = searchRoute.useParams()
-    const navigate = searchRoute.useNavigate()
     const router = useRouter()
+    const onSearchChange = useSearchChange<ResultsSearch>(searchRoute.useNavigate())
     // The title comes from the search list, which usually arrives after the route has loaded.
     const text = useResource(searches).data?.byId.get(id)?.text
     useEffect(() => {
       void router.invalidate({ filter: (match) => match.routeId === searchRoute.id })
     }, [router, text])
-    return (
-      <ResultsPage
-        key={id}
-        id={id}
-        search={searchRoute.useSearch()}
-        onSearchChange={(patch: Partial<ResultsSearch>) =>
-          navigate({ search: (previous) => ({ ...previous, ...patch }), replace: true })
-        }
-      />
-    )
+    return <ResultsPage key={id} id={id} search={searchRoute.useSearch()} onSearchChange={onSearchChange} />
   },
 })
 
@@ -113,14 +111,11 @@ const downloadsRoute = createRoute({
   validateSearch: transfersSearch,
   search: { middlewares: [stripSearchParams(transfersSearchDefaults)] },
   component: function Downloads() {
-    const navigate = downloadsRoute.useNavigate()
     return (
       <TransfersPage
         direction="download"
         search={downloadsRoute.useSearch()}
-        onSearchChange={(patch: Partial<TransfersSearch>) =>
-          navigate({ search: (previous) => ({ ...previous, ...patch }), replace: true })
-        }
+        onSearchChange={useSearchChange<TransfersSearch>(downloadsRoute.useNavigate())}
       />
     )
   },
@@ -133,14 +128,11 @@ const uploadsRoute = createRoute({
   validateSearch: transfersSearch,
   search: { middlewares: [stripSearchParams(transfersSearchDefaults)] },
   component: function Uploads() {
-    const navigate = uploadsRoute.useNavigate()
     return (
       <TransfersPage
         direction="upload"
         search={uploadsRoute.useSearch()}
-        onSearchChange={(patch: Partial<TransfersSearch>) =>
-          navigate({ search: (previous) => ({ ...previous, ...patch }), replace: true })
-        }
+        onSearchChange={useSearchChange<TransfersSearch>(uploadsRoute.useNavigate())}
       />
     )
   },
@@ -153,12 +145,8 @@ const browseRoute = createRoute({
   validateSearch: browseSearch,
   search: { middlewares: [stripSearchParams(browseSearchDefaults)] },
   component: function Browse() {
-    const navigate = browseRoute.useNavigate()
     const search = browseRoute.useSearch()
-    const onSearchChange = useCallback(
-      (patch: Partial<BrowseSearch>) => navigate({ search: (previous) => ({ ...previous, ...patch }), replace: true }),
-      [navigate],
-    )
+    const onSearchChange = useSearchChange<BrowseSearch>(browseRoute.useNavigate())
     if (search.user === '') return <BrowsePage />
     return <SharePage key={search.user} search={search} onSearchChange={onSearchChange} />
   },

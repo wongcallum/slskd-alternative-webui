@@ -1,13 +1,12 @@
-import { MagnifyingGlassIcon } from '@radix-ui/react-icons'
-import { Box, Button, Callout, Flex, Text, TextField } from '@radix-ui/themes'
+import { Flex } from '@radix-ui/themes'
 import type { RowSelectionState } from '@tanstack/react-table'
-import { type ReactNode, useDeferredValue, useMemo, useState } from 'react'
+import { type ReactNode, useMemo, useState } from 'react'
 import * as v from 'valibot'
-import { describeError } from '../lib/api'
 import { oneOf, sortOf, textParam } from '../lib/params'
 import { type Resource, useAtom, useResource, useStale } from '../lib/store'
 import { useSoulseekGate } from '../soulseek/soulseek'
-import { ActionButton, DelayedSpinner, Freshness, OutcomeLine, toolbarStyle } from '../ui/controls'
+import { ActionButton, FilterField, OutcomeLine, SelectionActions, toolbarStyle, useFilterText } from '../ui/controls'
+import { Empty, Freshness, Polling } from '../ui/status'
 import { actions, cancel, remove, retry } from './actions'
 import { columnIds, expansions, type Gates, useSectionTable } from './table'
 import { TransferList } from './TransferList'
@@ -45,17 +44,14 @@ type Props = {
 export function TransfersPage({ direction, search, onSearchChange }: Props) {
   const resource = transfers[direction]
   const { data, error } = useResource(resource)
-  const [text, setText] = useState(search.q)
-  const [urlText, setUrlText] = useState(search.q)
-  if (search.q !== urlText) {
-    setUrlText(search.q)
-    setText(search.q)
-  }
-  const query = useDeferredValue(text)
-  const active = useMemo(() => filterGroups(data?.active ?? noGroups, query, 'all'), [data?.active, query])
+  const filter = useFilterText(search.q, (q) => onSearchChange({ q }))
+  const active = useMemo(
+    () => filterGroups(data?.active ?? noGroups, filter.query, 'all'),
+    [data?.active, filter.query],
+  )
   const finished = useMemo(
-    () => filterGroups(data?.finished ?? noGroups, query, search.show),
-    [data?.finished, query, search.show],
+    () => filterGroups(data?.finished ?? noGroups, filter.query, search.show),
+    [data?.finished, filter.query, search.show],
   )
   const expansion = useAtom(expansions[direction])
   const [activeSelection, setActiveSelection] = useState<RowSelectionState>({})
@@ -67,7 +63,7 @@ export function TransfersPage({ direction, search, onSearchChange }: Props) {
     expansion.active,
     activeSelection,
     setActiveSelection,
-    (value) => onSearchChange({ activeSort: value as TransfersSearch['activeSort'] }),
+    (activeSort) => onSearchChange({ activeSort }),
   )
   const finishedTable = useSectionTable(
     'finished',
@@ -76,7 +72,7 @@ export function TransfersPage({ direction, search, onSearchChange }: Props) {
     expansion.finished,
     finishedSelection,
     setFinishedSelection,
-    (value) => onSearchChange({ finishedSort: value as TransfersSearch['finishedSort'] }),
+    (finishedSort) => onSearchChange({ finishedSort }),
   )
 
   const stale = useStale(resource, pollInterval)
@@ -92,26 +88,9 @@ export function TransfersPage({ direction, search, onSearchChange }: Props) {
 
   let content: ReactNode
   if (data === undefined) {
-    content =
-      error === undefined ? (
-        <Flex justify="center" p="6">
-          <DelayedSpinner />
-        </Flex>
-      ) : (
-        <Box p="4">
-          <Callout.Root color="red">
-            <Callout.Text>
-              Can't load {direction}s: {describeError(error)}. Retrying.
-            </Callout.Text>
-          </Callout.Root>
-        </Box>
-      )
+    content = <Polling what={`${direction}s`} error={error} />
   } else if (data.active.length === 0 && data.finished.length === 0) {
-    content = (
-      <Box p="5">
-        <Text color="gray">No {direction}s.</Text>
-      </Box>
-    )
+    content = <Empty>No {direction}s.</Empty>
   } else {
     content = (
       <TransferList
@@ -121,7 +100,7 @@ export function TransfersPage({ direction, search, onSearchChange }: Props) {
         finished={finished}
         activeTable={activeTable}
         finishedTable={finishedTable}
-        filtered={query !== ''}
+        filtered={filter.query !== ''}
         show={search.show}
         onShowChange={(show) => onSearchChange({ show })}
         gates={gates}
@@ -135,12 +114,8 @@ export function TransfersPage({ direction, search, onSearchChange }: Props) {
         direction={direction}
         resource={resource}
         error={data === undefined ? undefined : error}
-        text={text}
-        onTextChange={(value) => {
-          setText(value)
-          setUrlText(value)
-          onSearchChange({ q: value })
-        }}
+        text={filter.text}
+        onTextChange={filter.change}
         selected={selected}
         onClearSelection={() => {
           setActiveSelection({})
@@ -171,22 +146,9 @@ function Toolbar({ direction, resource, error, text, onTextChange, selected, onC
   const removable = selected.filter((file) => isFinished(file.state))
   return (
     <Flex align="center" gap="3" px="4" py="2" flexShrink="0" style={toolbarStyle}>
-      <TextField.Root
-        size="2"
-        placeholder="Filter by user or path"
-        value={text}
-        onChange={(event) => onTextChange(event.target.value)}
-        style={{ width: 280 }}
-      >
-        <TextField.Slot>
-          <MagnifyingGlassIcon />
-        </TextField.Slot>
-      </TextField.Root>
+      <FilterField placeholder="Filter by user or path" value={text} onChange={onTextChange} style={{ width: 280 }} />
       {selected.length > 0 && (
-        <Flex align="center" gap="2">
-          <Text size="2" color="gray">
-            {selected.length.toLocaleString()} selected
-          </Text>
+        <SelectionActions count={selected.length} onClear={onClearSelection}>
           {direction === 'download' && (
             <ActionButton
               label={`Retry ${retryable.length.toLocaleString()}`}
@@ -211,10 +173,7 @@ function Toolbar({ direction, resource, error, text, onTextChange, selected, onC
             gate={removable.length === 0 ? 'Nothing selected has finished' : gates.list}
             onClick={() => remove(direction, removable)}
           />
-          <Button size="1" variant="ghost" color="gray" onClick={onClearSelection}>
-            Clear selection
-          </Button>
-        </Flex>
+        </SelectionActions>
       )}
       <Flex ml="auto" align="center" gap="4" flexShrink="0">
         <OutcomeLine atom={actions[direction]} />
