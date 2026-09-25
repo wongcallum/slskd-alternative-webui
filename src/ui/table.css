@@ -227,6 +227,12 @@
   flex-shrink: 0;
 }
 
+/* A long name gives way along with the last part rather than push the rest out of sight. */
+.table-part:has(> .user-name-button) {
+  flex-shrink: 1;
+  min-width: 4em;
+}
+
 .table-part:last-child {
   flex-shrink: 1;
   min-width: 0;

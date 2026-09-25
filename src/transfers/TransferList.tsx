@@ -15,6 +15,7 @@ import {
   type Layout,
   rowHeight,
   stackedHeight,
+  stackedHeight3,
   toggleExpanded,
   useLayout,
   useRowToggle,
@@ -94,7 +95,9 @@ export function TransferList(props: ListProps) {
     estimateSize: (index) => {
       if (index === 0) return headerHeight('active')
       if (index === finishedHeader) return headerHeight('finished')
-      return layout === 'stacked' && itemAt(index).type === 'row' ? stackedHeight : rowHeight
+      const item = itemAt(index)
+      if (layout !== 'stacked' || item.type !== 'row') return rowHeight
+      return item.row.original.kind === 'group' ? stackedHeight3 : stackedHeight
     },
     // A new key function is what makes the virtualizer measure again, so a new layout has to make one.
     getItemKey: useCallback(

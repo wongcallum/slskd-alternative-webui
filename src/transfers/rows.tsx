@@ -52,7 +52,7 @@ function describeState({ state, attempts }: Transfer): [string, Color] {
 // Stacked, the bar has a width of its own, since the line it's on doesn't stretch.
 function Bar({ value, stacked }: { value: number; stacked?: boolean }) {
   return (
-    <Flex align="center" gap="2" flexGrow="1" minWidth="0" width={stacked ? '120px' : undefined}>
+    <Flex align="center" gap="2" flexGrow="1" minWidth={stacked ? '0' : '64px'} width={stacked ? '120px' : undefined}>
       <Progress value={value * 100} size="1" style={{ flex: 1 }} />
       <Text size="1" color="gray">
         {Math.floor(value * 100)}%
@@ -263,8 +263,9 @@ export const GroupRow = memo(function GroupRow({
       {folder.failed.toLocaleString()} failed
     </Text>
   )
+  // Beside a bar, it gives way before the bar does.
   const cancelled = folder.cancelled > 0 && (
-    <Text size="1" color="gray" style={{ flexShrink: 0 }}>
+    <Text size="1" color="gray" truncate>
       {folder.cancelled.toLocaleString()} cancelled
     </Text>
   )
@@ -302,14 +303,11 @@ export const GroupRow = memo(function GroupRow({
             {count}
           </GroupName>
         }
-        meta={
+        meta={<Parts items={[<UserMenu key="user" username={group.username} />, done, failed, cancelled]} />}
+        more={
           <Parts
             items={[
-              <UserMenu key="user" username={group.username} />,
               section === 'active' && <Bar key="bar" value={fraction(group)} stacked />,
-              done,
-              failed,
-              cancelled,
               size,
               speed,
               group.time > 0 && <Ago key="time" time={group.time} />,
