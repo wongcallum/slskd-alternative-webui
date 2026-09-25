@@ -114,3 +114,112 @@
   color: var(--gray-11);
   cursor: pointer;
 }
+
+.table-check {
+  cursor: pointer;
+}
+
+.table-stacked {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'title title'
+    'last actions';
+  align-content: center;
+  row-gap: 2px;
+  padding: 0 var(--space-3);
+}
+
+.table-stacked-check {
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  grid-template-areas:
+    'check title title'
+    'check last actions';
+  padding-left: 0;
+}
+
+.table-stacked-3 {
+  grid-template-areas:
+    'title title'
+    'middle middle'
+    'last actions';
+}
+
+.table-stacked-check.table-stacked-3 {
+  grid-template-areas:
+    'check title title'
+    'check middle middle'
+    'check last actions';
+}
+
+.table-stacked > .table-check {
+  grid-area: check;
+  align-self: stretch;
+}
+
+.table-stacked-title {
+  grid-area: title;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.table-stacked-meta {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--gray-11);
+  font-size: var(--font-size-1);
+  line-height: var(--line-height-1);
+  white-space: nowrap;
+}
+
+.table-stacked-meta[data-area='middle'] {
+  grid-area: middle;
+}
+
+.table-stacked-meta[data-area='last'] {
+  grid-area: last;
+}
+
+.table-stacked-indent > :is(.table-stacked-title, .table-stacked-meta) {
+  padding-left: var(--space-5);
+}
+
+.table-stacked-actions {
+  grid-area: actions;
+  padding-left: var(--space-3);
+}
+
+.table-part {
+  flex-shrink: 0;
+}
+
+.table-part:last-child {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.table-part + .table-part::before {
+  margin: 0 0.5em;
+  color: var(--gray-a8);
+  content: '·';
+}
+
+.table-sorts {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: 0 var(--space-3);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.table-sorts > .table-cell {
+  flex-shrink: 0;
+  padding: 0;
+  overflow: visible;
+}

@@ -16,10 +16,10 @@ const stateLabels: Record<string, [string, Color, string?]> = {
   'Completed, Errored': ['Errored', 'red', "slskd couldn't finish it, for example because Soulseek disconnected"],
 }
 
-export function SearchState({ search }: { search: Search }) {
+export function SearchState({ search, size = '2' }: { search: Search; size?: '1' | '2' }) {
   const [label, color, hint] = stateLabels[search.state] ?? [search.state, 'gray']
   const text = (
-    <Text size="2" color={color}>
+    <Text size={size} color={color}>
       {label}
     </Text>
   )

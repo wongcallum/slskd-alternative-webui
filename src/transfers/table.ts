@@ -17,7 +17,7 @@ import { useMemo } from 'react'
 import { toTime } from '../lib/format'
 import { useSortParam } from '../lib/params'
 import { type Atom, createAtom } from '../lib/store'
-import { collapsed, type Expansion, expandedState, sortByName } from '../ui/table'
+import { collapsed, type Expansion, expandedState, type Layout, sortByName } from '../ui/table'
 import { type Direction, type Group, isFailed, isTransferring, type Section, type Transfer } from './transfers'
 
 export const columnIds = {
@@ -76,13 +76,27 @@ export const columnLabels: Record<Section, Record<ColumnId, string>> = {
   finished: { name: 'Name', user: 'User', status: 'Status', size: 'Size', speed: 'Speed', time: 'Ended' },
 }
 
-export const templates: Record<Section, string> = {
-  active: '40px minmax(240px, 1fr) 160px 280px 170px 110px 90px 76px',
-  finished: '40px minmax(240px, 1fr) 160px 280px 170px 200px 76px',
+// Between md and lg the time column goes.
+export const templates: Record<Exclude<Layout, 'stacked'>, Record<Section, string>> = {
+  wide: {
+    active: '40px minmax(240px, 1fr) 160px 280px 170px 110px 90px 76px',
+    finished: '40px minmax(240px, 1fr) 160px 280px 170px 200px 76px',
+  },
+  medium: {
+    active: '40px minmax(200px, 1fr) 140px 240px 150px 100px 76px',
+    finished: '40px minmax(200px, 1fr) 140px 240px 150px 76px',
+  },
 }
 
-export const minWidth = 1166
+export const minWidths: Record<Layout, number> = { stacked: 0, wide: 1166, medium: 946 }
+
+export const columnsOf = (section: Section, layout: Layout) =>
+  layout === 'medium' ? columnIds[section].filter((id) => id !== 'time') : columnIds[section]
+
 export const barHeight = 44
+
+// Below sm, a section's title and actions take one line and its summary and filter the next.
+export const twoLineBarHeight = 72
 
 const initialExpansion = (): Record<Section, Expansion> => ({ active: { all: true, toggled: {} }, finished: collapsed })
 

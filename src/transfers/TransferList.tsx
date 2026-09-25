@@ -1,18 +1,22 @@
 import { ChevronDownIcon, ChevronRightIcon } from '@radix-ui/react-icons'
-import { Button, Flex, SegmentedControl, Text } from '@radix-ui/themes'
+import { Button, Flex, SegmentedControl, Select, Text } from '@radix-ui/themes'
 import { defaultRangeExtractor, type Range, useVirtualizer } from '@tanstack/react-virtual'
-import { useCallback, useRef } from 'react'
+import { type ReactNode, useCallback, useRef } from 'react'
 
 import { countFiles } from '../lib/files'
 import { formatSpeed, plural } from '../lib/format'
+import { useFrom } from '../lib/media'
 import { useAtom } from '../lib/store'
 import { ConfirmButton } from '../ui/controls'
 import {
   ColumnHeader,
   columnsHeight,
   HeaderRow,
+  type Layout,
   rowHeight,
+  stackedHeight,
   toggleExpanded,
+  useLayout,
   useRowToggle,
   virtualRowStyle,
 } from '../ui/table'
@@ -20,15 +24,16 @@ import { actions, cancel, clearFinished, lookups, retry } from './actions'
 import { FileRow, GroupRow } from './rows'
 import {
   barHeight,
-  columnIds,
   columnLabels,
+  columnsOf,
   expansions,
   type Gates,
-  minWidth,
+  minWidths,
   openSections,
   type SectionTable,
   type TableRow,
   templates,
+  twoLineBarHeight,
 } from './table'
 import { type Direction, type Group, isFailed, type Section, type Show, type Transfers } from './transfers'
 
@@ -52,6 +57,8 @@ type ListProps = {
 
 export function TransferList(props: ListProps) {
   const { direction, activeTable, finishedTable, gates } = props
+  const layout = useLayout()
+  const twoLines = !useFrom('sm')
   const open = useAtom(openSections[direction])
   const { pending } = useAtom(actions[direction])
   const lookupMap = useAtom(lookups)
@@ -75,20 +82,26 @@ export function TransferList(props: ListProps) {
     [activeRows, finishedRows, finishedHeader],
   )
 
-  const headerHeight = (section: Section) => barHeight + (open[section] ? columnsHeight : 0)
+  const headerHeight = (section: Section) =>
+    (twoLines ? twoLineBarHeight : barHeight) + (open[section] ? columnsHeight : 0)
   const scrollRef = useRef<HTMLDivElement>(null)
   const stickyRef = useRef(0)
   const virtualizer = useVirtualizer({
     count: finishedHeader + 1 + finishedCount,
     getScrollElement: () => scrollRef.current,
-    estimateSize: (index) =>
-      index === 0 ? headerHeight('active') : index === finishedHeader ? headerHeight('finished') : rowHeight,
+    estimateSize: (index) => {
+      if (index === 0) return headerHeight('active')
+      if (index === finishedHeader) return headerHeight('finished')
+      return layout === 'stacked' && itemAt(index).type === 'row' ? stackedHeight : rowHeight
+    },
+    // A new key function is what makes the virtualizer measure again, so a new layout has to make one.
     getItemKey: useCallback(
       (index: number) => {
         const item = itemAt(index)
         return item.type === 'row' ? item.row.id : `${item.type}:${item.section}:${open[item.section]}`
       },
-      [itemAt, open],
+      // oxlint-disable-next-line react-hooks/exhaustive-deps
+      [itemAt, open, layout, twoLines],
     ),
     overscan: 10,
     rangeExtractor: useCallback(
@@ -109,7 +122,17 @@ export function TransferList(props: ListProps) {
   )
 
   function render(item: ListItem) {
-    if (item.type === 'header') return <SectionHeader {...props} section={item.section} open={open[item.section]} />
+    if (item.type === 'header') {
+      return (
+        <SectionHeader
+          {...props}
+          layout={layout}
+          twoLines={twoLines}
+          section={item.section}
+          open={open[item.section]}
+        />
+      )
+    }
     if (item.type === 'empty') {
       return (
         <Flex align="center" height="100%" px="4">
@@ -130,6 +153,7 @@ export function TransferList(props: ListProps) {
         <GroupRow
           group={original}
           direction={direction}
+          layout={layout}
           expanded={row.getIsExpanded()}
           selected={row.getIsAllSubRowsSelected()}
           partial={row.getIsSomeSelected()}
@@ -144,6 +168,7 @@ export function TransferList(props: ListProps) {
         file={original}
         section={section}
         direction={direction}
+        layout={layout}
         selected={row.getIsSelected()}
         pending={pending.has(original.id)}
         lookup={lookupMap.get(original.id)}
@@ -155,7 +180,7 @@ export function TransferList(props: ListProps) {
 
   return (
     <div ref={scrollRef} className="table-scroll">
-      <div style={{ height: virtualizer.getTotalSize(), position: 'relative', minWidth }}>
+      <div style={{ height: virtualizer.getTotalSize(), position: 'relative', minWidth: minWidths[layout] }}>
         {virtualizer.getVirtualItems().map((virtual) => (
           <div
             key={virtual.key}
@@ -175,6 +200,42 @@ export function TransferList(props: ListProps) {
 
 const allFiles = (groups: Group[]) => groups.flatMap((group) => group.files)
 
+const shows: [Show, string][] = [
+  ['all', 'All'],
+  ['succeeded', 'Succeeded'],
+  ['failed', 'Failed'],
+  ['cancelled', 'Cancelled'],
+]
+
+// A select below md, where the segmented control doesn't fit beside the summary and the buttons.
+function ShowControl({ show, onShowChange }: { show: Show; onShowChange: (show: Show) => void }) {
+  const md = useFrom('md')
+  const change = (value: string) => onShowChange(value as Show)
+  if (!md) {
+    return (
+      <Select.Root size="1" value={show} onValueChange={change}>
+        <Select.Trigger variant="soft" color="gray" aria-label="Show" />
+        <Select.Content>
+          {shows.map(([value, label]) => (
+            <Select.Item key={value} value={value}>
+              {label}
+            </Select.Item>
+          ))}
+        </Select.Content>
+      </Select.Root>
+    )
+  }
+  return (
+    <SegmentedControl.Root size="1" value={show} onValueChange={change}>
+      {shows.map(([value, label]) => (
+        <SegmentedControl.Item key={value} value={value}>
+          {label}
+        </SegmentedControl.Item>
+      ))}
+    </SegmentedControl.Root>
+  )
+}
+
 function SectionHeader({
   direction,
   data,
@@ -186,9 +247,11 @@ function SectionHeader({
   show,
   onShowChange,
   gates,
+  layout,
+  twoLines,
   section,
   open,
-}: ListProps & { section: Section; open: boolean }) {
+}: ListProps & { layout: Layout; twoLines: boolean; section: Section; open: boolean }) {
   const { running } = useAtom(actions[direction])
   const table = section === 'active' ? activeTable : finishedTable
   const groups = section === 'active' ? active : finished
@@ -207,85 +270,109 @@ function SectionHeader({
 
   const everything = allFiles(section === 'active' ? data.active : data.finished)
   const failed = everything.filter((file) => isFailed(file.state))
+  const title = (
+    <Button
+      variant="ghost"
+      color="gray"
+      onClick={() => openSections[direction].set((state) => ({ ...state, [section]: !state[section] }))}
+    >
+      {open ? <ChevronDownIcon /> : <ChevronRightIcon />}
+      <Text weight="bold" size="3">
+        {section === 'active' ? 'Active' : 'Finished'}
+      </Text>
+    </Button>
+  )
+  const counts: ReactNode = (
+    <>
+      <Text size="2" color="gray" truncate>
+        {summary}
+      </Text>
+      {speed !== undefined && (
+        <Text size="2" style={{ flexShrink: 0 }}>
+          {speed}
+        </Text>
+      )}
+    </>
+  )
+  const buttons =
+    section === 'active' ? (
+      <ConfirmButton
+        label="Cancel all"
+        busy="Cancelling"
+        color="red"
+        progress={running.cancel}
+        gate={everything.length === 0 ? `Nothing to cancel` : gates.list}
+        title={`Cancel ${plural(everything.length, direction)}?`}
+        description={`Every active ${direction} is cancelled, including any hidden by the filter.`}
+        action={`Cancel ${direction}s`}
+        onConfirm={() => cancel(direction, everything)}
+      />
+    ) : (
+      <>
+        {direction === 'download' && (
+          <ConfirmButton
+            label="Retry failed"
+            busy="Retrying"
+            progress={running.retry}
+            gate={failed.length === 0 ? 'Nothing has failed' : gates.soulseek}
+            title={`Retry ${plural(failed.length, 'download')}?`}
+            description="Every failed download is enqueued again, including any hidden by the filter, but not cancelled ones."
+            action="Retry"
+            onConfirm={() => retry(failed)}
+          />
+        )}
+        <ConfirmButton
+          label="Clear finished"
+          busy="Clearing"
+          progress={running.clear}
+          gate={everything.length === 0 ? 'Nothing has finished' : gates.list}
+          title={`Clear ${plural(everything.length, `finished ${direction}`)}?`}
+          description={`Every finished ${direction} is removed from the list, whatever its outcome, including any hidden by the filter. Files on disk aren't touched.`}
+          action="Clear"
+          onConfirm={() => clearFinished(direction)}
+        />
+      </>
+    )
+  const showControl = section === 'finished' && <ShowControl show={show} onShowChange={onShowChange} />
+  const stacked = layout === 'stacked'
   return (
     <div className="table-section">
-      <Flex align="center" gap="3" px="3" height={`${barHeight}px`}>
-        <Button
-          variant="ghost"
-          color="gray"
-          onClick={() => openSections[direction].set((state) => ({ ...state, [section]: !state[section] }))}
-        >
-          {open ? <ChevronDownIcon /> : <ChevronRightIcon />}
-          <Text weight="bold" size="3">
-            {section === 'active' ? 'Active' : 'Finished'}
-          </Text>
-        </Button>
-        <Text size="2" color="gray">
-          {summary}
-        </Text>
-        {speed !== undefined && <Text size="2">{speed}</Text>}
-        <Flex ml="auto" gap="2" align="center">
-          {section === 'active' ? (
-            <ConfirmButton
-              label="Cancel all"
-              busy="Cancelling"
-              color="red"
-              progress={running.cancel}
-              gate={everything.length === 0 ? `Nothing to cancel` : gates.list}
-              title={`Cancel ${plural(everything.length, direction)}?`}
-              description={`Every active ${direction} is cancelled, including any hidden by the filter.`}
-              action={`Cancel ${direction}s`}
-              onConfirm={() => cancel(direction, everything)}
-            />
-          ) : (
-            <>
-              <SegmentedControl.Root
-                size="1"
-                value={show}
-                onValueChange={(value) => onShowChange(value as typeof show)}
-              >
-                <SegmentedControl.Item value="all">All</SegmentedControl.Item>
-                <SegmentedControl.Item value="succeeded">Succeeded</SegmentedControl.Item>
-                <SegmentedControl.Item value="failed">Failed</SegmentedControl.Item>
-                <SegmentedControl.Item value="cancelled">Cancelled</SegmentedControl.Item>
-              </SegmentedControl.Root>
-              {direction === 'download' && (
-                <ConfirmButton
-                  label="Retry failed"
-                  busy="Retrying"
-                  progress={running.retry}
-                  gate={failed.length === 0 ? 'Nothing has failed' : gates.soulseek}
-                  title={`Retry ${plural(failed.length, 'download')}?`}
-                  description="Every failed download is enqueued again, including any hidden by the filter, but not cancelled ones."
-                  action="Retry"
-                  onConfirm={() => retry(failed)}
-                />
-              )}
-              <ConfirmButton
-                label="Clear finished"
-                busy="Clearing"
-                progress={running.clear}
-                gate={everything.length === 0 ? 'Nothing has finished' : gates.list}
-                title={`Clear ${plural(everything.length, `finished ${direction}`)}?`}
-                description={`Every finished ${direction} is removed from the list, whatever its outcome, including any hidden by the filter. Files on disk aren't touched.`}
-                action="Clear"
-                onConfirm={() => clearFinished(direction)}
-              />
-            </>
-          )}
+      {twoLines ? (
+        <Flex direction="column" justify="center" px="3" height={`${twoLineBarHeight}px`}>
+          <Flex align="center" gap="3" height="36px">
+            {title}
+            <Flex ml="auto" gap="2" align="center">
+              {buttons}
+            </Flex>
+          </Flex>
+          <Flex align="center" gap="3" height="28px" pl="5">
+            {counts}
+            <Flex ml="auto" flexShrink="0">
+              {showControl}
+            </Flex>
+          </Flex>
         </Flex>
-      </Flex>
+      ) : (
+        <Flex align="center" gap="3" px="3" height={`${barHeight}px`}>
+          {title}
+          {counts}
+          <Flex ml="auto" gap="2" align="center">
+            {showControl}
+            {buttons}
+          </Flex>
+        </Flex>
+      )}
       {open && (
-        <HeaderRow template={templates[section]} table={table}>
-          {columnIds[section].map((id) => (
+        <HeaderRow template={layout === 'stacked' ? '' : templates[layout][section]} table={table} stacked={stacked}>
+          {columnsOf(section, layout).map((id) => (
             <ColumnHeader
               key={id}
               label={columnLabels[section][id]}
-              end={id === 'size' || id === 'speed'}
+              end={!stacked && (id === 'size' || id === 'speed')}
               column={table.getColumn(id)}
             />
           ))}
-          <div />
+          {!stacked && <div />}
         </HeaderRow>
       )}
     </div>
