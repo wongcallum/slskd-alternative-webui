@@ -64,7 +64,7 @@ export const disabledProps = (disabled: boolean) => ({
 // Radix's tooltips never open from touch.
 export function Tip({ content, children }: { content: ReactNode; children: ReactElement }) {
   const touch = useTouch()
-  if (!touch) return <Tooltip content={content}>{children}</Tooltip>
+  if (!touch) return <Tooltip content={<span style={{ whiteSpace: 'pre-line' }}>{content}</span>}>{children}</Tooltip>
   return (
     <Popover.Root>
       <Popover.Trigger onClick={stop}>{children}</Popover.Trigger>
