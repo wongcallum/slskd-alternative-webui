@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { BrowseUserButton } from '../browse/BrowseUserButton'
 import { useResource } from '../lib/store'
 import { Loading } from '../ui/status'
+import { UserMenu } from '../users/UserMenu'
 import { ChatEmpty } from './ChatEmpty'
 import { ChatPane } from './ChatPane'
 import {
@@ -53,6 +54,7 @@ function OpenConversation({ username }: { username: string }) {
   return (
     <ChatPane
       target={{ kind: 'user', name: username }}
+      title={<UserMenu username={username} here="message" />}
       actions={<BrowseUserButton username={username} directory="" />}
       resource={resource}
       interval={conversationPollInterval}

@@ -232,3 +232,9 @@ export function createAtom<T>(initial: T): Atom<T> {
 }
 
 export const useAtom = <T>(atom: Atom<T>) => useSyncExternalStore(atom.subscribe, atom.get)
+
+export function without<V>(map: ReadonlyMap<string, V>, key: string) {
+  const next = new Map(map)
+  next.delete(key)
+  return next
+}

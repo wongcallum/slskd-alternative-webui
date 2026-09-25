@@ -32,6 +32,9 @@ import {
   transfersSearch,
   transfersSearchDefaults,
 } from '../transfers/TransfersPage'
+import { usersSearch, usersSearchDefaults } from '../users/params'
+import { ProfilePage } from '../users/ProfilePage'
+import { UsersPage } from '../users/UsersPage'
 import { NotFound, RouteError } from './pages'
 import { Shell } from './Shell'
 
@@ -163,6 +166,19 @@ const browseRoute = createRoute({
   },
 })
 
+const usersRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'users',
+  head: ({ match }) => title(match.search.user === '' ? 'Users' : `${match.search.user} · Users`),
+  validateSearch: usersSearch,
+  search: { middlewares: [stripSearchParams(usersSearchDefaults)] },
+  component: function Users() {
+    const { user } = usersRoute.useSearch()
+    if (user === '') return <UsersPage />
+    return <ProfilePage key={user} username={user} />
+  },
+})
+
 // The rooms and conversations share one page, whose sidebar stays mounted while switching between them.
 const chatRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -236,6 +252,7 @@ export const router = createRouter({
     downloadsRoute,
     uploadsRoute,
     browseRoute,
+    usersRoute,
     chatRoute.addChildren([roomsRoute, conversationRoute]),
     systemRoute.addChildren([systemIndexRoute, systemInfoRoute, systemLogsRoute]),
   ]),

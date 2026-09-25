@@ -1,15 +1,15 @@
 import { ReloadIcon, TrashIcon } from '@radix-ui/react-icons'
-import { Flex, Link, Text } from '@radix-ui/themes'
-import { Link as RouterLink } from '@tanstack/react-router'
+import { Flex, Text } from '@radix-ui/themes'
 import { type ReactNode, useEffect, useMemo } from 'react'
 
-import { describeError } from '../lib/api'
+import { entriesByUser } from '../lib/db'
 import { formatBytes } from '../lib/format'
 import { useAtom } from '../lib/store'
 import { useSoulseekGate } from '../soulseek/soulseek'
-import { GatedIconButton, toolbarStyle } from '../ui/controls'
-import { Ago, Empty, ErrorCallout, Loading } from '../ui/status'
-import { ActionsCell, Cell, ColumnHeader, GridRow, HeaderRow, VirtualTable } from '../ui/table'
+import { GatedIconButton } from '../ui/controls'
+import { Ago } from '../ui/status'
+import { ActionsCell, Cell, GridRow } from '../ui/table'
+import { UserLinkCell, UserListPage } from '../ui/UserList'
 import {
   type Browse,
   browse,
@@ -32,7 +32,15 @@ const template = 'minmax(200px, 1fr) 90px 100px 100px 90px 110px minmax(240px, 1
 
 const minWidth = 1006
 
-const entryKey = (entry: Entry) => entry.username
+const columns = [
+  { label: 'User' },
+  { label: 'Folders', end: true },
+  { label: 'Files', end: true },
+  { label: 'Size', end: true },
+  { label: 'Locked', end: true },
+  { label: 'Fetched' },
+  { label: 'Status' },
+]
 
 export function BrowsePage() {
   useEffect(() => {
@@ -44,30 +52,25 @@ export function BrowsePage() {
   const memory = useAtom(loadedShares)
 
   const entries = useMemo(() => {
-    const byUser = new Map<string, Entry>()
-    const entryOf = (username: string) => {
-      let entry = byUser.get(username)
-      if (entry === undefined) byUser.set(username, (entry = { username }))
-      return entry
-    }
-    for (const record of list.records.values()) entryOf(record.username).stats = record
-    for (const [username, loaded] of memory) {
-      if (loaded.status !== 'ready' || loaded.notCached === undefined) continue
-      const { share } = loaded
-      const entry = entryOf(username)
-      entry.notCached = loaded.notCached
-      entry.stats = {
-        folders: share.folderCount,
-        files: share.top.fileCount,
-        locked: share.top.lockedCount,
-        size: share.top.size,
-        fetchedAt: loaded.fetchedAt,
-      }
-    }
-    for (const [username, each] of running) entryOf(username).browse = each
-    for (const [username, failure] of failed) entryOf(username).failure = failure
     const time = (entry: Entry) => entry.stats?.fetchedAt ?? entry.failure?.at ?? 0
-    return [...byUser.values()].sort(
+    return entriesByUser<Entry>((entryOf) => {
+      for (const record of list.records.values()) entryOf(record.username).stats = record
+      for (const [username, loaded] of memory) {
+        if (loaded.status !== 'ready' || loaded.notCached === undefined) continue
+        const { share } = loaded
+        const entry = entryOf(username)
+        entry.notCached = loaded.notCached
+        entry.stats = {
+          folders: share.folderCount,
+          files: share.top.fileCount,
+          locked: share.top.lockedCount,
+          size: share.top.size,
+          fetchedAt: loaded.fetchedAt,
+        }
+      }
+      for (const [username, each] of running) entryOf(username).browse = each
+      for (const [username, failure] of failed) entryOf(username).failure = failure
+    }).sort(
       (a, b) =>
         Number(b.browse !== undefined) - Number(a.browse !== undefined) ||
         (b.browse?.startedAt ?? 0) - (a.browse?.startedAt ?? 0) ||
@@ -79,49 +82,25 @@ export function BrowsePage() {
     [list.records],
   )
 
-  let content: ReactNode
-  if (!list.loaded) content = <Loading />
-  else if (entries.length === 0) {
-    content =
-      list.error !== undefined ? (
-        <ErrorCallout>Can't read the cache: {describeError(list.error)}</ErrorCallout>
-      ) : (
-        <Empty>Nothing browsed yet. Browse a user by name, or from a search result or a transfer.</Empty>
-      )
-  } else {
-    const header = (
-      <HeaderRow template={template}>
-        <ColumnHeader label="User" />
-        <ColumnHeader label="Folders" end />
-        <ColumnHeader label="Files" end />
-        <ColumnHeader label="Size" end />
-        <ColumnHeader label="Locked" end />
-        <ColumnHeader label="Fetched" />
-        <ColumnHeader label="Status" />
-        <div />
-      </HeaderRow>
-    )
-    content = (
-      <VirtualTable
-        minWidth={minWidth}
-        header={header}
-        items={entries}
-        itemKey={entryKey}
-        renderItem={(entry) => <LandingRow entry={entry} />}
-      />
-    )
-  }
-
   return (
-    <Flex direction="column" height="100%">
-      <Flex align="center" gap="4" px="4" py="3" flexShrink="0" style={toolbarStyle}>
-        <UserBox />
-        <Text size="2" color="gray" ml="auto">
-          {formatBytes(stored)} stored
-        </Text>
-      </Flex>
-      {content}
-    </Flex>
+    <UserListPage
+      toolbar={
+        <>
+          <UserBox />
+          <Text size="2" color="gray" ml="auto">
+            {formatBytes(stored)} stored
+          </Text>
+        </>
+      }
+      list={list}
+      what="the cache"
+      empty="Nothing browsed yet. Browse a user by name, or from a search result or a transfer."
+      template={template}
+      minWidth={minWidth}
+      columns={columns}
+      entries={entries}
+      renderRow={(entry) => <LandingRow entry={entry} />}
+    />
   )
 }
 
@@ -142,13 +121,7 @@ function LandingRow({ entry }: { entry: Entry }) {
   }
   return (
     <GridRow template={template}>
-      <div className="table-cell" title={username}>
-        <Link asChild size="2" weight="medium">
-          <RouterLink to="/browse" search={{ user: username }}>
-            {username}
-          </RouterLink>
-        </Link>
-      </div>
+      <UserLinkCell username={username} to="/browse" />
       <Cell end>{stats?.folders.toLocaleString()}</Cell>
       <Cell end>{stats?.files.toLocaleString()}</Cell>
       <Cell end>{stats !== undefined && formatBytes(stats.size)}</Cell>

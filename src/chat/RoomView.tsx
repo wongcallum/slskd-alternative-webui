@@ -8,6 +8,7 @@ import { useSoulseekGate } from '../soulseek/soulseek'
 import { application } from '../system/application'
 import { disabledProps } from '../ui/controls'
 import { Loading } from '../ui/status'
+import { renderUserMenu } from '../users/UserMenu'
 import { ChatEmpty } from './ChatEmpty'
 import { ChatPane, ChatToolbar } from './ChatPane'
 import { MessageLog } from './MessageLog'
@@ -24,7 +25,6 @@ import {
   useJoinedRooms,
 } from './rooms'
 import { RoomUsers } from './RoomUsers'
-import { renderUserMenu } from './UserMenu'
 
 export function RoomView({ room }: { room: string }) {
   const { known, rooms } = useJoinedRooms()
