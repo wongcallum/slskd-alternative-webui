@@ -1,10 +1,11 @@
-import { Box, Button, Callout, Flex, Heading, Text, Tooltip } from '@radix-ui/themes'
+import { Flex, Heading, Text, Tooltip } from '@radix-ui/themes'
 import { type ReactNode, useEffect } from 'react'
 import { describeError } from '../../lib/api'
 import { formatBytes, plural } from '../../lib/format'
 import { useAtom } from '../../lib/store'
 import { useSoulseekGate } from '../../soulseek/soulseek'
-import { ActionButton, Ago, DelayedSpinner, toolbarStyle } from '../../ui/controls'
+import { ActionButton, toolbarStyle } from '../../ui/controls'
+import { Ago, Empty, ErrorCallout, Loading } from '../../ui/status'
 import { browse, browses, failures, loadedShares, reloadShare, viewShare } from '../browse'
 import { BrowseProgress, FailureLine } from '../BrowseStatus'
 import type { BrowseSearch } from '../params'
@@ -31,22 +32,15 @@ export function SharePage({ search, onSearchChange }: Props) {
   if (ready !== undefined) {
     content =
       ready.share.folderCount === 0 ? (
-        <Box p="5">
-          <Text color="gray">{username} shares nothing (or has blocked you).</Text>
-        </Box>
+        <Empty>{username} shares nothing (or has blocked you).</Empty>
       ) : (
         <ShareView share={ready.share} fetchedAt={ready.fetchedAt} search={search} onSearchChange={onSearchChange} />
       )
   } else if (loaded?.status === 'failed') {
     content = (
-      <Box p="4">
-        <Callout.Root color="red">
-          <Callout.Text>Can't read the cached share: {describeError(loaded.error)}</Callout.Text>
-        </Callout.Root>
-        <Button mt="3" variant="soft" onClick={() => reloadShare(username)}>
-          Try again
-        </Button>
-      </Box>
+      <ErrorCallout onRetry={() => reloadShare(username)}>
+        Can't read the cached share: {describeError(loaded.error)}
+      </ErrorCallout>
     )
   } else if (loaded?.status === 'missing' && running !== undefined) {
     content = (
@@ -62,13 +56,7 @@ export function SharePage({ search, onSearchChange }: Props) {
         <ActionButton label={`Browse ${username}`} busy="Browsing" gate={gate} onClick={() => void browse(username)} />
       </Flex>
     )
-  } else {
-    content = (
-      <Flex justify="center" p="6">
-        <DelayedSpinner />
-      </Flex>
-    )
-  }
+  } else content = <Loading />
 
   return (
     <Flex direction="column" height="100%">

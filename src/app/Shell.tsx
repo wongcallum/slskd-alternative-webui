@@ -4,20 +4,13 @@ import type { CSSProperties, ReactNode } from 'react'
 import { logout, useSession } from '../session/session'
 import { SoulseekIndicator } from '../soulseek/SoulseekIndicator'
 import { DownloadsBadge } from '../transfers/DownloadsBadge'
+import { toolbarStyle } from '../ui/controls'
 
 export function Shell() {
   const session = useSession()
   return (
     <Flex direction="column" height="100vh">
-      <Flex
-        asChild
-        align="center"
-        gap="5"
-        px="4"
-        flexShrink="0"
-        overflowX="auto"
-        style={{ boxShadow: 'inset 0 -1px 0 0 var(--gray-a5)' }}
-      >
+      <Flex asChild align="center" gap="5" px="4" flexShrink="0" overflowX="auto" style={toolbarStyle}>
         <header>
           <Text weight="bold">slskd</Text>
           {/* TabNav draws its own divider in --gray-a5 under the tabs, which would double up with the header's. */}

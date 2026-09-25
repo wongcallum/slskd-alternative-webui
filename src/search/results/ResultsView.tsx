@@ -1,12 +1,22 @@
-import { MagnifyingGlassIcon } from '@radix-ui/react-icons'
-import { Box, Button, Checkbox, Flex, Text, TextField } from '@radix-ui/themes'
-import { type ExpandedStateList, functionalUpdate, type RowSelectionState, useTable } from '@tanstack/react-table'
+import { Button, Flex, Text } from '@radix-ui/themes'
+import { type RowSelectionState, useTable } from '@tanstack/react-table'
 import { useDeferredValue, useMemo, useState } from 'react'
+import { countFiles } from '../../lib/files'
 import { formatBytes } from '../../lib/format'
-import { formatSort, parseSort } from '../../lib/params'
+import { useSortParam } from '../../lib/params'
 import { useAtom } from '../../lib/store'
 import { useSoulseekGate } from '../../soulseek/soulseek'
-import { ActionButton, OutcomeLine, toolbarStyle } from '../../ui/controls'
+import {
+  ActionButton,
+  CheckboxField,
+  FilterField,
+  OutcomeLine,
+  SelectionActions,
+  toolbarStyle,
+  useFilterText,
+} from '../../ui/controls'
+import { Empty } from '../../ui/status'
+import { collapsed, expandedState } from '../../ui/table'
 import { FiltersButton } from './Filters'
 import { type FilterSearch, qualities, type ResultsSearch, saveFilters } from './params'
 import { ResultList } from './ResultList'
@@ -15,14 +25,11 @@ import {
   downloadsOf,
   type FolderFetch,
   type ResultFile,
-  type ResultGroup,
   type Results,
   unfiltered,
   viewGroups,
 } from './results'
-import { canSelect, collapsed, columns, expansions, features } from './table'
-
-const countFiles = (groups: ResultGroup[]) => groups.reduce((count, group) => count + group.files.length, 0)
+import { canSelect, columns, expansions, features } from './table'
 
 type Props = {
   searchId: string
@@ -33,13 +40,8 @@ type Props = {
 }
 
 export function ResultsView({ searchId, results, folders, params, onSearchChange }: Props) {
-  const [text, setText] = useState(params.q)
-  const [urlText, setUrlText] = useState(params.q)
-  if (params.q !== urlText) {
-    setUrlText(params.q)
-    setText(params.q)
-  }
-  const query = useDeferredValue(text)
+  const filter = useFilterText(params.q, (q) => onSearchChange({ q }))
+  const query = filter.query
   const locked = params.locked === 'show'
   const free = params.free === 'only'
   const quality = useDeferredValue(qualities.find(([value]) => value === params.quality)?.[2] ?? 0)
@@ -57,14 +59,8 @@ export function ResultsView({ searchId, results, folders, params, onSearchChange
   const shown = useMemo(() => countFiles(groups), [groups])
 
   const expansion = useAtom(expansions).get(searchId) ?? collapsed
-  // TanStack skips expansion entirely while the expanded state is empty, so "all expanded" has to be spelled out.
-  const expanded = useMemo(() => {
-    if (!expansion.all) return expansion.toggled
-    const all: ExpandedStateList = {}
-    for (const group of groups) all[group.id] = expansion.toggled[group.id] ?? true
-    return all
-  }, [groups, expansion])
-  const sorting = useMemo(() => parseSort(params.sort), [params.sort])
+  const expanded = useMemo(() => expandedState(expansion, groups), [groups, expansion])
+  const { sorting, onSortingChange } = useSortParam(params.sort, (sort) => onSearchChange({ sort }))
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const table = useTable({
     features,
@@ -76,8 +72,7 @@ export function ResultsView({ searchId, results, folders, params, onSearchChange
     enableMultiSort: false,
     enableRowSelection: canSelect,
     state: { sorting, expanded, rowSelection },
-    onSortingChange: (updater) =>
-      onSearchChange({ sort: formatSort(functionalUpdate(updater, sorting)) as ResultsSearch['sort'] }),
+    onSortingChange,
     onRowSelectionChange: setRowSelection,
   })
 
@@ -97,32 +92,17 @@ export function ResultsView({ searchId, results, folders, params, onSearchChange
   return (
     <>
       <Flex align="center" gap="4" px="4" py="2" flexShrink="0" style={toolbarStyle}>
-        <TextField.Root
-          size="2"
+        <FilterField
           placeholder="Filter by user or path, -word to exclude"
-          value={text}
-          onChange={(event) => {
-            setText(event.target.value)
-            setUrlText(event.target.value)
-            onSearchChange({ q: event.target.value })
-          }}
+          value={filter.text}
+          onChange={filter.change}
           style={{ width: 330 }}
-        >
-          <TextField.Slot>
-            <MagnifyingGlassIcon />
-          </TextField.Slot>
-        </TextField.Root>
+        />
         <FiltersButton filters={params} onChange={changeFilters} />
         {results.locked > 0 && (
-          <Text as="label" size="2">
-            <Flex gap="2" align="center">
-              <Checkbox
-                checked={locked}
-                onCheckedChange={(checked) => onSearchChange({ locked: checked === true ? 'show' : 'hide' })}
-              />
-              Locked ({results.locked.toLocaleString()})
-            </Flex>
-          </Text>
+          <CheckboxField checked={locked} onChange={(checked) => onSearchChange({ locked: checked ? 'show' : 'hide' })}>
+            Locked ({results.locked.toLocaleString()})
+          </CheckboxField>
         )}
         <Button
           size="1"
@@ -135,7 +115,7 @@ export function ResultsView({ searchId, results, folders, params, onSearchChange
           {expansion.all ? 'Collapse all' : 'Expand all'}
         </Button>
         {selected.length > 0 && (
-          <Flex align="center" gap="2">
+          <SelectionActions onClear={() => setRowSelection({})}>
             <ActionButton
               label={`Download ${selected.length.toLocaleString()} (${formatBytes(selectedSize)})`}
               busy="Enqueueing"
@@ -143,10 +123,7 @@ export function ResultsView({ searchId, results, folders, params, onSearchChange
               gate={soulseekGate}
               onClick={() => void download(searchId, selected)}
             />
-            <Button size="1" variant="ghost" color="gray" onClick={() => setRowSelection({})}>
-              Clear selection
-            </Button>
-          </Flex>
+          </SelectionActions>
         )}
         <Flex ml="auto" align="center" gap="4" flexShrink="0">
           <OutcomeLine atom={downloadsOf(searchId)} />
@@ -158,9 +135,7 @@ export function ResultsView({ searchId, results, folders, params, onSearchChange
         </Flex>
       </Flex>
       {groups.length === 0 ? (
-        <Box p="5">
-          <Text color="gray">Nothing matches.</Text>
-        </Box>
+        <Empty>Nothing matches.</Empty>
       ) : (
         <ResultList
           searchId={searchId}

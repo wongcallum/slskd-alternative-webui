@@ -1,10 +1,9 @@
 import { isHTTPError } from 'ky'
-import pMap from 'p-map'
-import { type Actions, begin, idle, summarise } from '../lib/actions'
-import { api, describeError, resendOn429 } from '../lib/api'
+import { type Actions, actOnEach, begin, idle, summarise } from '../lib/actions'
+import { api, resendOn429 } from '../lib/api'
 import { toTime } from '../lib/format'
-import { searchHub, useHub } from '../lib/hubs'
-import { createAtom, createResource, poll, type Source, shallowEqual, useResource, useStale } from '../lib/store'
+import { followHub, searchHub, useLive, type Via } from '../lib/hubs'
+import { createAtom, createResource, shallowEqual, useResource } from '../lib/store'
 import { sessionSignal } from '../session/session'
 
 type RawSearch = {
@@ -33,7 +32,7 @@ export type Search = {
   search: string
 }
 
-export type Searches = { via: 'hub' | 'poll'; list: Search[]; byId: ReadonlyMap<string, Search> }
+export type Searches = { via: Via; list: Search[]; byId: ReadonlyMap<string, Search> }
 
 export const searchPollInterval = 2000
 
@@ -57,7 +56,7 @@ function toSearch(raw: RawSearch, previous: Search | undefined): Search {
   return previous !== undefined && shallowEqual(previous, next) ? previous : next
 }
 
-function settle(via: Searches['via'], byId: Map<string, Search>, previous: Searches | undefined): Searches {
+function settle(via: Via, byId: Map<string, Search>, previous: Searches | undefined): Searches {
   const list = [...byId.values()].sort(byNewest)
   const same =
     previous !== undefined &&
@@ -74,7 +73,7 @@ export const searches = createResource<Searches>((sink) => {
   // A push for a search can still be in flight when its DELETE arrives.
   const deleted = new Set<string>()
 
-  function replace(via: Searches['via'], raws: RawSearch[]) {
+  function replace(via: Via, raws: RawSearch[]): Searches {
     const previous = current()
     const byId = new Map<string, Search>()
     for (const raw of raws) byId.set(raw.id, toSearch(raw, previous?.byId.get(raw.id)))
@@ -98,23 +97,6 @@ export const searches = createResource<Searches>((sink) => {
     sink.set(settle(previous.via, byId, previous))
   }
 
-  let polling: Source | undefined
-  function sync() {
-    if (searchHub.getStatus().state === 'connected') {
-      polling?.stop()
-      polling = undefined
-    } else {
-      polling ??= poll(
-        sink,
-        async (signal, measure) => {
-          const text = await api.get('searches', { signal }).text()
-          return measure(() => replace('poll', JSON.parse(text) as RawSearch[]))
-        },
-        searchPollInterval,
-      )
-    }
-  }
-
   const offs = [
     searchHub.on<RawSearch[]>('LIST', (raws) => {
       deleted.clear()
@@ -124,46 +106,34 @@ export const searches = createResource<Searches>((sink) => {
     searchHub.on<RawSearch>('UPDATE', upsert),
     searchHub.on<RawSearch>('DELETE', remove),
   ]
-  const unsubscribe = searchHub.subscribe(sync)
-  sync()
-  // The hub only sends LIST as it connects, so a list restarted while the hub stayed connected has missed pushes.
-  const controller = new AbortController()
-  if (searchHub.getStatus().state === 'connected') {
-    api
-      .get('searches', { signal: controller.signal })
-      .json<RawSearch[]>()
-      .then(
-        (raws) =>
-          sink.set(
-            replace(
-              'hub',
-              raws.filter((raw) => !deleted.has(raw.id)),
-            ),
-          ),
-        (error: unknown) => {
-          if (!controller.signal.aborted) sink.fail(error)
-        },
+  const following = followHub(searchHub, sink, {
+    snapshot: async (signal) => {
+      const raws = await api.get('searches', { signal }).json<RawSearch[]>()
+      return replace(
+        'hub',
+        raws.filter((raw) => !deleted.has(raw.id)),
       )
-  }
+    },
+    request: async (signal, measure) => {
+      const text = await api.get('searches', { signal }).text()
+      return measure(() => replace('poll', JSON.parse(text) as RawSearch[]))
+    },
+    interval: searchPollInterval,
+  })
   upsertLocally = upsert
   return {
     stop() {
-      controller.abort()
-      polling?.stop()
+      following.stop()
       for (const off of offs) off()
-      unsubscribe()
       upsertLocally = undefined
     },
-    refresh: () => polling?.refresh?.(),
+    refresh: following.refresh,
   }
 })
 
 export function useSearches() {
   const { data, error } = useResource(searches)
-  const hub = useHub(searchHub)
-  const polled = !useStale(searches, searchPollInterval)
-  const live = data?.via === 'hub' && hub.state === 'connected'
-  return { data, error, live, known: data !== undefined && (live || (data.via === 'poll' && polled)) }
+  return { data, error, ...useLive(data?.via, searchHub, searches, searchPollInterval) }
 }
 
 // Stop and Delete act on slskd's stored list, so they wait until it's known.
@@ -191,25 +161,8 @@ async function each(kind: ListActionKind, list: Search[], act: (search: Search, 
     list.map((search) => search.id),
     () => searches.refresh(),
   )
-  const errors: string[] = []
-  try {
-    await pMap(
-      list,
-      async (search) => {
-        try {
-          await act(search, operation.signal)
-        } catch (error) {
-          if (operation.signal.aborted) throw error
-          errors.push(`${search.text}: ${describeError(error)}`)
-        } finally {
-          operation.advance([search.id])
-        }
-      },
-      { concurrency: 4, signal: operation.signal },
-    )
-  } catch {
-    return
-  }
+  const errors = await actOnEach(operation, list, (search) => search.text, act)
+  if (errors === undefined) return
   operation.finish(
     summarise(kind === 'stop' ? 'Stopped' : 'Deleted', list.length, errors.length, errors, 'search', 'searches'),
   )

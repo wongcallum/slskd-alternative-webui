@@ -1,18 +1,26 @@
 import { ChevronDownIcon, ChevronRightIcon } from '@radix-ui/react-icons'
-import { Button, Checkbox, Flex, SegmentedControl, Text } from '@radix-ui/themes'
+import { Button, Flex, SegmentedControl, Text } from '@radix-ui/themes'
 import { defaultRangeExtractor, type Range, useVirtualizer } from '@tanstack/react-virtual'
-import { useCallback, useLayoutEffect, useRef } from 'react'
+import { useCallback, useRef } from 'react'
+import { countFiles } from '../lib/files'
 import { formatSpeed, plural } from '../lib/format'
 import { useAtom } from '../lib/store'
 import { ConfirmButton } from '../ui/controls'
-import { columnsHeight, rowHeight, SortButton } from '../ui/table'
+import {
+  ColumnHeader,
+  columnsHeight,
+  HeaderRow,
+  rowHeight,
+  toggleExpanded,
+  useRowToggle,
+  virtualRowStyle,
+} from '../ui/table'
 import { actions, cancel, clearFinished, lookups, retry } from './actions'
 import { FileRow, GroupRow } from './rows'
 import {
   barHeight,
   columnIds,
   columnLabels,
-  expandedByDefault,
   expansions,
   type Gates,
   minWidth,
@@ -21,7 +29,7 @@ import {
   type TableRow,
   templates,
 } from './table'
-import { countFiles, type Direction, type Group, isFailed, type Section, type Show, type Transfers } from './transfers'
+import { type Direction, type Group, isFailed, type Section, type Show, type Transfers } from './transfers'
 
 type ListItem =
   | { type: 'header'; section: Section }
@@ -92,21 +100,10 @@ export function TransferList(props: ListProps) {
     ),
   })
 
-  const tables = useRef({ active: activeTable, finished: finishedTable })
-  useLayoutEffect(() => {
-    tables.current = { active: activeTable, finished: finishedTable }
-  })
-  const onSelect = useCallback((section: Section, id: string, shiftKey: boolean) => {
-    const row = tables.current[section].getRow(id, true)
-    const selected = row.subRows.length > 0 ? row.getIsAllSubRowsSelected() : row.getIsSelected()
-    row.getToggleSelectedHandler({ deselectParents: true })({ shiftKey, target: { checked: !selected } })
-  }, [])
+  const onSelect = { active: useRowToggle(activeTable), finished: useRowToggle(finishedTable) }
   const onToggle = useCallback(
     (section: Section, id: string) =>
-      expansions[direction].set((state) => ({
-        ...state,
-        [section]: { ...state[section], [id]: !(state[section][id] ?? expandedByDefault(section)) },
-      })),
+      expansions[direction].set((state) => ({ ...state, [section]: toggleExpanded(state[section], id) })),
     [direction],
   )
 
@@ -136,7 +133,7 @@ export function TransferList(props: ListProps) {
           selected={row.getIsAllSubRowsSelected()}
           partial={row.getIsSomeSelected()}
           gate={gates.soulseek}
-          onSelect={onSelect}
+          onSelect={onSelect[section]}
           onToggle={onToggle}
         />
       )
@@ -150,7 +147,7 @@ export function TransferList(props: ListProps) {
         pending={pending.has(original.id)}
         lookup={lookupMap.get(original.id)}
         gate={gates.soulseek}
-        onSelect={onSelect}
+        onSelect={onSelect[section]}
       />
     )
   }
@@ -164,15 +161,7 @@ export function TransferList(props: ListProps) {
             style={
               virtual.index === stickyRef.current
                 ? { position: 'sticky', top: 0, zIndex: 1, height: virtual.size }
-                : {
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    height: virtual.size,
-                    transform: `translateY(${virtual.start}px)`,
-                    contain: 'strict',
-                  }
+                : virtualRowStyle(virtual.size, virtual.start)
             }
           >
             {render(itemAt(virtual.index))}
@@ -280,30 +269,17 @@ function SectionHeader({
         </Flex>
       </Flex>
       {open && (
-        <div
-          className="table-row table-columns"
-          style={{ gridTemplateColumns: templates[section], height: columnsHeight }}
-        >
-          <div className="table-cell table-check">
-            <Checkbox
-              checked={table.getIsAllRowsSelected() ? true : table.getIsSomeRowsSelected() ? 'indeterminate' : false}
-              onClick={() => table.toggleAllRowsSelected()}
+        <HeaderRow template={templates[section]} table={table}>
+          {columnIds[section].map((id) => (
+            <ColumnHeader
+              key={id}
+              label={columnLabels[section][id]}
+              end={id === 'size' || id === 'speed'}
+              column={table.getColumn(id)}
             />
-          </div>
-          {columnIds[section].map((id) => {
-            const column = table.getColumn(id)
-            return (
-              <div key={id} className="table-cell" data-align={id === 'size' || id === 'speed' ? 'end' : undefined}>
-                <SortButton
-                  label={columnLabels[section][id]}
-                  sorted={column?.getIsSorted()}
-                  onClick={column?.getToggleSortingHandler()}
-                />
-              </div>
-            )
-          })}
+          ))}
           <div />
-        </div>
+        </HeaderRow>
       )}
     </div>
   )

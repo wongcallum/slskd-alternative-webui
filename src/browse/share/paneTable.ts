@@ -7,8 +7,8 @@ import {
   tableFeatures,
   type useTable,
 } from '@tanstack/react-table'
-import { compareNames } from '../../lib/text'
-import { byName, type Folder, type ShareFile } from '../shareTree'
+import { byName, compareNames } from '../../lib/text'
+import type { Folder, ShareFile } from '../shareTree'
 
 export const columnIds = ['name', 'folder', 'files', 'size', 'quality', 'length'] as const
 

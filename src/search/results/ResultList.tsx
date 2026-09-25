@@ -1,11 +1,9 @@
-import { Checkbox } from '@radix-ui/themes'
-import { useCallback, useLayoutEffect, useRef } from 'react'
+import { useCallback } from 'react'
 import { useAtom } from '../../lib/store'
-import { SortButton, VirtualTable } from '../../ui/table'
+import { collapsed, ColumnHeader, HeaderRow, rowId, toggleExpanded, useRowToggle, VirtualTable } from '../../ui/table'
 import { downloadsOf, type FolderFetch } from './results'
 import { FileRow, GroupRow } from './rows'
 import {
-  collapsed,
   columnIds,
   columnLabels,
   endAligned,
@@ -27,48 +25,22 @@ type Props = {
 export function ResultList({ searchId, table, folders, gate, folderGate }: Props) {
   const { pending, marks } = useAtom(downloadsOf(searchId))
   const rows = table.getRowModel().rows
-  const tableRef = useRef(table)
-  useLayoutEffect(() => {
-    tableRef.current = table
-  })
-  const onSelect = useCallback((id: string, shiftKey: boolean) => {
-    const row = tableRef.current.getRow(id, true)
-    const selected = row.subRows.length > 0 ? row.getIsAllSubRowsSelected() : row.getIsSelected()
-    row.getToggleSelectedHandler({ deselectParents: true })({ shiftKey, target: { checked: !selected } })
-  }, [])
+  const onSelect = useRowToggle(table)
   const onToggle = useCallback(
     (id: string) =>
-      expansions.set((current) => {
-        const expansion = current.get(searchId) ?? collapsed
-        const open = !(expansion.toggled[id] ?? expansion.all)
-        return new Map(current).set(searchId, { ...expansion, toggled: { ...expansion.toggled, [id]: open } })
-      }),
+      expansions.set((current) =>
+        new Map(current).set(searchId, toggleExpanded(current.get(searchId) ?? collapsed, id)),
+      ),
     [searchId],
   )
-  const getItemKey = useCallback((index: number) => rows[index]?.id ?? index, [rows])
 
   const header = (
-    <div className="table-row table-columns" style={{ gridTemplateColumns: template, height: '100%' }}>
-      <div className="table-cell table-check">
-        <Checkbox
-          checked={table.getIsAllRowsSelected() ? true : table.getIsSomeRowsSelected() ? 'indeterminate' : false}
-          onClick={() => table.toggleAllRowsSelected()}
-        />
-      </div>
-      {columnIds.map((id) => {
-        const column = table.getColumn(id)
-        return (
-          <div key={id} className="table-cell" data-align={endAligned.has(id) ? 'end' : undefined}>
-            <SortButton
-              label={columnLabels[id]}
-              sorted={column?.getIsSorted()}
-              onClick={column?.getToggleSortingHandler()}
-            />
-          </div>
-        )
-      })}
+    <HeaderRow template={template} table={table}>
+      {columnIds.map((id) => (
+        <ColumnHeader key={id} label={columnLabels[id]} end={endAligned.has(id)} column={table.getColumn(id)} />
+      ))}
       <div />
-    </div>
+    </HeaderRow>
   )
 
   function render(row: TableRow) {
@@ -102,16 +74,5 @@ export function ResultList({ searchId, table, folders, gate, folderGate }: Props
     )
   }
 
-  return (
-    <VirtualTable
-      minWidth={minWidth}
-      header={header}
-      count={rows.length}
-      getItemKey={getItemKey}
-      renderRow={(index) => {
-        const row = rows[index]
-        return row && render(row)
-      }}
-    />
-  )
+  return <VirtualTable minWidth={minWidth} header={header} items={rows} itemKey={rowId} renderItem={render} />
 }

@@ -1,5 +1,5 @@
 import { StopIcon, TrashIcon } from '@radix-ui/react-icons'
-import { Checkbox, Flex, Link, Spinner, Text } from '@radix-ui/themes'
+import { Flex, Link, Spinner } from '@radix-ui/themes'
 import {
   type RowSelectionState,
   rowSelectionFeature,
@@ -8,10 +8,22 @@ import {
   useTable,
 } from '@tanstack/react-table'
 import { Link as RouterLink } from '@tanstack/react-router'
-import { memo, useCallback, useLayoutEffect, useRef } from 'react'
+import { memo } from 'react'
 import { useAtom } from '../lib/store'
-import { Ago, GatedIconButton } from '../ui/controls'
-import { preventShiftSelection, stop, VirtualTable } from '../ui/table'
+import { GatedIconButton } from '../ui/controls'
+import { Ago } from '../ui/status'
+import {
+  ActionsCell,
+  Cell,
+  CheckCell,
+  ColumnHeader,
+  GridRow,
+  HeaderRow,
+  rowId,
+  stop,
+  useRowToggle,
+  VirtualTable,
+} from '../ui/table'
 import { deleteSearches, listActions, type Search, stopSearches } from './searches'
 import { SearchState } from './SearchState'
 
@@ -39,57 +51,34 @@ export function useListTable(
 export function SearchList({ table, gate }: { table: ReturnType<typeof useListTable>; gate?: string }) {
   const { pending } = useAtom(listActions)
   const rows = table.getRowModel().rows
-  const tableRef = useRef(table)
-  useLayoutEffect(() => {
-    tableRef.current = table
-  })
-  const onSelect = useCallback((id: string, shiftKey: boolean) => {
-    const row = tableRef.current.getRow(id, true)
-    row.getToggleSelectedHandler()({ shiftKey, target: { checked: !row.getIsSelected() } })
-  }, [])
-  const getItemKey = useCallback((index: number) => rows[index]?.id ?? index, [rows])
+  const onSelect = useRowToggle(table)
 
   const header = (
-    <div className="table-row table-columns" style={{ gridTemplateColumns: template, height: '100%' }}>
-      <div className="table-cell table-check">
-        <Checkbox
-          checked={table.getIsAllRowsSelected() ? true : table.getIsSomeRowsSelected() ? 'indeterminate' : false}
-          onClick={() => table.toggleAllRowsSelected()}
-        />
-      </div>
-      {['State', 'Search', 'Responses', 'Files', 'Started'].map((label) => (
-        <div
-          key={label}
-          className="table-cell table-label"
-          data-align={label === 'Responses' || label === 'Files' ? 'end' : undefined}
-        >
-          {label}
-        </div>
-      ))}
+    <HeaderRow template={template} table={table}>
+      <ColumnHeader label="State" />
+      <ColumnHeader label="Search" />
+      <ColumnHeader label="Responses" end />
+      <ColumnHeader label="Files" end />
+      <ColumnHeader label="Started" />
       <div />
-    </div>
+    </HeaderRow>
   )
 
   return (
     <VirtualTable
       minWidth={minWidth}
       header={header}
-      count={rows.length}
-      getItemKey={getItemKey}
-      renderRow={(index) => {
-        const row = rows[index]
-        return (
-          row && (
-            <SearchRow
-              search={row.original}
-              selected={row.getIsSelected()}
-              pending={pending.has(row.original.id)}
-              gate={gate}
-              onSelect={onSelect}
-            />
-          )
-        )
-      }}
+      items={rows}
+      itemKey={rowId}
+      renderItem={(row) => (
+        <SearchRow
+          search={row.original}
+          selected={row.getIsSelected()}
+          pending={pending.has(row.original.id)}
+          gate={gate}
+          onSelect={onSelect}
+        />
+      )}
     />
   )
 }
@@ -104,16 +93,8 @@ type SearchRowProps = {
 
 const SearchRow = memo(function SearchRow({ search, selected, pending, gate, onSelect }: SearchRowProps) {
   return (
-    <div
-      className="table-row"
-      style={{ gridTemplateColumns: template }}
-      data-selected={selected || undefined}
-      onMouseDown={preventShiftSelection}
-      onClick={(event) => onSelect(search.id, event.shiftKey)}
-    >
-      <div className="table-cell table-check" onClick={stop}>
-        <Checkbox checked={selected} onClick={(event) => onSelect(search.id, event.shiftKey)} />
-      </div>
+    <GridRow template={template} selected={selected} onClick={(event) => onSelect(search.id, event.shiftKey)}>
+      <CheckCell selected={selected} onToggle={(shiftKey) => onSelect(search.id, shiftKey)} />
       <Flex className="table-cell" align="center" gap="2">
         <SearchState search={search} />
         {pending && <Spinner size="1" />}
@@ -125,23 +106,15 @@ const SearchRow = memo(function SearchRow({ search, selected, pending, gate, onS
           </RouterLink>
         </Link>
       </div>
-      <div className="table-cell" data-align="end">
-        <Text size="2" color="gray">
-          {search.responses.toLocaleString()}
-        </Text>
-      </div>
-      <div className="table-cell" data-align="end">
-        <Text size="2" color="gray">
-          {search.files.toLocaleString()}
-          {search.locked > 0 && ` + ${search.locked.toLocaleString()} locked`}
-        </Text>
-      </div>
-      <div className="table-cell">
-        <Text size="2" color="gray">
-          <Ago time={search.startedAt} />
-        </Text>
-      </div>
-      <Flex className="table-cell" gap="3" align="center" justify="end" onClick={stop}>
+      <Cell end>{search.responses.toLocaleString()}</Cell>
+      <Cell end>
+        {search.files.toLocaleString()}
+        {search.locked > 0 && ` + ${search.locked.toLocaleString()} locked`}
+      </Cell>
+      <Cell>
+        <Ago time={search.startedAt} />
+      </Cell>
+      <ActionsCell>
         {!search.isComplete && (
           <GatedIconButton label="Stop" gate={gate} onClick={() => stopSearches([search])}>
             <StopIcon />
@@ -150,7 +123,7 @@ const SearchRow = memo(function SearchRow({ search, selected, pending, gate, onS
         <GatedIconButton label="Delete" gate={gate} onClick={() => deleteSearches([search])}>
           <TrashIcon />
         </GatedIconButton>
-      </Flex>
-    </div>
+      </ActionsCell>
+    </GridRow>
   )
 })

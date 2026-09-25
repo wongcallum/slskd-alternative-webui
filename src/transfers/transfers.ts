@@ -1,7 +1,8 @@
 import { api } from '../lib/api'
+import { nameOf } from '../lib/files'
 import { toTime } from '../lib/format'
 import { createResource, poll, type Resource } from '../lib/store'
-import { compareNames } from '../lib/text'
+import { byName, compareNames } from '../lib/text'
 
 export type Direction = 'download' | 'upload'
 
@@ -26,27 +27,7 @@ type RawTransfer = {
 
 type RawUser = { username: string; directories: { directory: string; files: RawTransfer[] }[] }
 
-export type Transfer = {
-  kind: 'file'
-  id: string
-  batchId?: string
-  username: string
-  directory: string
-  filename: string
-  name: string
-  size: number
-  state: string
-  requestedAt: string
-  enqueuedAt?: string
-  startedAt?: string
-  endedAt?: string
-  bytesTransferred: number
-  averageSpeed: number
-  placeInQueue?: number
-  exception?: string
-  attempts: number
-  search: string
-}
+export type Transfer = RawTransfer & { kind: 'file'; username: string; directory: string; name: string; search: string }
 
 export type Folder = { total: number; succeeded: number; failed: number }
 
@@ -82,8 +63,6 @@ export const isSucceeded = (state: string) => state === 'Completed, Succeeded'
 export const isFailed = (state: string) => isFinished(state) && !isSucceeded(state)
 export const isTransferring = (state: string) => state === 'InProgress' || state === 'Initializing'
 
-const lastSegment = (path: string) => path.slice(Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\')) + 1)
-
 const unchanged = (file: Transfer, raw: RawTransfer) =>
   file.state === raw.state &&
   file.attempts === raw.attempts &&
@@ -102,7 +81,7 @@ const toTransfer = (raw: RawTransfer, username: string, directory: string): Tran
   username,
   directory,
   filename: raw.filename,
-  name: lastSegment(raw.filename),
+  name: nameOf(raw.filename),
   size: raw.size,
   state: raw.state,
   requestedAt: raw.requestedAt,
@@ -137,7 +116,7 @@ function buildGroup(section: Section, username: string, directory: string, files
     section,
     username,
     directory,
-    name: lastSegment(directory) || directory,
+    name: nameOf(directory) || directory,
     files,
     size,
     bytesTransferred,
@@ -147,8 +126,6 @@ function buildGroup(section: Section, username: string, directory: string, files
     folder,
   }
 }
-
-const byName = (a: Transfer, b: Transfer) => compareNames(a.name, b.name)
 
 const byNewest = (a: Group, b: Group) => b.time - a.time || compareNames(a.name, b.name)
 
@@ -230,8 +207,6 @@ export function filterGroups(groups: Group[], query: string, show: Show) {
   }
   return result
 }
-
-export const countFiles = (groups: Group[]) => groups.reduce((count, group) => count + group.files.length, 0)
 
 export const pollInterval = 1000
 

@@ -1,4 +1,6 @@
+import pMap from 'p-map'
 import { sessionSignal } from '../session/session'
+import { describeError } from './api'
 import { plural } from './format'
 import type { Atom } from './store'
 
@@ -50,6 +52,37 @@ export function begin<K extends string, S extends Actions<K>>(
       onFinish?.()
     },
   }
+}
+
+export type Operation = ReturnType<typeof begin>
+
+// Acts on four items at a time and collects what failed. Returns undefined once the session has ended.
+export async function actOnEach<T extends { id: string }>(
+  operation: Operation,
+  items: T[],
+  name: (item: T) => string,
+  act: (item: T, signal: AbortSignal) => Promise<unknown>,
+) {
+  const errors: string[] = []
+  try {
+    await pMap(
+      items,
+      async (item) => {
+        try {
+          await act(item, operation.signal)
+        } catch (error) {
+          if (operation.signal.aborted) throw error
+          errors.push(`${name(item)}: ${describeError(error)}`)
+        } finally {
+          operation.advance([item.id])
+        }
+      },
+      { concurrency: 4, signal: operation.signal },
+    )
+  } catch {
+    return undefined
+  }
+  return errors
 }
 
 export function dismissOutcome<S extends Actions<string>>(atom: Atom<S>) {

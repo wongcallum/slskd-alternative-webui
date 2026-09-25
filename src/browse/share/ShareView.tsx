@@ -1,7 +1,7 @@
-import { MagnifyingGlassIcon, MinusIcon, PlusIcon } from '@radix-ui/react-icons'
-import { Flex, IconButton, TextField, Tooltip } from '@radix-ui/themes'
-import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
-import { toolbarStyle } from '../../ui/controls'
+import { MinusIcon, PlusIcon } from '@radix-ui/react-icons'
+import { Flex, IconButton, Tooltip } from '@radix-ui/themes'
+import { useCallback, useEffect, useMemo } from 'react'
+import { FilterField, toolbarStyle, useFilterText } from '../../ui/controls'
 import type { BrowseSearch } from '../params'
 import { type Folder, matchShare, nearestFolder, type Share } from '../shareTree'
 import { FolderPane } from './FolderPane'
@@ -17,14 +17,8 @@ type Props = {
 const treeWidth = 380
 
 export function ShareView({ share, fetchedAt, search, onSearchChange }: Props) {
-  const [text, setText] = useState(search.q)
-  const [urlText, setUrlText] = useState(search.q)
-  if (search.q !== urlText) {
-    setUrlText(search.q)
-    setText(search.q)
-  }
-  const query = useDeferredValue(text)
-  const matches = useMemo(() => matchShare(share, query), [share, query])
+  const filter = useFilterText(search.q, (q) => onSearchChange({ q }))
+  const matches = useMemo(() => matchShare(share, filter.query), [share, filter.query])
   const folder = useMemo(() => nearestFolder(share, search.path), [share, search.path])
   useEffect(() => expandTo(share, folder, false), [share, folder])
   const open = useCallback(
@@ -44,21 +38,12 @@ export function ShareView({ share, fetchedAt, search, onSearchChange }: Props) {
         style={{ boxShadow: 'inset -1px 0 0 0 var(--gray-a5)' }}
       >
         <Flex align="center" gap="2" px="3" py="2" flexShrink="0" style={toolbarStyle}>
-          <TextField.Root
-            size="2"
+          <FilterField
             placeholder="Filter folders and files, -word to exclude"
-            value={text}
-            onChange={(event) => {
-              setText(event.target.value)
-              setUrlText(event.target.value)
-              onSearchChange({ q: event.target.value })
-            }}
+            value={filter.text}
+            onChange={filter.change}
             style={{ flexGrow: 1 }}
-          >
-            <TextField.Slot>
-              <MagnifyingGlassIcon />
-            </TextField.Slot>
-          </TextField.Root>
+          />
           <Tooltip content="Expand all">
             <IconButton
               size="1"

@@ -1,15 +1,14 @@
-import { ChevronDownIcon, ChevronRightIcon, InfoCircledIcon, ListBulletIcon, ReloadIcon } from '@radix-ui/react-icons'
-import { Checkbox, DataList, Flex, IconButton, Popover, Progress, Spinner, Text, Tooltip } from '@radix-ui/themes'
-import { memo, type ReactNode } from 'react'
+import { ListBulletIcon, ReloadIcon } from '@radix-ui/react-icons'
+import { Flex, Progress, Spinner, Text, Tooltip } from '@radix-ui/themes'
+import { memo } from 'react'
 import { BrowseUserButton } from '../browse/BrowseUserButton'
 import { formatBytes, formatProgress, formatSpeed, formatTime, toTime } from '../lib/format'
-import { Ago, GatedIconButton } from '../ui/controls'
-import { preventShiftSelection, stop } from '../ui/table'
+import { type Color, type Detail, DetailList, DetailsButton, GatedIconButton } from '../ui/controls'
+import { Ago } from '../ui/status'
+import { ActionsCell, Cell, CheckCell, GridRow, GroupNameCell } from '../ui/table'
 import { type Lookup, lookUpPositions, retry } from './actions'
 import { fraction, templates, timeOf } from './table'
 import { type Direction, type Group, isFailed, isTransferring, type Section, type Transfer } from './transfers'
-
-type Color = 'gray' | 'green' | 'red' | 'blue' | 'amber'
 
 const stateLabels: Record<string, [string, Color]> = {
   Requested: ['Requested', 'gray'],
@@ -49,7 +48,7 @@ type FileRowProps = {
   pending: boolean
   lookup?: Lookup
   gate?: string
-  onSelect: (section: Section, id: string, shiftKey: boolean) => void
+  onSelect: (id: string, shiftKey: boolean) => void
 }
 
 export const FileRow = memo(function FileRow({
@@ -64,16 +63,8 @@ export const FileRow = memo(function FileRow({
 }: FileRowProps) {
   const time = timeOf(section, file)
   return (
-    <div
-      className="table-row"
-      style={{ gridTemplateColumns: templates[section] }}
-      data-selected={selected || undefined}
-      onMouseDown={preventShiftSelection}
-      onClick={(event) => onSelect(section, file.id, event.shiftKey)}
-    >
-      <div className="table-cell table-check" onClick={stop}>
-        <Checkbox checked={selected} onClick={(event) => onSelect(section, file.id, event.shiftKey)} />
-      </div>
+    <GridRow template={templates[section]} selected={selected} onClick={(event) => onSelect(file.id, event.shiftKey)}>
+      <CheckCell selected={selected} onToggle={(shiftKey) => onSelect(file.id, shiftKey)} />
       <div className="table-cell" style={{ paddingLeft: 36 }} title={file.filename}>
         <Text size="2">{file.name}</Text>
       </div>
@@ -81,26 +72,14 @@ export const FileRow = memo(function FileRow({
       <div className="table-cell">
         <FileStatus file={file} direction={direction} pending={pending} lookup={lookup} />
       </div>
-      <div className="table-cell" data-align="end">
-        <Text size="2" color="gray">
-          {section === 'active' && file.bytesTransferred > 0
-            ? formatProgress(file.bytesTransferred, file.size)
-            : formatBytes(file.size)}
-        </Text>
-      </div>
-      {section === 'active' && (
-        <div className="table-cell" data-align="end">
-          <Text size="2" color="gray">
-            {isTransferring(file.state) && formatSpeed(file.averageSpeed)}
-          </Text>
-        </div>
-      )}
-      <div className="table-cell">
-        <Text size="2" color="gray">
-          {time > 0 && <Ago time={time} />}
-        </Text>
-      </div>
-      <Flex className="table-cell" gap="1" align="center" justify="end" onClick={stop}>
+      <Cell end>
+        {section === 'active' && file.bytesTransferred > 0
+          ? formatProgress(file.bytesTransferred, file.size)
+          : formatBytes(file.size)}
+      </Cell>
+      {section === 'active' && <Cell end>{isTransferring(file.state) && formatSpeed(file.averageSpeed)}</Cell>}
+      <Cell>{time > 0 && <Ago time={time} />}</Cell>
+      <ActionsCell gap="1">
         {direction === 'download' && isFailed(file.state) && (
           <GatedIconButton label="Retry" gate={gate} onClick={() => retry([file])}>
             <ReloadIcon />
@@ -111,18 +90,11 @@ export const FileRow = memo(function FileRow({
             <ListBulletIcon />
           </GatedIconButton>
         )}
-        <Popover.Root>
-          <Popover.Trigger>
-            <IconButton size="1" variant="ghost" color="gray" aria-label="Details">
-              <InfoCircledIcon />
-            </IconButton>
-          </Popover.Trigger>
-          <Popover.Content width="480px">
-            <FileDetails file={file} direction={direction} />
-          </Popover.Content>
-        </Popover.Root>
-      </Flex>
-    </div>
+        <DetailsButton>
+          <FileDetails file={file} direction={direction} />
+        </DetailsButton>
+      </ActionsCell>
+    </GridRow>
   )
 })
 
@@ -185,7 +157,7 @@ function FileStatus({
 }
 
 function FileDetails({ file, direction }: { file: Transfer; direction: Direction }) {
-  const rows: [string, ReactNode][] = [
+  const rows: Detail[] = [
     ['User', file.username],
     ['Folder', file.directory],
     ['File', file.name],
@@ -202,16 +174,7 @@ function FileDetails({ file, direction }: { file: Transfer; direction: Direction
   if (file.exception !== undefined) rows.push(['Error', file.exception])
   if (file.batchId !== undefined) rows.push(['Batch', file.batchId])
   rows.push(['ID', file.id])
-  return (
-    <DataList.Root size="1">
-      {rows.map(([label, value]) => (
-        <DataList.Item key={label}>
-          <DataList.Label minWidth="110px">{label}</DataList.Label>
-          <DataList.Value style={{ wordBreak: 'break-word' }}>{value}</DataList.Value>
-        </DataList.Item>
-      ))}
-    </DataList.Root>
-  )
+  return <DetailList rows={rows} />
 }
 
 type GroupRowProps = {
@@ -221,7 +184,7 @@ type GroupRowProps = {
   selected: boolean
   partial: boolean
   gate?: string
-  onSelect: (section: Section, id: string, shiftKey: boolean) => void
+  onSelect: (id: string, shiftKey: boolean) => void
   onToggle: (section: Section, id: string) => void
 }
 
@@ -239,28 +202,13 @@ export const GroupRow = memo(function GroupRow({
   const queued = direction === 'download' ? group.files.filter((file) => file.state === 'Queued, Remotely') : []
   const done = `${folder.succeeded.toLocaleString()}/${folder.total.toLocaleString()} done`
   return (
-    <div
-      className="table-row table-group"
-      style={{ gridTemplateColumns: templates[section] }}
-      data-selected={selected || undefined}
-      onMouseDown={preventShiftSelection}
-      onClick={() => onToggle(section, group.id)}
-    >
-      <div className="table-cell table-check" onClick={stop}>
-        <Checkbox
-          checked={selected ? true : partial ? 'indeterminate' : false}
-          onClick={(event) => onSelect(section, group.id, event.shiftKey)}
-        />
-      </div>
-      <Flex className="table-cell" align="center" gap="2" title={group.directory}>
-        {expanded ? <ChevronDownIcon style={{ flexShrink: 0 }} /> : <ChevronRightIcon style={{ flexShrink: 0 }} />}
-        <Text size="2" weight="medium" truncate>
-          {group.name}
-        </Text>
+    <GridRow template={templates[section]} group selected={selected} onClick={() => onToggle(section, group.id)}>
+      <CheckCell selected={selected} partial={partial} onToggle={(shiftKey) => onSelect(group.id, shiftKey)} />
+      <GroupNameCell expanded={expanded} name={group.name} title={group.directory}>
         <Text size="1" color="gray">
           {group.files.length.toLocaleString()}
         </Text>
-      </Flex>
+      </GroupNameCell>
       <div className="table-cell" title={group.username}>
         <Text size="2">{group.username}</Text>
       </div>
@@ -275,33 +223,21 @@ export const GroupRow = memo(function GroupRow({
           </Text>
         )}
       </Flex>
-      <div className="table-cell" data-align="end">
-        <Text size="2" color="gray">
-          {section === 'active' && group.bytesTransferred > 0
-            ? formatProgress(group.bytesTransferred, group.size)
-            : formatBytes(group.size)}
-        </Text>
-      </div>
-      {section === 'active' && (
-        <div className="table-cell" data-align="end">
-          <Text size="2" color="gray">
-            {group.speed > 0 && formatSpeed(group.speed)}
-          </Text>
-        </div>
-      )}
-      <div className="table-cell">
-        <Text size="2" color="gray">
-          {group.time > 0 && <Ago time={group.time} />}
-        </Text>
-      </div>
-      <Flex className="table-cell" gap="1" align="center" justify="end" onClick={stop}>
+      <Cell end>
+        {section === 'active' && group.bytesTransferred > 0
+          ? formatProgress(group.bytesTransferred, group.size)
+          : formatBytes(group.size)}
+      </Cell>
+      {section === 'active' && <Cell end>{group.speed > 0 && formatSpeed(group.speed)}</Cell>}
+      <Cell>{group.time > 0 && <Ago time={group.time} />}</Cell>
+      <ActionsCell gap="1">
         {queued.length > 0 && (
           <GatedIconButton label="Check queue positions" gate={gate} onClick={() => lookUpPositions(queued)}>
             <ListBulletIcon />
           </GatedIconButton>
         )}
         <BrowseUserButton username={group.username} directory={group.directory} />
-      </Flex>
-    </div>
+      </ActionsCell>
+    </GridRow>
   )
 })

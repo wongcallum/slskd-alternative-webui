@@ -2,11 +2,10 @@ import { Button, DataList, Flex, Popover, Text } from '@radix-ui/themes'
 import { useState } from 'react'
 import { describeError } from '../lib/api'
 import { applicationHub, type HubStatus, metricsHub, searchHub, useHub, useWatchedHub } from '../lib/hubs'
+import { type Color, disabledProps } from '../ui/controls'
 import { connect, disconnect, type Soulseek, useSoulseek } from './soulseek'
 
-type DotColor = 'gray' | 'green' | 'amber' | 'red'
-
-function StatusDot({ color }: { color: DotColor }) {
+function StatusDot({ color }: { color: Color }) {
   return (
     <span
       style={{
@@ -24,7 +23,7 @@ function StatusDot({ color }: { color: DotColor }) {
 const describeHub = ({ state, attempt }: HubStatus) =>
   state === 'stopped' ? 'not in use' : attempt === 0 ? state : `${state} (retry ${attempt})`
 
-function describeSoulseek(data: Soulseek | undefined, known: boolean): { color: DotColor; label: string } {
+function describeSoulseek(data: Soulseek | undefined, known: boolean): { color: Color; label: string } {
   if (!data || !known) return { color: 'gray', label: 'Soulseek: unknown' }
   if (data.isLoggedIn) return { color: 'green', label: data.username ? `Connected as ${data.username}` : 'Connected' }
   if (data.state.includes('Disconnecting')) return { color: 'amber', label: 'Disconnecting…' }
@@ -144,8 +143,7 @@ function SoulseekPanel({ data, error, known, age }: ReturnType<typeof useSoulsee
               variant="soft"
               color={action === 'connect' || action === 'retry' ? undefined : 'red'}
               loading={pending === action}
-              aria-disabled={!known || undefined}
-              data-disabled={!known || undefined}
+              {...disabledProps(!known)}
               onClick={() => known && void run(action)}
             >
               {actionLabels[action]}

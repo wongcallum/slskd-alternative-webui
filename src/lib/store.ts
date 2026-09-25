@@ -1,5 +1,6 @@
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useSyncExternalStore } from 'react'
 import { onSessionEnd } from '../session/session'
+import { createListeners } from './listeners'
 
 export type Snapshot<T> = { data?: T; error?: unknown }
 
@@ -31,13 +32,13 @@ export function createResource<T extends object>(start: (sink: Sink<T>) => Sourc
   let updatedAt: number | undefined
   let interval: number | undefined
   let generation = 0
-  const listeners = new Set<() => void>()
+  const listeners = createListeners()
   let subscribers = 0
   let source: Source | undefined
 
   function emit(next: Snapshot<T>) {
     snapshot = next
-    for (const listener of listeners) listener()
+    listeners.notify()
   }
 
   function createSink(): Sink<T> {
@@ -67,16 +68,9 @@ export function createResource<T extends object>(start: (sink: Sink<T>) => Sourc
     emit({})
   })
 
-  function watch(listener: () => void) {
-    listeners.add(listener)
-    return () => {
-      listeners.delete(listener)
-    }
-  }
-
   return {
     subscribe(listener) {
-      const unwatch = watch(listener)
+      const unwatch = listeners.add(listener)
       if (++subscribers === 1) source = start(createSink())
       return () => {
         unwatch()
@@ -86,7 +80,7 @@ export function createResource<T extends object>(start: (sink: Sink<T>) => Sourc
         }
       }
     },
-    watch,
+    watch: listeners.add,
     getSnapshot: () => snapshot,
     getUpdatedAt: () => updatedAt,
     getInterval: () => interval,
@@ -163,40 +157,36 @@ export const useResource = <T>(resource: Resource<T>) => useSyncExternalStore(re
 export const useWatchedResource = <T>(resource: Resource<T>) =>
   useSyncExternalStore(resource.watch, resource.getSnapshot)
 
-export function useFreshness(resource: Resource<unknown>) {
-  const [now, setNow] = useState(Date.now)
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(timer)
-  }, [])
-  const updatedAt = resource.getUpdatedAt()
-  return updatedAt === undefined ? undefined : Math.max(0, now - updatedAt)
-}
-
 export const isStale = (age: number | undefined, interval: number) =>
   age === undefined || age > Math.min(3 * interval, 20_000)
 
-const clockListeners = new Set<() => void>()
+const clockListeners = createListeners()
 let clockTimer: ReturnType<typeof setInterval> | undefined
 let clockNow = Date.now()
 
 function subscribeClock(listener: () => void) {
-  if (clockListeners.size === 0) {
+  if (clockListeners.size() === 0) {
     clockNow = Date.now()
     clockTimer = setInterval(() => {
       clockNow = Date.now()
-      for (const each of clockListeners) each()
+      clockListeners.notify()
     }, 1000)
   }
-  clockListeners.add(listener)
+  const remove = clockListeners.add(listener)
   return () => {
-    clockListeners.delete(listener)
-    if (clockListeners.size === 0) clearInterval(clockTimer)
+    remove()
+    if (clockListeners.size() === 0) clearInterval(clockTimer)
   }
 }
 
 // A shared one-second clock. Components re-render only when what they select from it changes.
 export const useClock = <T>(select: (now: number) => T) => useSyncExternalStore(subscribeClock, () => select(clockNow))
+
+export const useFreshness = (resource: Resource<unknown>) =>
+  useClock((now) => {
+    const updatedAt = resource.getUpdatedAt()
+    return updatedAt === undefined ? undefined : Math.max(0, now - updatedAt)
+  })
 
 export function useStale(resource: Resource<unknown>, fallbackInterval: number) {
   return useClock((now) => {
@@ -213,20 +203,15 @@ export type Atom<T> = {
 
 export function createAtom<T>(initial: T): Atom<T> {
   let value = initial
-  const listeners = new Set<() => void>()
+  const listeners = createListeners()
   const atom: Atom<T> = {
     get: () => value,
     set(next) {
       // oxlint-disable-next-line unicorn/no-instanceof-builtins -- typeof can't narrow a generic T
       value = next instanceof Function ? next(value) : next
-      for (const listener of listeners) listener()
+      listeners.notify()
     },
-    subscribe(listener) {
-      listeners.add(listener)
-      return () => {
-        listeners.delete(listener)
-      }
-    },
+    subscribe: listeners.add,
   }
   onSessionEnd(() => atom.set(initial))
   return atom

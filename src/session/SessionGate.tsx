@@ -1,7 +1,7 @@
 import { Button, Card, Flex, Heading, Text } from '@radix-ui/themes'
 import type { ReactNode } from 'react'
 import { describeError } from '../lib/api'
-import { DelayedSpinner } from '../ui/controls'
+import { DelayedSpinner } from '../ui/status'
 import { Login } from './Login'
 import { useSession } from './session'
 

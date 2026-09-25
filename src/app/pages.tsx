@@ -1,6 +1,7 @@
-import { Box, Button, Callout, Heading, Link, Text } from '@radix-ui/themes'
+import { Box, Heading, Link, Text } from '@radix-ui/themes'
 import { type ErrorComponentProps, Link as RouterLink } from '@tanstack/react-router'
 import { describeError } from '../lib/api'
+import { ErrorCallout } from '../ui/status'
 
 export function NotFound() {
   return (
@@ -19,14 +20,5 @@ export function NotFound() {
 }
 
 export function RouteError({ error, reset }: ErrorComponentProps) {
-  return (
-    <Box p="5">
-      <Callout.Root color="red" mb="3">
-        <Callout.Text>This page crashed: {describeError(error)}</Callout.Text>
-      </Callout.Root>
-      <Button variant="soft" onClick={reset}>
-        Try again
-      </Button>
-    </Box>
-  )
+  return <ErrorCallout onRetry={reset}>This page crashed: {describeError(error)}</ErrorCallout>
 }

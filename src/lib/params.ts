@@ -1,4 +1,5 @@
-import type { SortingState } from '@tanstack/react-table'
+import { functionalUpdate, type SortingState, type Updater } from '@tanstack/react-table'
+import { useMemo } from 'react'
 import * as v from 'valibot'
 
 export const textParam = v.optional(v.fallback(v.string(), ''), '')
@@ -23,10 +24,18 @@ const sortValues = <const T extends string>(ids: readonly T[]) =>
 export const sortOf = <const T extends string>(ids: readonly T[]) =>
   v.fallback(v.optional(v.picklist(sortValues(ids))), undefined)
 
-export const parseSort = (value: string | undefined): SortingState => {
+const parseSort = (value: string | undefined): SortingState => {
   if (value === undefined) return []
   const [id = '', direction] = value.split('.')
   return [{ id, desc: direction === 'desc' }]
 }
 
-export const formatSort = ([sort]: SortingState) => sort && `${sort.id}.${sort.desc ? 'desc' : 'asc'}`
+const formatSort = ([sort]: SortingState) => sort && `${sort.id}.${sort.desc ? 'desc' : 'asc'}`
+
+// A table's sorting lives in the URL as a value like "size.desc".
+export function useSortParam<S extends string>(sort: S | undefined, onChange: (sort: S | undefined) => void) {
+  const sorting = useMemo(() => parseSort(sort), [sort])
+  const onSortingChange = (updater: Updater<SortingState>) =>
+    onChange(formatSort(functionalUpdate(updater, sorting)) as S | undefined)
+  return { sorting, onSortingChange }
+}

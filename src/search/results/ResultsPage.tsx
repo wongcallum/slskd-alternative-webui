@@ -1,14 +1,14 @@
 import { ArrowLeftIcon } from '@radix-ui/react-icons'
-import { Box, Button, Callout, Flex, Heading, IconButton, Link, Text } from '@radix-ui/themes'
+import { Box, Flex, Heading, IconButton, Link, Text } from '@radix-ui/themes'
 import { Link as RouterLink, useNavigate } from '@tanstack/react-router'
-import { type ReactNode, useEffect, useState } from 'react'
+import { type ReactNode, useEffect } from 'react'
 import { describeError } from '../../lib/api'
 import { formatDuration } from '../../lib/format'
 import { useAtom } from '../../lib/store'
 import { useSoulseekGate } from '../../soulseek/soulseek'
-import { ActionButton, Ago, DelayedSpinner, Freshness, toolbarStyle } from '../../ui/controls'
+import { ActionButton, toolbarStyle } from '../../ui/controls'
+import { Ago, Empty, ErrorCallout, Freshness, Loading, Polling } from '../../ui/status'
 import {
-  createSearch,
   deleteSearches,
   listActions,
   listGate,
@@ -19,6 +19,7 @@ import {
   useSearches,
 } from '../searches'
 import { describeCounts, SearchState } from '../SearchState'
+import { useCreateSearch } from '../useCreateSearch'
 import type { ResultsSearch } from './params'
 import { entries, loadResults, openResults } from './results'
 import { ResultsView } from './ResultsView'
@@ -41,10 +42,9 @@ export function ResultsPage({ id, search: params, onSearchChange }: Props) {
     if (saved) void loadResults(id)
   }, [id, saved])
 
-  let content: ReactNode
   if (search === undefined) {
     if (known) {
-      content = (
+      return (
         <Box p="5">
           <Heading mb="2">No such search</Heading>
           <Text as="p" color="gray" mb="3">
@@ -55,48 +55,24 @@ export function ResultsPage({ id, search: params, onSearchChange }: Props) {
           </Link>
         </Box>
       )
-    } else if (data === undefined && error !== undefined) {
-      content = (
-        <Box p="4">
-          <Callout.Root color="red">
-            <Callout.Text>Can't load searches: {describeError(error)}. Retrying.</Callout.Text>
-          </Callout.Root>
-        </Box>
-      )
-    } else {
-      content = (
-        <Flex justify="center" p="6">
-          <DelayedSpinner />
-        </Flex>
-      )
     }
-    return content
+    return <Polling what="searches" error={data === undefined ? error : undefined} />
   }
 
+  let content: ReactNode
   if (!saved) {
     content = <Running search={search} />
   } else if (entry?.results === undefined) {
     content =
       entry?.error === undefined ? (
-        <Flex justify="center" p="6">
-          <DelayedSpinner />
-        </Flex>
+        <Loading />
       ) : (
-        <Box p="4">
-          <Callout.Root color="red">
-            <Callout.Text>Can't load the results: {describeError(entry.error)}</Callout.Text>
-          </Callout.Root>
-          <Button mt="3" variant="soft" onClick={() => void loadResults(id)}>
-            Try again
-          </Button>
-        </Box>
+        <ErrorCallout onRetry={() => void loadResults(id)}>
+          Can't load the results: {describeError(entry.error)}
+        </ErrorCallout>
       )
   } else if (entry.results.all.length === 0) {
-    content = (
-      <Box p="5">
-        <Text color="gray">No results.</Text>
-      </Box>
-    )
+    content = <Empty>No results.</Empty>
   } else {
     content = (
       <ResultsView
@@ -122,18 +98,7 @@ function Header({ search, known, live, error }: { search: Search; known: boolean
   const soulseekGate = useSoulseekGate()
   const gate = listGate(known)
   const { running } = useAtom(listActions)
-  const [again, setAgain] = useState<{ busy: boolean; error?: string }>({ busy: false })
-
-  async function searchAgain() {
-    setAgain({ busy: true })
-    try {
-      const id = await createSearch(search.text)
-      void navigate({ to: '/searches/$id', params: { id } })
-      setAgain({ busy: false })
-    } catch (thrown) {
-      setAgain({ busy: false, error: describeError(thrown) })
-    }
-  }
+  const again = useCreateSearch()
 
   return (
     <Flex align="center" gap="3" px="4" py="3" flexShrink="0" style={toolbarStyle}>
@@ -176,7 +141,7 @@ function Header({ search, known, live, error }: { search: Search; known: boolean
           busy="Searching"
           loading={again.busy}
           gate={soulseekGate}
-          onClick={() => void searchAgain()}
+          onClick={() => void again.create(search.text)}
         />
         <ActionButton
           label="Delete"

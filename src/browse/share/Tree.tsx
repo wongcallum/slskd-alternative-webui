@@ -9,12 +9,10 @@ import {
 } from '@tanstack/react-table'
 import { memo, useCallback, useMemo } from 'react'
 import { createAtom, useAtom } from '../../lib/store'
-import { stop, VirtualTable } from '../../ui/table'
+import { type Expansion, expandedState, isExpanded, rowId, stop, toggleExpanded, VirtualTable } from '../../ui/table'
 import type { Folder, Matches, Share } from '../shareTree'
 
 const treeFeatures = tableFeatures({ rowExpandingFeature, expandedRowModel: createExpandedRowModel() })
-
-type Expansion = { all: boolean; toggled: ExpandedStateList }
 
 const expansions = createAtom<ReadonlyMap<string, Expansion>>(new Map())
 
@@ -38,13 +36,15 @@ export function updateExpansion(share: Share, change: (expansion: Expansion) => 
   })
 }
 
-const isOpen = (expansion: Expansion, folder: Folder) => expansion.toggled[folder.id] ?? expansion.all
+function* parentsIn(share: Share) {
+  for (const folder of share.byPath.values()) if (folder.folders.length > 0) yield folder
+}
 
 export function expandTo(share: Share, folder: Folder, self: boolean) {
   updateExpansion(share, (expansion) => {
     const closed: Folder[] = []
     for (let current = self ? folder : folder.parent; current !== undefined; current = current.parent) {
-      if (current.path !== '' && current.folders.length > 0 && !isOpen(expansion, current)) closed.push(current)
+      if (current.path !== '' && current.folders.length > 0 && !isExpanded(expansion, current.id)) closed.push(current)
     }
     if (closed.length === 0) return expansion
     const toggled = { ...expansion.toggled }
@@ -60,16 +60,10 @@ const treeRowHeight = 30
 export function Tree({ share, selected, matches, onOpen }: TreeProps) {
   const stored = useAtom(expansions).get(share.username)
   const expansion = useMemo(() => stored ?? initialExpansion(share), [stored, share])
-  // TanStack skips expansion entirely while the expanded state is empty, so "all expanded" has to be spelled out.
-  const expanded = useMemo(() => {
-    if (matches !== undefined) return true
-    if (!expansion.all) return expansion.toggled
-    const all: ExpandedStateList = {}
-    for (const folder of share.byPath.values()) {
-      if (folder.folders.length > 0) all[folder.id] = expansion.toggled[folder.id] ?? true
-    }
-    return all
-  }, [share, matches, expansion])
+  const expanded = useMemo(
+    () => matches !== undefined || expandedState(expansion, parentsIn(share)),
+    [share, matches, expansion],
+  )
   const roots = useMemo(
     () => (matches === undefined ? share.top.folders : share.top.folders.filter((each) => matches.counts.has(each))),
     [share, matches],
@@ -86,14 +80,9 @@ export function Tree({ share, selected, matches, onOpen }: TreeProps) {
   })
   const rows = table.getRowModel().rows
   const onToggle = useCallback(
-    (folder: Folder) =>
-      updateExpansion(share, (current) => ({
-        ...current,
-        toggled: { ...current.toggled, [folder.id]: !isOpen(current, folder) },
-      })),
+    (folder: Folder) => updateExpansion(share, (current) => toggleExpanded(current, folder.id)),
     [share],
   )
-  const getItemKey = useCallback((index: number) => rows[index]?.id ?? index, [rows])
   const selectedIndex = rows.findIndex((row) => row.id === selected.id)
 
   if (rows.length === 0) {
@@ -109,21 +98,19 @@ export function Tree({ share, selected, matches, onOpen }: TreeProps) {
   return (
     <VirtualTable
       minWidth={0}
-      count={rows.length}
-      getItemKey={getItemKey}
+      items={rows}
+      itemKey={rowId}
       rowSize={treeRowHeight}
       reveal={{ key: `${selected.id}\n${matches === undefined}`, index: selectedIndex }}
       role="tree"
       label="Folders"
-      renderRow={(index) => {
-        const row = rows[index]
-        if (row === undefined) return null
+      renderItem={(row) => {
         const folder = row.original
         return (
           <TreeRow
             folder={folder}
             depth={row.depth}
-            expanded={matches !== undefined || isOpen(expansion, folder)}
+            expanded={matches !== undefined || isExpanded(expansion, folder.id)}
             selected={folder === selected}
             count={matches?.counts.get(folder) ?? folder.fileCount}
             filtered={matches !== undefined}

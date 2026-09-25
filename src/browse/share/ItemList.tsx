@@ -1,11 +1,11 @@
 import { ChevronRightIcon, FileIcon, LockClosedIcon } from '@radix-ui/react-icons'
-import { Checkbox, Flex, Spinner, Text } from '@radix-ui/themes'
-import { memo, useCallback, useLayoutEffect, useRef } from 'react'
+import { Flex, Spinner, Text } from '@radix-ui/themes'
+import { memo, useCallback } from 'react'
 import { formatBytes, formatDuration } from '../../lib/format'
 import { useAtom } from '../../lib/store'
 import type { Mark } from '../../transfers/enqueue'
 import { MarkBadge } from '../../transfers/MarkBadge'
-import { preventShiftSelection, SortButton, stop, VirtualTable } from '../../ui/table'
+import { Cell, CheckCell, ColumnHeader, GridRow, HeaderRow, rowId, useRowToggle, VirtualTable } from '../../ui/table'
 import { shareDownloadsOf } from '../browse'
 import type { BrowseSearch } from '../params'
 import type { Folder, Share, ShareFile } from '../shareTree'
@@ -32,40 +32,17 @@ type Props = {
 export function ItemList({ share, table, filtered, folderOf, onSearchChange }: Props) {
   const { pending, marks } = useAtom(shareDownloadsOf(share.username))
   const rows = table.getRowModel().rows
-  const tableRef = useRef(table)
-  useLayoutEffect(() => {
-    tableRef.current = table
-  })
-  const onSelect = useCallback((id: string, shiftKey: boolean) => {
-    const row = tableRef.current.getRow(id, true)
-    row.getToggleSelectedHandler()({ shiftKey, target: { checked: !row.getIsSelected() } })
-  }, [])
+  const onSelect = useRowToggle(table)
   const onOpen = useCallback((folder: Folder) => onSearchChange({ path: folder.path }), [onSearchChange])
-  const getItemKey = useCallback((index: number) => rows[index]?.id ?? index, [rows])
   const ids = filtered ? matchColumns : folderColumns
   const template = filtered ? matchTemplate : folderTemplate
 
   const header = (
-    <div className="table-row table-columns" style={{ gridTemplateColumns: template, height: '100%' }}>
-      <div className="table-cell table-check">
-        <Checkbox
-          checked={table.getIsAllRowsSelected() ? true : table.getIsSomeRowsSelected() ? 'indeterminate' : false}
-          onClick={() => table.toggleAllRowsSelected()}
-        />
-      </div>
-      {ids.map((id) => {
-        const column = table.getColumn(id)
-        return (
-          <div key={id} className="table-cell" data-align={endAligned.has(id) ? 'end' : undefined}>
-            <SortButton
-              label={columnLabels[id]}
-              sorted={column?.getIsSorted()}
-              onClick={column?.getToggleSortingHandler()}
-            />
-          </div>
-        )
-      })}
-    </div>
+    <HeaderRow template={template} table={table}>
+      {ids.map((id) => (
+        <ColumnHeader key={id} label={columnLabels[id]} end={endAligned.has(id)} column={table.getColumn(id)} />
+      ))}
+    </HeaderRow>
   )
 
   function render(row: PaneRow) {
@@ -96,16 +73,7 @@ export function ItemList({ share, table, filtered, folderOf, onSearchChange }: P
   }
 
   return (
-    <VirtualTable
-      minWidth={filtered ? 810 : 780}
-      header={header}
-      count={rows.length}
-      getItemKey={getItemKey}
-      renderRow={(index) => {
-        const row = rows[index]
-        return row && render(row)
-      }}
-    />
+    <VirtualTable minWidth={filtered ? 810 : 780} header={header} items={rows} itemKey={rowId} renderItem={render} />
   )
 }
 
@@ -119,45 +87,31 @@ type SubfolderRowProps = {
 
 const SubfolderRow = memo(function SubfolderRow({ folder, template, selected, onSelect, onOpen }: SubfolderRowProps) {
   const id = `folder\n${folder.id}`
-  const empty = folder.fileCount === folder.lockedCount
   return (
-    <div
-      className="table-row table-group"
-      style={{ gridTemplateColumns: template, cursor: 'pointer' }}
-      data-selected={selected || undefined}
-      data-dimmed={folder.locked || undefined}
+    <GridRow
+      template={template}
+      group
+      selected={selected}
+      dimmed={folder.locked}
+      style={{ cursor: 'pointer' }}
       onClick={() => onOpen(folder)}
     >
-      <div className="table-cell table-check" onClick={stop}>
-        <Checkbox checked={selected} disabled={empty} onClick={(event) => onSelect(id, event.shiftKey)} />
-      </div>
+      <CheckCell
+        selected={selected}
+        disabled={folder.fileCount === folder.lockedCount}
+        onToggle={(shiftKey) => onSelect(id, shiftKey)}
+      />
       <Flex className="table-cell" align="center" gap="2" title={folder.name}>
         {folder.locked ? <LockClosedIcon style={{ flexShrink: 0 }} /> : <ChevronRightIcon style={{ flexShrink: 0 }} />}
         <Text size="2" weight="medium" truncate>
           {folder.name}
         </Text>
       </Flex>
-      <div className="table-cell" data-align="end">
-        <Text size="2" color="gray">
-          {folder.fileCount.toLocaleString()}
-        </Text>
-      </div>
-      <div className="table-cell" data-align="end">
-        <Text size="2" color="gray">
-          {formatBytes(folder.size)}
-        </Text>
-      </div>
-      <div className="table-cell" title={folder.qualityLabel}>
-        <Text size="2" color="gray">
-          {folder.qualityLabel}
-        </Text>
-      </div>
-      <div className="table-cell" data-align="end">
-        <Text size="2" color="gray">
-          {folder.length > 0 && formatDuration(folder.length)}
-        </Text>
-      </div>
-    </div>
+      <Cell end>{folder.fileCount.toLocaleString()}</Cell>
+      <Cell end>{formatBytes(folder.size)}</Cell>
+      <Cell title={folder.qualityLabel}>{folder.qualityLabel}</Cell>
+      <Cell end>{folder.length > 0 && formatDuration(folder.length)}</Cell>
+    </GridRow>
   )
 })
 
@@ -184,18 +138,14 @@ const FileRow = memo(function FileRow({
 }: FileRowProps) {
   const id = `file\n${file.id}`
   return (
-    <div
-      className="table-row"
-      style={{ gridTemplateColumns: template }}
-      data-selected={selected || undefined}
-      data-dimmed={file.locked || undefined}
-      onMouseDown={preventShiftSelection}
+    <GridRow
+      template={template}
+      selected={selected}
+      dimmed={file.locked}
       onClick={(event) => !file.locked && onSelect(id, event.shiftKey)}
     >
-      <div className="table-cell table-check" onClick={stop}>
-        <Checkbox checked={selected} disabled={file.locked} onClick={(event) => onSelect(id, event.shiftKey)} />
-      </div>
-      <Flex className="table-cell" align="center" gap="2" title={file.path}>
+      <CheckCell selected={selected} disabled={file.locked} onToggle={(shiftKey) => onSelect(id, shiftKey)} />
+      <Flex className="table-cell" align="center" gap="2" title={file.filename}>
         {file.locked ? <LockClosedIcon style={{ flexShrink: 0 }} /> : <FileIcon style={{ flexShrink: 0 }} />}
         <Text size="2" truncate>
           {file.name}
@@ -206,27 +156,11 @@ const FileRow = memo(function FileRow({
       {folder === undefined ? (
         <div className="table-cell" />
       ) : (
-        <div className="table-cell" title={folder}>
-          <Text size="2" color="gray">
-            {folder.split(separator).join(' › ')}
-          </Text>
-        </div>
+        <Cell title={folder}>{folder.split(separator).join(' › ')}</Cell>
       )}
-      <div className="table-cell" data-align="end">
-        <Text size="2" color="gray">
-          {formatBytes(file.size)}
-        </Text>
-      </div>
-      <div className="table-cell">
-        <Text size="2" color="gray">
-          {file.qualityLabel}
-        </Text>
-      </div>
-      <div className="table-cell" data-align="end">
-        <Text size="2" color="gray">
-          {file.length !== undefined && formatDuration(file.length)}
-        </Text>
-      </div>
-    </div>
+      <Cell end>{formatBytes(file.size)}</Cell>
+      <Cell>{file.qualityLabel}</Cell>
+      <Cell end>{file.length !== undefined && formatDuration(file.length)}</Cell>
+    </GridRow>
   )
 })

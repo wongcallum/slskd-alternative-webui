@@ -1,13 +1,14 @@
 import { ReloadIcon, TrashIcon } from '@radix-ui/react-icons'
-import { Box, Callout, Flex, Link, Text } from '@radix-ui/themes'
+import { Flex, Link, Text } from '@radix-ui/themes'
 import { Link as RouterLink } from '@tanstack/react-router'
-import { type ReactNode, useCallback, useEffect, useMemo } from 'react'
+import { type ReactNode, useEffect, useMemo } from 'react'
 import { describeError } from '../lib/api'
 import { formatBytes } from '../lib/format'
 import { useAtom } from '../lib/store'
 import { useSoulseekGate } from '../soulseek/soulseek'
-import { Ago, DelayedSpinner, GatedIconButton, toolbarStyle } from '../ui/controls'
-import { VirtualTable } from '../ui/table'
+import { GatedIconButton, toolbarStyle } from '../ui/controls'
+import { Ago, Empty, ErrorCallout, Loading } from '../ui/status'
+import { ActionsCell, Cell, ColumnHeader, GridRow, HeaderRow, VirtualTable } from '../ui/table'
 import {
   type Browse,
   browse,
@@ -29,6 +30,8 @@ type Entry = { username: string; stats?: Stats; notCached?: string; browse?: Bro
 const template = 'minmax(200px, 1fr) 90px 100px 100px 90px 110px minmax(240px, 1.2fr) 76px'
 
 const minWidth = 1006
+
+const entryKey = (entry: Entry) => entry.username
 
 export function BrowsePage() {
   useEffect(() => {
@@ -74,52 +77,36 @@ export function BrowsePage() {
     () => [...list.records.values()].reduce((sum, record) => sum + record.bytes, 0),
     [list.records],
   )
-  const getItemKey = useCallback((index: number) => entries[index]?.username ?? index, [entries])
 
   let content: ReactNode
-  if (!list.loaded) {
-    content = (
-      <Flex justify="center" p="6">
-        <DelayedSpinner />
-      </Flex>
-    )
-  } else if (entries.length === 0) {
-    content = (
-      <Box p="5">
-        {list.error !== undefined ? (
-          <Callout.Root color="red">
-            <Callout.Text>Can't read the cache: {describeError(list.error)}</Callout.Text>
-          </Callout.Root>
-        ) : (
-          <Text color="gray">Nothing browsed yet. Browse a user by name, or from a search result or a transfer.</Text>
-        )}
-      </Box>
-    )
+  if (!list.loaded) content = <Loading />
+  else if (entries.length === 0) {
+    content =
+      list.error !== undefined ? (
+        <ErrorCallout>Can't read the cache: {describeError(list.error)}</ErrorCallout>
+      ) : (
+        <Empty>Nothing browsed yet. Browse a user by name, or from a search result or a transfer.</Empty>
+      )
   } else {
     const header = (
-      <div className="table-row table-columns" style={{ gridTemplateColumns: template, height: '100%' }}>
-        {['User', 'Folders', 'Files', 'Size', 'Locked', 'Fetched', 'Status'].map((label) => (
-          <div
-            key={label}
-            className="table-cell table-label"
-            data-align={label === 'User' || label === 'Fetched' || label === 'Status' ? undefined : 'end'}
-          >
-            {label}
-          </div>
-        ))}
+      <HeaderRow template={template}>
+        <ColumnHeader label="User" />
+        <ColumnHeader label="Folders" end />
+        <ColumnHeader label="Files" end />
+        <ColumnHeader label="Size" end />
+        <ColumnHeader label="Locked" end />
+        <ColumnHeader label="Fetched" />
+        <ColumnHeader label="Status" />
         <div />
-      </div>
+      </HeaderRow>
     )
     content = (
       <VirtualTable
         minWidth={minWidth}
         header={header}
-        count={entries.length}
-        getItemKey={getItemKey}
-        renderRow={(index) => {
-          const entry = entries[index]
-          return entry && <LandingRow entry={entry} />
-        }}
+        items={entries}
+        itemKey={entryKey}
+        renderItem={(entry) => <LandingRow entry={entry} />}
       />
     )
   }
@@ -134,16 +121,6 @@ export function BrowsePage() {
       </Flex>
       {content}
     </Flex>
-  )
-}
-
-function NumberCell({ value }: { value?: number }) {
-  return (
-    <div className="table-cell" data-align="end">
-      <Text size="2" color="gray">
-        {value?.toLocaleString()}
-      </Text>
-    </div>
   )
 }
 
@@ -163,7 +140,7 @@ function LandingRow({ entry }: { entry: Entry }) {
     )
   }
   return (
-    <div className="table-row" style={{ gridTemplateColumns: template }}>
+    <GridRow template={template}>
       <div className="table-cell" title={username}>
         <Link asChild size="2" weight="medium">
           <RouterLink to="/browse" search={{ user: username }}>
@@ -171,23 +148,15 @@ function LandingRow({ entry }: { entry: Entry }) {
           </RouterLink>
         </Link>
       </div>
-      <NumberCell value={stats?.folders} />
-      <NumberCell value={stats?.files} />
-      <div className="table-cell" data-align="end">
-        <Text size="2" color="gray">
-          {stats !== undefined && formatBytes(stats.size)}
-        </Text>
-      </div>
-      <NumberCell value={stats?.locked} />
-      <div className="table-cell">
-        <Text size="2" color="gray">
-          {stats !== undefined && <Ago time={stats.fetchedAt} />}
-        </Text>
-      </div>
+      <Cell end>{stats?.folders.toLocaleString()}</Cell>
+      <Cell end>{stats?.files.toLocaleString()}</Cell>
+      <Cell end>{stats !== undefined && formatBytes(stats.size)}</Cell>
+      <Cell end>{stats?.locked.toLocaleString()}</Cell>
+      <Cell>{stats !== undefined && <Ago time={stats.fetchedAt} />}</Cell>
       <Flex className="table-cell" align="center">
         {status}
       </Flex>
-      <Flex className="table-cell" gap="3" align="center" justify="end">
+      <ActionsCell>
         <GatedIconButton
           label={stats === undefined ? 'Browse again' : 'Re-browse'}
           gate={gate}
@@ -200,7 +169,7 @@ function LandingRow({ entry }: { entry: Entry }) {
             <TrashIcon />
           </GatedIconButton>
         )}
-      </Flex>
-    </div>
+      </ActionsCell>
+    </GridRow>
   )
 }

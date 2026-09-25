@@ -1,15 +1,17 @@
-import { Box, Button, Flex, Link, Text } from '@radix-ui/themes'
-import { functionalUpdate, type RowSelectionState, useTable } from '@tanstack/react-table'
+import { Flex, Link, Text } from '@radix-ui/themes'
+import { type RowSelectionState, useTable } from '@tanstack/react-table'
 import { Link as RouterLink } from '@tanstack/react-router'
 import { Fragment, useCallback, useMemo, useState } from 'react'
 import { formatBytes, plural } from '../../lib/format'
-import { formatSort, parseSort } from '../../lib/params'
+import { useSortParam } from '../../lib/params'
 import { useAtom } from '../../lib/store'
+import { byName } from '../../lib/text'
 import { useSoulseekGate } from '../../soulseek/soulseek'
-import { ActionButton, Ago, OutcomeLine, toolbarStyle } from '../../ui/controls'
+import { ActionButton, OutcomeLine, SelectionActions, toolbarStyle } from '../../ui/controls'
+import { Ago, Empty } from '../../ui/status'
 import { downloadFiles, shareDownloadsOf } from '../browse'
 import type { BrowseSearch } from '../params'
-import { byName, filesUnder, type Folder, type Matches, matchesUnder, relativePath, type Share } from '../shareTree'
+import { filesUnder, type Folder, type Matches, matchesUnder, relativePath, type Share } from '../shareTree'
 import { ItemList } from './ItemList'
 import { columns, type Item, paneFeatures, selectable, sortItems } from './paneTable'
 
@@ -24,7 +26,7 @@ type Props = {
 }
 
 export function FolderPane({ share, folder, unknown, fetchedAt, matches, sort, onSearchChange }: Props) {
-  const sorting = useMemo(() => parseSort(sort), [sort])
+  const { sorting, onSortingChange } = useSortParam(sort, (next) => onSearchChange({ sort: next }))
   const folderOf = useCallback(
     (item: Item) => (item.kind === 'file' ? relativePath(share, folder, item.folder) : ''),
     [share, folder],
@@ -44,8 +46,7 @@ export function FolderPane({ share, folder, unknown, fetchedAt, matches, sort, o
     enableMultiSort: false,
     enableRowSelection: (row) => selectable(row.original),
     state: { sorting, rowSelection },
-    onSortingChange: (updater) =>
-      onSearchChange({ sort: formatSort(functionalUpdate(updater, sorting)) as BrowseSearch['sort'] }),
+    onSortingChange,
     onRowSelectionChange: setRowSelection,
   })
 
@@ -113,10 +114,7 @@ export function FolderPane({ share, folder, unknown, fetchedAt, matches, sort, o
         <Flex ml="auto" align="center" gap="3" flexShrink="0">
           <OutcomeLine atom={shareDownloadsOf(share.username)} />
           {selected.length > 0 && (
-            <>
-              <Button size="1" variant="ghost" color="gray" onClick={() => setRowSelection({})}>
-                Clear selection
-              </Button>
+            <SelectionActions onClear={() => setRowSelection({})}>
               <ActionButton
                 label={`Download ${count.toLocaleString()} (${formatBytes(size)})`}
                 busy="Enqueueing"
@@ -130,14 +128,12 @@ export function FolderPane({ share, folder, unknown, fetchedAt, matches, sort, o
                   )
                 }
               />
-            </>
+            </SelectionActions>
           )}
         </Flex>
       </Flex>
       {items.length === 0 ? (
-        <Box p="5">
-          <Text color="gray">{matches !== undefined ? 'Nothing matches here.' : 'This folder is empty.'}</Text>
-        </Box>
+        <Empty>{matches !== undefined ? 'Nothing matches here.' : 'This folder is empty.'}</Empty>
       ) : (
         <ItemList
           share={share}
