@@ -63,16 +63,7 @@ import { DelayedSpinner } from './pages'
 import { formatSort, oneOf, parseSort, sortOf, textParam } from './params'
 import { useSoulseekGate } from './soulseek'
 import { type Atom, createAtom, type Resource, useAtom, useResource, useStale } from './store'
-import {
-  actions,
-  cancel,
-  clearFinished,
-  type Lookup,
-  lookUpPositions,
-  lookups,
-  remove,
-  retry,
-} from './transferActions'
+import { actions, cancel, clearFinished, type Lookup, lookUpPositions, lookups, remove, retry } from './transferActions'
 import {
   compareNames,
   countFiles,
@@ -988,4 +979,3 @@ function Toolbar({ direction, resource, error, text, onTextChange, selected, onC
     </Flex>
   )
 }
-

@@ -319,7 +319,9 @@ export async function browse(username: string) {
     if (notCached === undefined) announce(username)
   } catch (error) {
     if (!signal.aborted) {
-      failures.set((current) => new Map(current).set(username, { error: describeBrowseError(username, error), at: Date.now() }))
+      failures.set((current) =>
+        new Map(current).set(username, { error: describeBrowseError(username, error), at: Date.now() }),
+      )
     }
   } finally {
     arrived = true
@@ -350,7 +352,8 @@ const downloadAtoms = new Map<string, Atom<ShareDownloads>>()
 
 export function shareDownloadsOf(username: string) {
   let atom = downloadAtoms.get(username)
-  if (atom === undefined) downloadAtoms.set(username, (atom = createAtom<ShareDownloads>({ ...idle, marks: new Map() })))
+  if (atom === undefined)
+    downloadAtoms.set(username, (atom = createAtom<ShareDownloads>({ ...idle, marks: new Map() })))
   return atom
 }
 

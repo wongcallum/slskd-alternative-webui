@@ -51,7 +51,9 @@ async function deleteEach(direction: Direction, kind: 'cancel' | 'remove', files
   } catch {
     return
   }
-  operation.finish(summarise(kind === 'cancel' ? 'Cancelled' : 'Removed', files.length, errors.length, errors, direction))
+  operation.finish(
+    summarise(kind === 'cancel' ? 'Cancelled' : 'Removed', files.length, errors.length, errors, direction),
+  )
 }
 
 export const cancel = (direction: Direction, files: Transfer[]) => deleteEach(direction, 'cancel', files)

@@ -83,7 +83,9 @@ export const searches = createResource<Searches>((sink) => {
   function upsert(raw: RawSearch) {
     const previous = current()
     if (previous === undefined || deleted.has(raw.id)) return
-    sink.set(settle(previous.via, new Map(previous.byId).set(raw.id, toSearch(raw, previous.byId.get(raw.id))), previous))
+    sink.set(
+      settle(previous.via, new Map(previous.byId).set(raw.id, toSearch(raw, previous.byId.get(raw.id))), previous),
+    )
   }
 
   function remove(raw: RawSearch) {
@@ -130,7 +132,13 @@ export const searches = createResource<Searches>((sink) => {
       .get('searches', { signal: controller.signal })
       .json<RawSearch[]>()
       .then(
-        (raws) => sink.set(replace('hub', raws.filter((raw) => !deleted.has(raw.id)))),
+        (raws) =>
+          sink.set(
+            replace(
+              'hub',
+              raws.filter((raw) => !deleted.has(raw.id)),
+            ),
+          ),
         (error: unknown) => {
           if (!controller.signal.aborted) sink.fail(error)
         },

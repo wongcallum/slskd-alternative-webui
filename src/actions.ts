@@ -15,7 +15,12 @@ export type Actions<K extends string> = {
 export const idle = { running: {}, pending: new Set<string>() }
 
 // Actions run at module level so they survive navigation, and stop writing once the session ends.
-export function begin<K extends string, S extends Actions<K>>(atom: Atom<S>, kind: K, ids: string[], onFinish?: () => void) {
+export function begin<K extends string, S extends Actions<K>>(
+  atom: Atom<S>,
+  kind: K,
+  ids: string[],
+  onFinish?: () => void,
+) {
   const signal = sessionSignal()
   atom.set((state) => ({
     ...state,

@@ -35,11 +35,9 @@ Paths below are relative to `Transfers/` unless they start with another director
 
 ### Records
 
-- The list shape is `[{ username, directories: [{ directory, fileCount, files: Transfer[] }] }]`. A
-  `Transfer` has `id, batchId?, username, direction, filename (full remote path), size, state, requestedAt,
-  enqueuedAt?, startedAt?, endedAt?, bytesTransferred, averageSpeed, placeInQueue?, exception?, attempts,
-  nextAttemptAt?, removed`, plus the computed `bytesRemaining, percentComplete, elapsedTime?, remainingTime?`
-  (`Types/Transfer.cs`).
+- The list shape is `[{ username, directories: [{ directory, fileCount, files: Transfer[] }] }]`. A `Transfer` has
+  `id, batchId?, username, direction, filename (full remote path), size, state, requestedAt, enqueuedAt?, startedAt?, endedAt?, bytesTransferred, averageSpeed, placeInQueue?, exception?, attempts, nextAttemptAt?, removed`,
+  plus the computed `bytesRemaining, percentComplete, elapsedTime?, remainingTime?` (`Types/Transfer.cs`).
   - Sizes are bytes, `averageSpeed` is bytes per second, and `percentComplete` runs from 0 to 100.
   - `elapsedTime` and `remainingTime` are .NET TimeSpans (`"00:00:03.6311109"`). `elapsedTime` is measured
     against the server's clock, so a running transfer's record changes on every poll.
@@ -70,7 +68,7 @@ Paths below are relative to `Transfers/` unless they start with another director
 - Removal is a soft delete (`removed: true`). Re-enqueueing a file marks its old record removed and creates a
   **new id**. Clear-completed and retention pruning also remove records.
 - At startup, unfinished transfers become `Completed, Errored` ("Application shut down"). On the first
-  Soulseek login after that, the unfinished *downloads* are re-enqueued under new ids, without their batch (so
+  Soulseek login after that, the unfinished _downloads_ are re-enqueued under new ids, without their batch (so
   a batch destination is lost), and the old records are removed. If the peer is offline the old record just
   stays errored. Observed: pressing Connect on the dev instance restarted 34 such downloads.
 - Uploads have no enqueue, retry or position endpoint, and never have the `Remotely` flag. A peer's
@@ -113,10 +111,10 @@ Error bodies are JSON strings. Encode the username segment with `encodeURICompon
     1 MB limit a batch of roughly 7–10k files fails. Duplicate `filename`s within a request are compared exactly, and
     give a 400. The work before it returns grows roughly with the square of the file count (one DbContext tracks
     every insert), and files then reach the peer 5 at a time (`Downloads/DownloadService.cs`, not measured).
-- **Where a download lands.** It's written to `<directories.incomplete>/<username>/<remote directory without its
-  root>/<file>`, and on completion moved to `<directories.downloads>/<destination>/<basename>`. The destination is
-  worked out at completion, from the batch and the current config (`Downloads/DownloadService.cs`,
-  `Files/FileService.cs`).
+- **Where a download lands.** It's written to
+  `<directories.incomplete>/<username>/<remote directory without its root>/<file>`, and on completion moved to
+  `<directories.downloads>/<destination>/<basename>`. The destination is worked out at completion, from the batch and
+  the current config (`Downloads/DownloadService.cs`, `Files/FileService.cs`).
   - By default it's the YAML-only pattern `transfers.download.destination.subdirectory: ${SOURCE_DIRECTORY}`: the
     last remote folder name. The pattern's variables are `SOURCE_USERNAME`, `SOURCE_PATH` (the remote directory
     without an `@@abcde`, drive or UNC root), `SOURCE_DIRECTORY`, `BATCH_ID`, `BATCH_EXTERNAL_ID`, `SEARCH_ID` and
@@ -177,10 +175,11 @@ Error bodies are JSON strings. Encode the username segment with `encodeURICompon
   includes share-scan progress in 1% steps, and `health`, which updates every 30 s, so a push arrives at least
   every 30 s. `GET /application` returns the same object with nulls omitted.
 - Top-level keys: `version {full, current, latest, isUpdateAvailable, isCanary, isDevelopment}`,
-  `pendingReconnect`, `pendingRestart`, `server`, `connectionWatchdog {isEnabled, isAttemptingConnection,
-  isAwaitingVpn, nextAttemptAt}`, `vpn`, `relay`, `health`, `user {username, privileges, statistics}`,
-  `distributedNetwork`, `shares {scanPending, scanning, ready, faulted, cancelled, scanProgress, hosts,
-  directories, files}`, `rooms` and `users`. `users` is never populated.
+  `pendingReconnect`, `pendingRestart`, `server`,
+  `connectionWatchdog {isEnabled, isAttemptingConnection, isAwaitingVpn, nextAttemptAt}`, `vpn`, `relay`, `health`,
+  `user {username, privileges, statistics}`, `distributedNetwork`,
+  `shares {scanPending, scanning, ready, faulted, cancelled, scanProgress, hosts, directories, files}`, `rooms` and
+  `users`. `users` is never populated.
 - `user.username` is updated on every Soulseek client state change. `pendingReconnect` is set when an option
   that needs a reconnect changes while connected, and any disconnect clears it. `pendingRestart` stays set
   until a restart. `version.latest` and `isUpdateAvailable` stay null on dev and canary builds and with
@@ -264,19 +263,22 @@ Paths below are relative to `Search/` unless they start with another directory. 
 
 ### Records
 
-- A search is `{id, searchText, token, state, isComplete, startedAt, endedAt?, responseCount, fileCount,
-  lockedFileCount, responses}` (`Types/Search.cs`). Both dates are UTC **with** the `Z`. REST omits `endedAt` while
-  it's null. `searchText` is stored normalised, with exclusions moved to the end (`"a -b c"` becomes `"a c -b"`).
-- The states written are `Requested`, `Queued`, `InProgress` and `Completed, TimedOut|ResponseLimitReached|
-  FileLimitReached|Cancelled|Errored` (`SN:SearchStates.cs`). A search ends:
+- A search is
+  `{id, searchText, token, state, isComplete, startedAt, endedAt?, responseCount, fileCount, lockedFileCount, responses}`
+  (`Types/Search.cs`). Both dates are UTC **with** the `Z`. REST omits `endedAt` while it's null. `searchText` is
+  stored normalised, with exclusions moved to the end (`"a -b c"` becomes `"a c -b"`).
+- The states written are `Requested`, `Queued`, `InProgress` and
+  `Completed, TimedOut|ResponseLimitReached|FileLimitReached|Cancelled|Errored` (`SN:SearchStates.cs`). A search ends:
   - when it goes idle: the timeout restarts on every accepted response, and total duration has no cap
     (`SN:SearchInternal.cs`)
   - at the response limit, or at the unlocked-file limit. Both are checked after a response is added, so the last
     one can overshoot. Locked files aren't capped.
   - on `PUT` (`Cancelled`), on any exception (`Errored`), and on a Soulseek disconnect (also `Errored`)
-- A response is `{username, fileCount, files, lockedFileCount, lockedFiles, hasFreeUploadSlot, queueLength,
-  uploadSpeed, token}`, with nothing null. A file is `{filename (full remote path), size, code, extension, bitRate?,
-  bitDepth?, sampleRate?, length?, isVariableBitRate?, isLocked}` (`Types/File.cs`).
+- A response is
+  `{username, fileCount, files, lockedFileCount, lockedFiles, hasFreeUploadSlot, queueLength, uploadSpeed, token}`,
+  with nothing null. A file is
+  `{filename (full remote path), size, code, extension, bitRate?, bitDepth?, sampleRate?, length?, isVariableBitRate?, isLocked}`
+  (`Types/File.cs`).
   - **`isLocked` is always `false`**, even in `lockedFiles`. Whether a file is locked is which list it's in.
   - The optional attributes are omitted when the peer didn't send them. `length` is seconds, `bitRate` kbps, and
     `sampleRate` the peer's raw value (Hz in practice). `uploadSpeed` is the peer's raw number, which stock
@@ -290,18 +292,18 @@ Paths below are relative to `Search/` unless they start with another directory. 
 
 ### Endpoints
 
-- `POST /searches` takes `{id?, searchText, searchTimeout?, responseLimit?, fileLimit?, filterResponses?,
-  minimumResponseFileCount?, minimumPeerUploadSpeed?, maximumPeerQueueLength?}`. A missing field gets
-  Soulseek.NET's default, **not** what slskd's doc comments say: `searchTimeout` 15000 (**milliseconds**, idle),
+- `POST /searches` takes
+  `{id?, searchText, searchTimeout?, responseLimit?, fileLimit?, filterResponses?, minimumResponseFileCount?, minimumPeerUploadSpeed?, maximumPeerQueueLength?}`.
+  A missing field gets Soulseek.NET's default, **not** what slskd's doc comments say: `searchTimeout` 15000 (**milliseconds**, idle),
   `responseLimit` 250, `fileLimit` 25000, `filterResponses` true, `minimumResponseFileCount` 1,
   `minimumPeerUploadSpeed` 0 and `maximumPeerQueueLength` `int.MaxValue` (`SN:Options/SearchOptions.cs`).
   - With `filterResponses`, a response is dropped before it's counted or stored if it has fewer files than the
     minimum, is slower than the minimum speed, or has a queue at or above the maximum.
   - It returns the record at once (usually `Queued` or `InProgress`) and runs the search in the background.
-  - The errors are JSON strings: 400 for validation, including `"Search query must contain at least one
-    non-exclusion term"`; 409 when not logged in to Soulseek; and **429 while another POST is being handled**
-    (`API/Controllers/SearchesController.cs`, a `SemaphoreSlim(1,1)` held for the whole request). Observed: three
-    POSTs sent at once got three 429s between them before all three were created.
+  - The errors are JSON strings: 400 for validation, including
+    `"Search query must contain at least one non-exclusion term"`; 409 when not logged in to Soulseek; and **429
+    while another POST is being handled** (`API/Controllers/SearchesController.cs`, a `SemaphoreSlim(1,1)` held for
+    the whole request). Observed: three POSTs sent at once got three 429s between them before all three were created.
   - On a 400 or 409 the search is still stored and broadcast, as `Completed, Errored` with `endedAt = startedAt`
     and no responses (observed for 409).
 - **At most two searches run at once** (`maximumConcurrentSearches: 2`, `Program.cs`). The rest wait in `Queued`,
@@ -345,9 +347,9 @@ Not being logged in to Soulseek gives a 500 with the message as a JSON string. A
   usually with one entry. The file names are bare, so the full path is `directory + '\' + filename`. There's no locked
   section, and slskd peers send exactly one directory with no subfolders (`Application.cs`, `Shares/ShareService.cs`),
   so it can't rebuild the tree beneath a folder.
-- `GET /users/{u}/info` connects to the peer and returns `{description, hasFreeUploadSlot, hasPicture, picture?,
-  queueLength, uploadSlots}`. `GET /users/{u}/endpoint` asks the server (cached for 60 s). `GET /users/{u}/status`
-  asks the server on every call, and returns `{isPrivileged, presence}`, with `presence: "Offline"` rather than a 404.
+- `GET /users/{u}/info` connects to the peer and returns
+  `{description, hasFreeUploadSlot, hasPicture, picture?, queueLength, uploadSlots}`. `GET /users/{u}/endpoint` asks
+  the server (cached for 60 s). `GET /users/{u}/status` asks the server on every call, and returns `{isPrivileged, presence}`, with `presence: "Offline"` rather than a 404.
   The server's pushed status changes aren't exposed, so a user's online state can't be shown without a Soulseek
   action (`UserService.cs`).
 
@@ -358,12 +360,12 @@ observations come from browsing one real peer: 168,159 files in 21,852 directori
 
 ### Records
 
-- `GET /users/{u}/browse` returns Soulseek.NET's `BrowseResponse` as is: `{directories, directoryCount,
-  lockedDirectories, lockedDirectoryCount}` (`API/Controllers/UsersController.cs`, `SN:BrowseResponse.cs`). Its
-  `ProducesResponseType` is wrong.
-  - A directory is `{name, fileCount, files}`. A file is `{filename, size, code, extension, bitRate?, bitDepth?,
-    sampleRate?, length?, isVariableBitRate?, attributeCount, attributes: [{type, value}]}`, the same attributes as a
-    search file but with no `isLocked`. A locked file is one inside `lockedDirectories`.
+- `GET /users/{u}/browse` returns Soulseek.NET's `BrowseResponse` as is:
+  `{directories, directoryCount, lockedDirectories, lockedDirectoryCount}` (`API/Controllers/UsersController.cs`,
+  `SN:BrowseResponse.cs`). Its `ProducesResponseType` is wrong.
+  - A directory is `{name, fileCount, files}`. A file is
+    `{filename, size, code, extension, bitRate?, bitDepth?, sampleRate?, length?, isVariableBitRate?, attributeCount, attributes: [{type, value}]}`,
+    the same attributes as a search file but with no `isLocked`. A locked file is one inside `lockedDirectories`.
   - The list is flat and in the peer's order, and Soulseek.NET adds nothing, so the tree is built client-side.
   - slskd peers (`Shares/ShareService.cs`) send `name` as the full path joined with `\`, a bare `filename`, an entry
     for every intermediate folder, an arbitrary order, and never any locked directories. Other clients can differ,
@@ -398,8 +400,9 @@ observations come from browsing one real peer: 168,159 files in 21,852 directori
   endpoint. The whole share is still transferred.
 - **Two browses of the same user can cross results.** Soulseek.NET queues the waits per username, first in first
   out, and a failure faults the head of the queue (`SN:Common/Waiter.cs`). They also share one status entry.
-- `GET /users/{u}/browse/status` returns Soulseek.NET's `{username, bytesTransferred, bytesRemaining,
-  percentComplete, size}`, keyed case-sensitively by username (`BrowseTracker.cs`).
+- `GET /users/{u}/browse/status` returns Soulseek.NET's
+  `{username, bytesTransferred, bytesRemaining, percentComplete, size}`, keyed case-sensitively by username
+  (`BrowseTracker.cs`).
   - The bytes count the **zlib-compressed wire payload**. Observed: 3.0 MB on the wire became 38.9 MB of JSON.
   - It's an empty 404 until the reply starts arriving: 2.5 s in the successful browse, and the whole 60 s for the peer
     that never replied. It's a 404 again 5 s after success. **After a failure the entry is never removed**, so a later
@@ -546,7 +549,7 @@ in headless Chromium).
   everything a plain string.
 - `validateSearch` takes Standard Schema validators (Zod 4, Valibot, ArkType) directly. `@tanstack/zod-adapter`
   is only for Zod 3.
-  - `<Link search>` and `navigate` are typed from the schema's *input*, so a param is only optional for them if
+  - `<Link search>` and `navigate` are typed from the schema's _input_, so a param is only optional for them if
     it's optional in the input. With Valibot that's `v.optional(v.fallback(schema, d), d)`; `v.fallback` alone
     leaves it required. ArkType has no fallback for invalid values, so `?show=bogus` renders the error page.
   - The router writes validated defaults into the URL (a Link to `/downloads` lands on `/downloads?show=all…`)
@@ -625,14 +628,15 @@ share of 200k files in 15k directories (54 MB of JSON), with `idb` 8.0.3. "Block
 - Chromium Snappy-compresses values of 64 KB or more synchronously inside `put()`, but not Blobs
   (`idb_value_wrapping.cc`).
 
-  | Stored as | Write blocks | Read (with parse) blocks | On disk |
-  |---|---|---|---|
-  | The parsed object graph | 330 ms | ~400 ms, one task | 7.7 MB |
-  | A Latin-1 JSON string | 102 ms | 214–239 ms | 8.4 MB |
-  | A Blob, read with `blob.text()` + `JSON.parse` | 0 ms | 174–319 ms | 54 MB |
-  | One record per directory | ~1 s (3 s to commit) | 254–275 ms | 21 MB |
+  | Stored as                                      | Write blocks         | Read (with parse) blocks | On disk |
+  | ---------------------------------------------- | -------------------- | ------------------------ | ------- |
+  | The parsed object graph                        | 330 ms               | ~400 ms, one task        | 7.7 MB  |
+  | A Latin-1 JSON string                          | 102 ms               | 214–239 ms               | 8.4 MB  |
+  | A Blob, read with `blob.text()` + `JSON.parse` | 0 ms                 | 174–319 ms               | 54 MB   |
+  | One record per directory                       | ~1 s (3 s to commit) | 254–275 ms               | 21 MB   |
 
   Building a Blob from a string costs 200–290 ms, but `response.blob()` doesn't block.
+
 - Private windows (and Playwright's default `newContext()`) keep IndexedDB in SQLite in memory: nothing is compressed,
   and `put()` fails above 133,169,152 bytes (`idb_transaction.cc`). Chromium is also rolling SQLite out on disk
   (`IdbSqliteOnDiskRollout`). Firefox caps a structured clone at 1042 MB.
