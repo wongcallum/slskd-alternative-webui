@@ -5,7 +5,7 @@ import { describeError } from '../../lib/api'
 import { useAtom, useResource } from '../../lib/store'
 import { ActionButton, disabledProps, toolbarStyle } from '../../ui/controls'
 import { Preformatted } from '../../ui/details'
-import { Fetched, Freshness, Loading, Polling } from '../../ui/status'
+import { Fetched, FetchedResource, Freshness, Loading, Polling } from '../../ui/status'
 import { YamlView } from '../../ui/YamlView'
 import { pendingItems, useApplication } from '../application'
 import { PendingCallout, PendingCallouts } from '../PendingCallouts'
@@ -393,20 +393,9 @@ function SourcesView({ control, gate }: { control: ReactNode; gate?: string }) {
 
 function SourcesContent({ control }: { control: ReactNode }) {
   const { data, error } = useResource(sources)
-  const loading = useAtom(sourcesLoading)
   const lines = useMemo(() => data?.text.split('\n').map((line) => providerPattern.exec(line) ?? [line, line]), [data])
   return (
-    <SystemPage
-      status={
-        <Fetched
-          fetchedAt={data?.fetchedAt}
-          error={data === undefined ? undefined : error}
-          loading={loading}
-          label="Reload"
-          onRefresh={sources.refresh}
-        />
-      }
-    >
+    <SystemPage status={<FetchedResource resource={sources} loading={sourcesLoading} label="Reload" />}>
       <Toolbar control={control}>
         <Text size="1" color="gray">
           Secrets are shown as they are.
