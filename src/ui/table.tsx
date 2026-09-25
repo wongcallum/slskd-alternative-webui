@@ -1,7 +1,16 @@
 import './table.css'
 import { ArrowDownIcon, ArrowUpIcon, ChevronDownIcon, ChevronRightIcon } from '@radix-ui/react-icons'
 import { Checkbox, Flex, type FlexProps, Text, VisuallyHidden } from '@radix-ui/themes'
-import { constructSortFn, type ExpandedStateList } from '@tanstack/react-table'
+import {
+  constructSortFn,
+  createExpandedRowModel,
+  createSortedRowModel,
+  type ExpandedStateList,
+  rowExpandingFeature,
+  rowSelectionFeature,
+  rowSortingFeature,
+  tableFeatures,
+} from '@tanstack/react-table'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import {
   type CSSProperties,
@@ -26,6 +35,15 @@ const preventShiftSelection = (event: MouseEvent) => {
 }
 
 export const sortByName = constructSortFn({ sort: compareNames })
+
+// Folders of files, which sort, expand and select.
+export const groupFeatures = tableFeatures({
+  rowSortingFeature,
+  sortedRowModel: createSortedRowModel(),
+  rowExpandingFeature,
+  expandedRowModel: createExpandedRowModel(),
+  rowSelectionFeature,
+})
 
 export type Expansion = { all: boolean; toggled: ExpandedStateList }
 

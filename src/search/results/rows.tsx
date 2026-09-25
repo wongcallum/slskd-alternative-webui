@@ -6,7 +6,7 @@ import { BrowseUserButton } from '../../browse/BrowseUserButton'
 import { formatBytes, formatDuration, formatSpeed, formatTime, plural } from '../../lib/format'
 import type { Mark } from '../../transfers/enqueue'
 import { MarkBadge } from '../../transfers/MarkBadge'
-import { type Detail, DetailList, DetailsButton, GatedIconButton } from '../../ui/controls'
+import { type Detail, DetailList, DetailsButton, fileDetails, GatedIconButton } from '../../ui/controls'
 import {
   ActionsCell,
   Cell,
@@ -18,7 +18,7 @@ import {
   Parts,
   StackedRow,
 } from '../../ui/table'
-import { UserMenu } from '../../users/UserMenu'
+import { UserCell, UserMenu } from '../../users/UserMenu'
 import { download, type FolderFetch, fetchFolder, type ResultFile, type ResultGroup } from './results'
 import { templates } from './table'
 
@@ -52,12 +52,7 @@ export const FileRow = memo(function FileRow({
   gate,
   onSelect,
 }: FileRowProps) {
-  const details: Detail[] = [
-    ['User', file.username],
-    ['Folder', file.directory],
-    ['File', file.name],
-    ['Size', `${formatBytes(file.size)} (${file.size.toLocaleString()} bytes)`],
-  ]
+  const details = fileDetails(file)
   if (file.bitRate !== undefined) details.push(['Bitrate', `${file.bitRate} kbps`])
   if (file.isVariableBitRate !== undefined) details.push(['Variable bitrate', file.isVariableBitRate ? 'Yes' : 'No'])
   if (file.bitDepth !== undefined) details.push(['Bit depth', file.bitDepth])
@@ -83,8 +78,7 @@ export const FileRow = memo(function FileRow({
         {file.name}
       </Text>
       {!file.matched && <Badge color="gray">Not matched</Badge>}
-      {mark !== undefined && <MarkBadge mark={mark} />}
-      {pending && <Spinner size="1" />}
+      <MarkBadge mark={mark} pending={pending} />
     </>
   )
   const downloadButton = !file.locked && (
@@ -277,11 +271,7 @@ export const GroupRow = memo(function GroupRow({
     >
       {check}
       <GroupNameCell expanded={expanded} name={group.name} title={group.directory} />
-      <div className="table-cell" title={group.username}>
-        <Text size="2">
-          <UserMenu username={group.username} />
-        </Text>
-      </div>
+      <UserCell username={group.username} />
       <Cell end title={hidden > 0 ? `${plural(hidden, 'file')} filtered out` : undefined}>
         {hidden > 0 ? shown : `${group.matched.toLocaleString()}${plus}`}
       </Cell>

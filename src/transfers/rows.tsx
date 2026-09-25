@@ -3,8 +3,8 @@ import { Flex, Progress, Spinner, Text } from '@radix-ui/themes'
 import { memo } from 'react'
 
 import { BrowseUserButton } from '../browse/BrowseUserButton'
-import { formatBytes, formatProgress, formatSpeed, formatTime, toTime } from '../lib/format'
-import { type Color, type Detail, DetailList, DetailsButton, GatedIconButton, Tip } from '../ui/controls'
+import { formatBytes, formatSpeed, formatTime, toTime } from '../lib/format'
+import { type Color, type Detail, DetailList, DetailsButton, fileDetails, GatedIconButton, Tip } from '../ui/controls'
 import { Ago } from '../ui/status'
 import {
   ActionsCell,
@@ -17,9 +17,9 @@ import {
   Parts,
   StackedRow,
 } from '../ui/table'
-import { UserMenu } from '../users/UserMenu'
+import { UserCell, UserMenu } from '../users/UserMenu'
 import { type Lookup, lookUpPositions, retry } from './actions'
-import { fraction, templates, timeOf } from './table'
+import { fraction, sizeOf, templates, timeOf } from './table'
 import {
   type Direction,
   type Group,
@@ -87,10 +87,7 @@ export const FileRow = memo(function FileRow({
   onSelect,
 }: FileRowProps) {
   const time = timeOf(section, file)
-  const size =
-    section === 'active' && file.bytesTransferred > 0
-      ? formatProgress(file.bytesTransferred, file.size)
-      : formatBytes(file.size)
+  const size = sizeOf(section, file)
   const speed = section === 'active' && isTransferring(file.state) ? formatSpeed(file.averageSpeed) : undefined
   const check = (
     <CheckCell label={`Select ${file.name}`} selected={selected} onToggle={(shiftKey) => onSelect(file.id, shiftKey)} />
@@ -208,10 +205,7 @@ function FileStatus({
 
 function FileDetails({ file, direction }: { file: Transfer; direction: Direction }) {
   const rows: Detail[] = [
-    ['User', file.username],
-    ['Folder', file.directory],
-    ['File', file.name],
-    ['Size', `${formatBytes(file.size)} (${file.size.toLocaleString()} bytes)`],
+    ...fileDetails(file),
     ['State', file.state],
     ['Requested', formatTime(toTime(file.requestedAt))],
   ]
@@ -269,10 +263,7 @@ export const GroupRow = memo(function GroupRow({
       {folder.cancelled.toLocaleString()} cancelled
     </Text>
   )
-  const size =
-    section === 'active' && group.bytesTransferred > 0
-      ? formatProgress(group.bytesTransferred, group.size)
-      : formatBytes(group.size)
+  const size = sizeOf(section, group)
   const speed = section === 'active' && group.speed > 0 ? formatSpeed(group.speed) : undefined
   const check = (
     <CheckCell
@@ -330,11 +321,7 @@ export const GroupRow = memo(function GroupRow({
       <GroupNameCell expanded={expanded} name={group.name} title={group.directory}>
         {count}
       </GroupNameCell>
-      <div className="table-cell" title={group.username}>
-        <Text size="2">
-          <UserMenu username={group.username} />
-        </Text>
-      </div>
+      <UserCell username={group.username} />
       <Flex className="table-cell" align="center" gap="2">
         {section === 'active' && <Bar value={fraction(group)} />}
         <Text size="1" color="gray" style={{ flexShrink: 0 }}>

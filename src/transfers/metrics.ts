@@ -1,6 +1,6 @@
 import { metricsHub } from '../lib/hubs'
 import { createResource, type Resource } from '../lib/store'
-import type { Direction } from './transfers'
+import { type Direction, perDirection } from './transfers'
 
 type RawDirection = {
   inProgress: { files: number; averageSpeed: number; totalSpeed: number }
@@ -25,7 +25,4 @@ const createMetrics = (direction: Direction): Resource<Metrics> =>
     }),
   }))
 
-export const metrics: Record<Direction, Resource<Metrics>> = {
-  download: createMetrics('download'),
-  upload: createMetrics('upload'),
-}
+export const metrics = perDirection(createMetrics)

@@ -8,6 +8,11 @@ import { onSessionEnd } from '../session/session'
 
 export type Direction = 'download' | 'upload'
 
+export const perDirection = <T>(create: (direction: Direction) => T): Record<Direction, T> => ({
+  download: create('download'),
+  upload: create('upload'),
+})
+
 export type Section = 'active' | 'finished'
 
 type RawTransfer = {
@@ -216,7 +221,9 @@ function merge(
   return { active, finished, byId, ...totals, speed }
 }
 
-export type Show = 'all' | 'succeeded' | 'failed' | 'cancelled'
+export const shows = ['all', 'succeeded', 'failed', 'cancelled'] as const
+
+export type Show = (typeof shows)[number]
 
 const outcomeOf = (state: string): Show =>
   isSucceeded(state) ? 'succeeded' : isCancelled(state) ? 'cancelled' : 'failed'
@@ -264,7 +271,4 @@ function createTransfers(direction: Direction) {
   return resource
 }
 
-export const transfers: Record<Direction, Resource<Transfers>> = {
-  download: createTransfers('download'),
-  upload: createTransfers('upload'),
-}
+export const transfers = perDirection(createTransfers)

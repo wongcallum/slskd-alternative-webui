@@ -19,6 +19,7 @@ import {
 import { cloneElement, type CSSProperties, type ReactElement, type ReactNode, useDeferredValue, useState } from 'react'
 
 import { type Actions, dismissOutcome, type Progress } from '../lib/actions'
+import { formatBytes } from '../lib/format'
 import { useFrom, useTouch } from '../lib/media'
 import { type Atom, useAtom } from '../lib/store'
 import { stop } from './table'
@@ -360,6 +361,13 @@ export function SelectionActions({
 }
 
 export type Detail = [string, ReactNode]
+
+export const fileDetails = (file: { username: string; directory: string; name: string; size: number }): Detail[] => [
+  ['User', file.username],
+  ['Folder', file.directory],
+  ['File', file.name],
+  ['Size', `${formatBytes(file.size)} (${file.size.toLocaleString()} bytes)`],
+]
 
 export function DetailList({ rows }: { rows: Detail[] }) {
   return (
