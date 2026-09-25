@@ -1,74 +1,24 @@
 import { isHTTPError } from 'ky'
 import pMap from 'p-map'
-import { api, describeError } from './api'
-import { onSessionEnd } from './session'
+import { type Actions, begin as beginAction, idle, type Outcome, summarise } from './actions'
+import { api, describeError, resendOn429 } from './api'
+import { sessionSignal } from './session'
 import { type Atom, createAtom } from './store'
 import { type Direction, type Transfer, transfers } from './transfers'
 
 export type ActionKind = 'retry' | 'cancel' | 'remove' | 'clear'
 
-export type Progress = { done: number; total: number }
-
-export type Outcome = { summary: string; failed: boolean; details: string[] }
-
-export type Actions = {
-  running: Partial<Record<ActionKind, Progress>>
-  pending: ReadonlySet<string>
-  outcome?: Outcome
+export const actions: Record<Direction, Atom<Actions<ActionKind>>> = {
+  download: createAtom<Actions<ActionKind>>(idle),
+  upload: createAtom<Actions<ActionKind>>(idle),
 }
-
-const idle: Actions = { running: {}, pending: new Set() }
-
-export const actions: Record<Direction, Atom<Actions>> = { download: createAtom(idle), upload: createAtom(idle) }
 
 export type Lookup = { pending: boolean; place?: number; error?: string; at?: number }
 
 export const lookups = createAtom<ReadonlyMap<string, Lookup>>(new Map())
 
-let session = new AbortController()
-onSessionEnd(() => {
-  session.abort()
-  session = new AbortController()
-})
-
-const plural = (count: number, noun: string) => `${count.toLocaleString()} ${noun}${count === 1 ? '' : 's'}`
-
-function begin(direction: Direction, kind: ActionKind, ids: string[]) {
-  const atom = actions[direction]
-  const { signal } = session
-  atom.set((state) => ({
-    ...state,
-    running: { ...state.running, [kind]: { done: 0, total: ids.length } },
-    pending: new Set([...state.pending, ...ids]),
-  }))
-  return {
-    signal,
-    advance(settled: string[]) {
-      if (signal.aborted) return
-      atom.set((state) => {
-        const pending = new Set(state.pending)
-        for (const id of settled) pending.delete(id)
-        const progress = state.running[kind]
-        const running = progress
-          ? { ...state.running, [kind]: { ...progress, done: progress.done + settled.length } }
-          : state.running
-        return { ...state, running, pending }
-      })
-    },
-    finish(outcome: Outcome) {
-      if (signal.aborted) return
-      atom.set((state) => {
-        const { [kind]: _, ...running } = state.running
-        return { ...state, running, outcome }
-      })
-      transfers[direction].refresh()
-    },
-  }
-}
-
-export function dismissOutcome(direction: Direction) {
-  actions[direction].set((state) => ({ ...state, outcome: undefined }))
-}
+const begin = (direction: Direction, kind: ActionKind, ids: string[]) =>
+  beginAction(actions[direction], kind, ids, () => transfers[direction].refresh())
 
 const transferPath = (direction: Direction, file: Transfer) =>
   `transfers/${direction}s/${encodeURIComponent(file.username)}/${file.id}`
@@ -101,16 +51,7 @@ async function deleteEach(direction: Direction, kind: 'cancel' | 'remove', files
   } catch {
     return
   }
-  const verb = kind === 'cancel' ? 'Cancelled' : 'Removed'
-  const done = files.length - errors.length
-  operation.finish({
-    summary:
-      errors.length === 0
-        ? `${verb} ${plural(done, direction)}`
-        : `${verb} ${done.toLocaleString()} of ${plural(files.length, direction)} · ${errors.length.toLocaleString()} failed`,
-    failed: errors.length > 0,
-    details: errors,
-  })
+  operation.finish(summarise(kind === 'cancel' ? 'Cancelled' : 'Removed', files.length, errors.length, errors, direction))
 }
 
 export const cancel = (direction: Direction, files: Transfer[]) => deleteEach(direction, 'cancel', files)
@@ -132,22 +73,9 @@ export async function clearFinished(direction: Direction) {
 
 type EnqueueResponse = { failures: { filename: string; message: string }[] }
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-
-// slskd runs at most two enqueues at once and answers 429 without doing anything, so a 429 is resent
-// as part of the same gesture rather than counted as a failure.
-async function enqueue(body: object, signal: AbortSignal) {
-  const deadline = Date.now() + 30_000
-  for (;;) {
-    try {
-      return await api.post('transfers/downloads/batches', { json: body, signal }).json<EnqueueResponse>()
-    } catch (error) {
-      if (!isHTTPError(error) || error.response.status !== 429 || Date.now() >= deadline) throw error
-      await sleep(1000)
-      signal.throwIfAborted()
-    }
-  }
-}
+// slskd runs at most two enqueues at once.
+export const enqueue = (body: object, signal: AbortSignal) =>
+  resendOn429(() => api.post('transfers/downloads/batches', { json: body, signal }).json<EnqueueResponse>(), signal)
 
 type BatchInfo = { searchId?: string; options?: { destination?: string } }
 
@@ -205,15 +133,7 @@ export async function retry(files: Transfer[]) {
   } catch {
     return
   }
-  const done = files.length - failed
-  operation.finish({
-    summary:
-      failed === 0
-        ? `Retried ${plural(done, 'download')}`
-        : `Retried ${done.toLocaleString()} of ${plural(files.length, 'download')} · ${failed.toLocaleString()} failed`,
-    failed: failed > 0,
-    details,
-  })
+  operation.finish(summarise('Retried', files.length, failed, details, 'download'))
 }
 
 function setLookup(id: string, lookup: Lookup) {
@@ -221,7 +141,7 @@ function setLookup(id: string, lookup: Lookup) {
 }
 
 export async function lookUpPositions(files: Transfer[]) {
-  const { signal } = session
+  const signal = sessionSignal()
   lookups.set((current) => {
     const next = new Map(current)
     for (const file of files) next.set(file.id, { ...current.get(file.id), pending: true })

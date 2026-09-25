@@ -30,4 +30,15 @@ export function formatAge(age: number) {
   return `${Math.floor(seconds / 86_400)} d`
 }
 
+export const plural = (count: number, noun: string, nouns = `${noun}s`) =>
+  `${count.toLocaleString()} ${count === 1 ? noun : nouns}`
+
 export const useAgo = (time: number) => useClock((now) => `${formatAge(now - time)} ago`)
+
+export function formatDuration(seconds: number) {
+  const whole = Math.round(seconds)
+  const hours = Math.floor(whole / 3600)
+  const minutes = Math.floor(whole / 60) % 60
+  const rest = String(whole % 60).padStart(2, '0')
+  return hours > 0 ? `${hours}:${String(minutes).padStart(2, '0')}:${rest}` : `${minutes}:${rest}`
+}

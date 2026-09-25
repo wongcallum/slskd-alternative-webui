@@ -6,8 +6,14 @@ import {
   redirect,
   stringifySearchWith,
   stripSearchParams,
+  useRouter,
 } from '@tanstack/react-router'
+import { useEffect } from 'react'
 import { NotFound, Placeholder, RouteError } from './pages'
+import { useResource } from './store'
+import { type ResultsSearch, resultsSearch, resultsSearchDefaults, SearchResultsPage } from './SearchResults'
+import { type SearchesSearch, SearchesPage, searchesSearch, searchesSearchDefaults } from './Searches'
+import { searches } from './searches'
 import { SessionGate } from './SessionGate'
 import { Shell } from './Shell'
 import { TransfersPage, type TransfersSearch, transfersSearch, transfersSearchDefaults } from './Transfers'
@@ -44,8 +50,47 @@ const searchesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'searches',
   head: () => title('Search'),
-  // TODO: phase 5 replaces this placeholder with the search pages.
-  component: () => <Placeholder title="Search" />,
+  validateSearch: searchesSearch,
+  search: { middlewares: [stripSearchParams(searchesSearchDefaults)] },
+  component: function Searches() {
+    const navigate = searchesRoute.useNavigate()
+    return (
+      <SearchesPage
+        search={searchesRoute.useSearch()}
+        onSearchChange={(patch: Partial<SearchesSearch>) =>
+          navigate({ search: (previous) => ({ ...previous, ...patch }), replace: true })
+        }
+      />
+    )
+  },
+})
+
+const searchRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'searches/$id',
+  head: ({ params }) => title(searches.getSnapshot().data?.byId.get(params.id)?.text ?? 'Search'),
+  validateSearch: resultsSearch,
+  search: { middlewares: [stripSearchParams(resultsSearchDefaults)] },
+  component: function SearchResults() {
+    const { id } = searchRoute.useParams()
+    const navigate = searchRoute.useNavigate()
+    const router = useRouter()
+    // The title comes from the search list, which usually arrives after the route has loaded.
+    const text = useResource(searches).data?.byId.get(id)?.text
+    useEffect(() => {
+      void router.invalidate({ filter: (match) => match.routeId === searchRoute.id })
+    }, [router, text])
+    return (
+      <SearchResultsPage
+        key={id}
+        id={id}
+        search={searchRoute.useSearch()}
+        onSearchChange={(patch: Partial<ResultsSearch>) =>
+          navigate({ search: (previous) => ({ ...previous, ...patch }), replace: true })
+        }
+      />
+    )
+  },
 })
 
 const downloadsRoute = createRoute({
@@ -97,7 +142,7 @@ const browseRoute = createRoute({
 })
 
 export const router = createRouter({
-  routeTree: rootRoute.addChildren([indexRoute, searchesRoute, downloadsRoute, uploadsRoute, browseRoute]),
+  routeTree: rootRoute.addChildren([indexRoute, searchesRoute, searchRoute, downloadsRoute, uploadsRoute, browseRoute]),
   basepath: window.urlBase,
   defaultErrorComponent: RouteError,
   parseSearch: (search) => Object.fromEntries(new URLSearchParams(search)),

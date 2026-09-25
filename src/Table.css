@@ -1,33 +1,33 @@
-.transfer-scroll {
+.table-scroll {
   flex: 1;
   min-height: 0;
   overflow: auto;
 }
 
-.transfer-row {
+.table-row {
   display: grid;
   align-items: center;
   height: 100%;
   box-shadow: inset 0 -1px 0 0 var(--gray-a3);
 }
 
-.transfer-row:hover {
+.table-row:hover {
   background-color: var(--gray-a2);
 }
 
-.transfer-group {
+.table-group {
   background-color: var(--gray-a2);
 }
 
-.transfer-group:hover {
+.table-group:hover {
   background-color: var(--gray-a3);
 }
 
-.transfer-row[data-selected] {
+.table-row[data-selected] {
   background-color: var(--accent-a3);
 }
 
-.transfer-cell {
+.table-cell {
   min-width: 0;
   padding: 0 var(--space-2);
   overflow: hidden;
@@ -35,31 +35,45 @@
   text-overflow: ellipsis;
 }
 
-.transfer-check {
+.table-check {
   display: flex;
   align-items: center;
 }
 
-.transfer-cell[data-align='end'] {
+.table-cell[data-align='end'] {
   text-align: right;
 }
 
-.transfer-section {
+.table-section {
   height: 100%;
   background-color: var(--color-background);
   box-shadow: inset 0 -1px 0 0 var(--gray-a5);
 }
 
-.transfer-columns:hover {
+.table-columns:hover {
   background-color: transparent;
 }
 
-.transfer-sort {
+.table-sort {
   all: unset;
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
   cursor: pointer;
+}
+
+.table-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background-color: var(--color-background);
+}
+
+.table-row[data-dimmed] > * {
+  opacity: 0.55;
+}
+
+.table-label {
   font-size: var(--font-size-1);
   font-weight: var(--font-weight-medium);
   color: var(--gray-11);

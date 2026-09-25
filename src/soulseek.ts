@@ -71,8 +71,23 @@ const soulseek = createResource<Soulseek>((sink) => {
   const offState = applicationHub.on<ApplicationState>('STATE', (state) => sink.set(fromState(state)))
   const unsubscribe = applicationHub.subscribe(sync)
   sync()
+  // The hub only sends STATE as it connects or when something changes, so a restart while it stayed connected
+  // (a quick log out and in) would otherwise wait up to 30 s for the next push.
+  const controller = new AbortController()
+  if (applicationHub.getStatus().state === 'connected') {
+    api
+      .get('application', { signal: controller.signal })
+      .json<ApplicationState>()
+      .then(
+        (state) => sink.set(fromState(state)),
+        (error: unknown) => {
+          if (!controller.signal.aborted) sink.fail(error)
+        },
+      )
+  }
   return {
     stop() {
+      controller.abort()
       polling?.stop()
       offState()
       unsubscribe()

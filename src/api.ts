@@ -27,6 +27,23 @@ export const api = http.extend({
   },
 })
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+// slskd answers 429 without doing anything when a concurrency limit is reached, so the request is resent as part
+// of the same gesture rather than reported as a failure.
+export async function resendOn429<T>(send: () => Promise<T>, signal?: AbortSignal) {
+  const deadline = Date.now() + 30_000
+  for (;;) {
+    try {
+      return await send()
+    } catch (error) {
+      if (!isHTTPError(error) || error.response.status !== 429 || Date.now() >= deadline) throw error
+      await sleep(1000)
+      signal?.throwIfAborted()
+    }
+  }
+}
+
 export function describeError(error: unknown) {
   if (isHTTPError(error)) return `HTTP ${error.response.status}${error.data ? `: ${String(error.data)}` : ''}`
   return error instanceof Error ? error.message : String(error)
