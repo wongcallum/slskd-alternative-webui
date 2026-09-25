@@ -1,9 +1,9 @@
 import { PauseIcon, PlayIcon } from '@radix-ui/react-icons'
-import { Button, Flex, Tooltip } from '@radix-ui/themes'
+import { Button, Tooltip } from '@radix-ui/themes'
 import { type Key, type ReactNode, type UIEvent, useCallback, useRef, useState } from 'react'
 
-import { FilterField, toolbarStyle } from './controls'
-import { ColumnHeader, HeaderRow, VirtualTable } from './table'
+import { FilterField, Toolbar, ToolbarEnd } from './controls'
+import { ColumnHeader, HeaderRow, type Layout, rowHeight, stackedHeight, useListLayout, VirtualTable } from './table'
 
 // A list with the newest rows on top holds still while it's scrolled down or paused, so reading isn't disturbed by
 // rows arriving at the top. The marker is whatever the list needs to tell the rows it held from the new ones.
@@ -70,18 +70,19 @@ export function HeldToolbar({
   children: ReactNode
 }) {
   return (
-    <Flex align="center" gap="3" px="4" py="2" flexShrink="0" wrap="wrap" style={toolbarStyle}>
-      <FilterField placeholder={placeholder} value={filter.text} onChange={filter.change} style={{ width: 280 }} />
+    <Toolbar>
+      <FilterField placeholder={placeholder} value={filter.text} onChange={filter.change} width="280px" />
       {children}
-      <Flex ml="auto" align="center" gap="3" flexShrink="0">
+      <ToolbarEnd>
         <HoldButton hold={hold} unseen={unseen} />
-      </Flex>
-    </Flex>
+      </ToolbarEnd>
+    </Toolbar>
   )
 }
 
+// Stacked below sm, narrower below md.
 export function HeldList<T>({
-  template,
+  templates,
   labels,
   records,
   itemKey,
@@ -92,13 +93,13 @@ export function HeldList<T>({
   onScroll,
   footer,
 }: {
-  template: string
+  templates: Record<Exclude<Layout, 'stacked'>, string>
   labels: readonly string[]
   records: readonly T[]
   itemKey: (record: T) => Key
   selected?: Key
   onSelect: (record: T | undefined) => void
-  renderRow: (record: T, selected: boolean, toggle: (record: T) => void) => ReactNode
+  renderRow: (record: T, layout: Layout, selected: boolean, toggle: (record: T) => void) => ReactNode
   hold: Hold<unknown>
   onScroll?: (element: HTMLDivElement) => void
   footer?: ReactNode
@@ -107,19 +108,23 @@ export function HeldList<T>({
     (record: T) => onSelect(itemKey(record) === selected ? undefined : record),
     [itemKey, selected, onSelect],
   )
+  const layout = useListLayout()
   return (
     <VirtualTable
-      minWidth={900}
+      minWidth={layout === 'wide' ? 900 : 0}
       header={
-        <HeaderRow template={template}>
-          {labels.map((label) => (
-            <ColumnHeader key={label} label={label} />
-          ))}
-        </HeaderRow>
+        layout === 'stacked' ? undefined : (
+          <HeaderRow template={templates[layout]}>
+            {labels.map((label) => (
+              <ColumnHeader key={label} label={label} />
+            ))}
+          </HeaderRow>
+        )
       }
       items={records}
       itemKey={itemKey}
-      renderItem={(record) => renderRow(record, itemKey(record) === selected, toggle)}
+      rowSize={layout === 'stacked' ? stackedHeight : rowHeight}
+      renderItem={(record) => renderRow(record, layout, itemKey(record) === selected, toggle)}
       scrollRef={hold.scrollRef}
       onScroll={(event) => {
         hold.onScroll(event)

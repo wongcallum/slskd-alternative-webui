@@ -11,7 +11,15 @@ export function SystemPage({ status, children }: { status?: ReactNode; children:
   const { data } = useResource(application)
   return (
     <Flex direction="column" height="100%">
-      <Flex align="center" gap="3" px="4" flexShrink="0" style={toolbarStyle}>
+      {/* Below sm the tabs take the whole width and the status goes under them. */}
+      <Flex
+        direction={{ initial: 'column', sm: 'row' }}
+        align={{ initial: 'stretch', sm: 'center' }}
+        gap={{ initial: '0', sm: '3' }}
+        px="4"
+        flexShrink="0"
+        style={toolbarStyle}
+      >
         <NavTabs>
           <NavTab to="/system/info">Info</NavTab>
           <NavTab to="/system/options">Options</NavTab>
@@ -25,11 +33,15 @@ export function SystemPage({ status, children }: { status?: ReactNode; children:
           <NavTab to="/system/events">Events</NavTab>
           <NavTab to="/system/logs">Logs</NavTab>
         </NavTabs>
-        <Flex ml="auto" align="center" gap="4" flexShrink="0">
-          {status}
-        </Flex>
+        {status !== undefined && (
+          <Flex ml="auto" align="center" gap="4" flexShrink="0" py={{ initial: '1', sm: '0' }}>
+            {status}
+          </Flex>
+        )}
       </Flex>
-      {children}
+      <Flex direction="column" flexGrow="1" minHeight="0" position="relative">
+        {children}
+      </Flex>
     </Flex>
   )
 }

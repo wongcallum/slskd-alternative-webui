@@ -8,7 +8,7 @@ import { type Color, useFilterText } from '../ui/controls'
 import { DetailsPane, Preformatted } from '../ui/details'
 import { HeldList, HeldToolbar, useHold } from '../ui/hold'
 import { Empty, Freshness, Polling } from '../ui/status'
-import { Cell, GridRow } from '../ui/table'
+import { Cell, GridRow, type Layout, Parts, StackedRow } from '../ui/table'
 import {
   type Level,
   logMatcher,
@@ -94,13 +94,15 @@ export function LogsPage({ search, onSearchChange }: Props) {
   } else {
     content = (
       <HeldList
-        template={template}
+        templates={templates}
         labels={labels}
         records={shown}
         itemKey={recordId}
         selected={selected?.id}
         onSelect={setSelected}
-        renderRow={(record, isSelected, toggle) => <LogRow record={record} selected={isSelected} onSelect={toggle} />}
+        renderRow={(record, layout, isSelected, toggle) => (
+          <LogRow record={record} layout={layout} selected={isSelected} onSelect={toggle} />
+        )}
         hold={hold}
       />
     )
@@ -147,26 +149,58 @@ function LevelSelect({ value, onChange }: { value: MinimumLevel; onChange: (leve
   )
 }
 
-const template = '170px 80px 200px minmax(300px, 1fr)'
+const templates = {
+  wide: '170px 80px 200px minmax(300px, 1fr)',
+  medium: '150px 80px 150px minmax(300px, 1fr)',
+}
 
 const labels = ['Time', 'Level', 'Source', 'Message']
 
 const recordId = (record: LogRecord) => record.id
 
-function LevelText({ level }: { level: Level }) {
+function LevelText({ level, size = '2' }: { level: Level; size?: '1' | '2' }) {
   return (
-    <Text size="2" color={levelColors[level] ?? 'gray'} weight={level === 'Fatal' ? 'bold' : undefined}>
+    <Text size={size} color={levelColors[level] ?? 'gray'} weight={level === 'Fatal' ? 'bold' : undefined}>
       {levelLabels[level]}
     </Text>
   )
 }
 
-type LogRowProps = { record: LogRecord; selected: boolean; onSelect: (record: LogRecord) => void }
+type LogRowProps = { record: LogRecord; layout: Layout; selected: boolean; onSelect: (record: LogRecord) => void }
 
-const LogRow = memo(function LogRow({ record, selected, onSelect }: LogRowProps) {
+const LogRow = memo(function LogRow({ record, layout, selected, onSelect }: LogRowProps) {
+  const message = (
+    <>
+      <Text size="2" truncate>
+        {record.firstLine}
+      </Text>
+      {record.moreLines > 0 && (
+        <Text size="1" color="gray" style={{ flexShrink: 0 }}>
+          +{record.moreLines.toLocaleString()} lines
+        </Text>
+      )}
+    </>
+  )
+  const source = shortName(record.subContext ?? record.context)
+  if (layout === 'stacked') {
+    return (
+      <StackedRow
+        selected={selected}
+        dimmed={isQuiet(record.level)}
+        title={message}
+        meta={
+          <Parts
+            items={[formatPreciseTime(record.time), <LevelText key="level" level={record.level} size="1" />, source]}
+          />
+        }
+        style={{ cursor: 'pointer' }}
+        onClick={() => onSelect(record)}
+      />
+    )
+  }
   return (
     <GridRow
-      template={template}
+      template={templates[layout]}
       selected={selected}
       dimmed={isQuiet(record.level)}
       style={{ cursor: 'pointer' }}
@@ -176,16 +210,9 @@ const LogRow = memo(function LogRow({ record, selected, onSelect }: LogRowProps)
       <div className="table-cell">
         <LevelText level={record.level} />
       </div>
-      <Cell title={sourceOf(record)}>{shortName(record.subContext ?? record.context)}</Cell>
+      <Cell title={sourceOf(record)}>{source}</Cell>
       <Flex className="table-cell" align="center" gap="2" title={record.firstLine}>
-        <Text size="2" truncate>
-          {record.firstLine}
-        </Text>
-        {record.moreLines > 0 && (
-          <Text size="1" color="gray" style={{ flexShrink: 0 }}>
-            +{record.moreLines.toLocaleString()} lines
-          </Text>
-        )}
+        {message}
       </Flex>
     </GridRow>
   )
