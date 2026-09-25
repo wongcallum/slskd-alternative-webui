@@ -1,26 +1,15 @@
-import { Box, Button, Callout, Card, Flex, Grid, Heading, Link, Text } from '@radix-ui/themes'
-import { Link as RouterLink } from '@tanstack/react-router'
+import { Box, Button, Card, Flex, Grid, Heading, Link, Text } from '@radix-ui/themes'
 import type { ReactNode } from 'react'
 
-import { browses } from '../browse/browse'
 import { api, describeError } from '../lib/api'
 import { formatAge, formatBytes, formatSpeed, plural } from '../lib/format'
 import { useAtom, useClock, useResource } from '../lib/store'
 import { useRun } from '../lib/useRun'
-import { useSession } from '../session/session'
-import { reconnect } from '../soulseek/soulseek'
 import { ActionButton, ConfirmButton, type Detail, DetailList } from '../ui/controls'
 import { Freshness, Polling } from '../ui/status'
-import {
-  type Application,
-  application,
-  applicationPollInterval,
-  releaseNotes,
-  rescanNeeded,
-  useApplication,
-} from './application'
-import { lifecycle, restart, restartPatience, shutDown } from './lifecycle'
-import { PendingCallout } from './PendingCallout'
+import { type Application, application, applicationPollInterval, releaseNotes, useApplication } from './application'
+import { lifecycle, restartPatience, shutDown } from './lifecycle'
+import { PendingCallouts, RestartButton, useLifecycleGate } from './PendingCallouts'
 import { processInfo } from './process'
 import { SystemPage } from './SystemPage'
 
@@ -66,37 +55,6 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
         {children}
       </Flex>
     </Card>
-  )
-}
-
-const outOfDate = "slskd's state is out of date"
-
-function useLifecycleGate(known: boolean) {
-  const { phase } = useAtom(lifecycle)
-  if (phase === 'restarting') return 'slskd is restarting'
-  if (phase === 'shutDown') return 'slskd is shut down'
-  return known ? undefined : outOfDate
-}
-
-function RestartButton({ known, color }: { known: boolean; color?: 'amber' }) {
-  const gate = useLifecycleGate(known)
-  const browsing = useAtom(browses).size > 0
-  const authenticated = useSession().status === 'authenticated'
-  return (
-    <ConfirmButton
-      label="Restart"
-      busy="Restarting"
-      color={color}
-      gate={gate ?? (browsing ? 'Wait for the browse to finish' : undefined)}
-      title="Restart slskd?"
-      description={[
-        'Transfers stop, and unfinished downloads are enqueued again once slskd logs in, but into its default folders.',
-        ...(authenticated ? ['Everyone is logged out.'] : []),
-        'If slskd is still answering a request, such as a browse, the restart fails and slskd has to be started by hand.',
-      ].join(' ')}
-      action="Restart"
-      onConfirm={() => void restart()}
-    />
   )
 }
 
@@ -194,43 +152,6 @@ function LifecycleLine() {
     <Text size="2" color="red">
       {state.error}
     </Text>
-  )
-}
-
-function PendingCallouts({ data, known }: { data: Application; known: boolean }) {
-  const reconnecting = useRun()
-  const rescan = rescanNeeded(data)
-  if (!data.pendingRestart && !data.pendingReconnect && !rescan) return null
-  return (
-    <Flex direction="column" gap="2">
-      {data.pendingRestart && (
-        <PendingCallout>
-          <Callout.Text>Changed settings apply after a restart.</Callout.Text>
-          <RestartButton known={known} color="amber" />
-        </PendingCallout>
-      )}
-      {data.pendingReconnect && (
-        <PendingCallout error={reconnecting.error}>
-          <Callout.Text>Changed Soulseek settings apply after a reconnect.</Callout.Text>
-          <ActionButton
-            label="Reconnect"
-            busy="Reconnecting"
-            color="amber"
-            loading={reconnecting.running}
-            gate={known ? undefined : 'Soulseek status unknown'}
-            onClick={() => reconnecting.run(reconnect)}
-          />
-        </PendingCallout>
-      )}
-      {rescan && (
-        <PendingCallout>
-          <Callout.Text>Shares need a rescan.</Callout.Text>
-          <Button asChild size="1" variant="soft" color="amber">
-            <RouterLink to="/system/shares">Open Shares</RouterLink>
-          </Button>
-        </PendingCallout>
-      )}
-    </Flex>
   )
 }
 
