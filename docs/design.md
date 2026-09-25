@@ -113,9 +113,9 @@ and we cache browsed share trees in IndexedDB), show when each result was fetche
   that filter or sort a view replace the history entry. Opening a folder in Browse pushes one, so Back returns to
   the previous folder.
 - No router devtools or scroll restoration. Two chunks are split from the main one:
-  - Options and Events, the only pages that need `yaml`, which would otherwise be a tenth of the main chunk. It loads 3 s
-    after the app starts rather than on first use, because Chromium never retries a chunk that failed once (see the
-    facts), and by first use slskd may be restarting or have replaced it with a newer build.
+  - Options and Events, the only pages that need `yaml`, which would otherwise be a tenth of the main chunk. It loads
+    3 s after the app starts rather than on first use, because Chromium never retries a chunk that failed once (see
+    the facts), and by first use slskd may be restarting or have replaced it with a newer build.
   - The YAML editor (see [Options](#options)), on first use.
 
 ### Shell
