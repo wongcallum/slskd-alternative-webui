@@ -3,7 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="dark" />
+    <meta name="color-scheme" content="light dark" />
+    <script>
+      // Paints a chosen theme's background before the app loads. Once it renders, Radix's own color-scheme wins.
+      try {
+        const theme = JSON.parse(localStorage.getItem('slskd-alt-theme'))
+        if (theme === 'light' || theme === 'dark') document.querySelector('meta[name="color-scheme"]').content = theme
+      } catch {}
+    </script>
     <link rel="icon" href="/src/favicon.svg" />
     <title>slskd</title>
   </head>

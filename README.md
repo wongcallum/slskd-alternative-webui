@@ -2,7 +2,8 @@
 
 An alternative web UI for [slskd](https://github.com/slskd/slskd), run against stock slskd as a drop-in
 replacement for its `wwwroot`. It covers Search, Downloads, Uploads, Browse, Users, Chat (rooms and private
-messages), and System info, options, shares, files, events and logs so far.
+messages) and System (info, options, shares, files, events and logs), with transfer speeds in the bar and light and
+dark themes.
 
 Build it with `pnpm build` and serve `dist` as slskd's `web.content_path`. The path must be relative to the slskd
 binary's directory.
@@ -25,13 +26,8 @@ Install Nix and devenv (`nix profile add nixpkgs#devenv`), then enter the enviro
 
 ## Roadmap
 
-What's left of the stock UI, in order:
-
-1. The rest of the shell: upload and download speeds and counts, the slskd version, and light theme with a toggle.
-
-After that:
-
-- Proper responsiveness.
+- Proper responsiveness. On narrow screens the tabs, the speeds and the update notice collapse into the menu, the notice
+  as an amber dot on its button.
 - Keyboard handling: ↵ into a folder and ⌫ up in Browse, `/` to focus a filter, `d` to download, `?` for the keys.
   Weigh `@headless-tree` for Browse's tree then, since it brings an ARIA tree with keys.
 - Filter criteria (quality, size) for Browse.
