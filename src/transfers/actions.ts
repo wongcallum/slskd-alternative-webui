@@ -7,7 +7,7 @@ import { sessionSignal } from '../session/session'
 import { enqueueBatches } from './enqueue'
 import { type Direction, type Transfer, transfers } from './transfers'
 
-export type ActionKind = 'retry' | 'cancel' | 'remove' | 'clear'
+type ActionKind = 'retry' | 'cancel' | 'remove' | 'clear'
 
 export const actions: Record<Direction, Atom<Actions<ActionKind>>> = {
   download: createAtom<Actions<ActionKind>>(idle),

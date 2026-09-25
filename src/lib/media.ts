@@ -26,11 +26,9 @@ export function useMedia(text: string) {
 }
 
 // Radix Themes' breakpoints, so a hook and a responsive prop switch at the same widths.
-export const breakpoints = { xs: 520, sm: 768, md: 1024, lg: 1280 } as const
+const breakpoints = { sm: 768, md: 1024, lg: 1280 } as const
 
-export type Breakpoint = keyof typeof breakpoints
-
-export const useFrom = (breakpoint: Breakpoint) => useMedia(`(min-width: ${breakpoints[breakpoint]}px)`)
+export const useFrom = (breakpoint: keyof typeof breakpoints) => useMedia(`(min-width: ${breakpoints[breakpoint]}px)`)
 
 // Phones and tablets, where nothing hovers and a tap is the only way in.
 export const useTouch = () => useMedia('(hover: none)')

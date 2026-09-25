@@ -49,7 +49,7 @@ export function useHold<M>(capture: () => M) {
   }
 }
 
-export type Hold<M> = ReturnType<typeof useHold<M>>
+type Hold<M> = ReturnType<typeof useHold<M>>
 
 function HoldButton({ hold, unseen }: { hold: Hold<unknown>; unseen: string }) {
   if (hold.held) {

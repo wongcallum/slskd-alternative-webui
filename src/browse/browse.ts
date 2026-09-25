@@ -173,7 +173,7 @@ export async function deleteShare(username: string) {
   announce(username)
 }
 
-export type Phase =
+type Phase =
   | { phase: 'waiting' }
   | { phase: 'receiving'; transferred: number; total: number }
   | { phase: 'loading'; loaded: number }

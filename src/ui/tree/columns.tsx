@@ -46,7 +46,7 @@ export const paneColumns = (extras: readonly ExtraColumn[]) =>
     ),
   )
 
-export type PaneWidth = 'stacked' | 'narrow' | 'medium' | 'wide'
+type PaneWidth = 'stacked' | 'narrow' | 'medium' | 'wide'
 
 export function usePaneWidth(): PaneWidth {
   const sm = useFrom('sm')

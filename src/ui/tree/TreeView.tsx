@@ -9,7 +9,7 @@ import { FilterField, GatedIconButton, toolbarStyle, useFilterText } from '../co
 import { FolderPane, type TreeConfig } from './FolderPane'
 import { expandTo, Tree, updateExpansion } from './Tree'
 
-export type TreeSearch<S extends string> = { path: string; q: string; sort?: S }
+type TreeSearch<S extends string> = { path: string; q: string; sort?: S }
 
 type Props<S extends string> = {
   tree: FolderTree

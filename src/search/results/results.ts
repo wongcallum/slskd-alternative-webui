@@ -14,7 +14,7 @@ type RawResponse = {
   uploadSpeed: number
 }
 
-export type Peer = { username: string; free: boolean; queueLength: number; speed: number }
+type Peer = { username: string; free: boolean; queueLength: number; speed: number }
 
 export type ResultFile = {
   kind: 'file'
@@ -187,7 +187,7 @@ function toResults(responses: RawResponse[]): Results {
 export type FolderFetch = { pending: boolean; files?: ResultFile[]; error?: string; at?: number }
 
 // Quality is a floor on the quality ranking, size is in bytes and length in seconds. Zero turns a criterion off.
-export type ResultFilter = {
+type ResultFilter = {
   query: string
   locked: boolean
   free: boolean

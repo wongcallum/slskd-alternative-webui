@@ -27,10 +27,10 @@ export type Share = {
   files?: number
 }
 
-export type ShareList = { shares: readonly Share[]; hosts: number }
+type ShareList = { shares: readonly Share[]; hosts: number }
 
 // Scans seen to finish in this session. Anything read from the share database before the latest is out of date.
-export const scansFinished = createAtom(0)
+const scansFinished = createAtom(0)
 
 let previous: Application | undefined
 
