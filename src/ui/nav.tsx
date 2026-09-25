@@ -7,10 +7,14 @@ export function NavTabs({ children }: { children: ReactNode }) {
   return <TabNav.Root style={{ '--gray-a5': 'transparent' } as CSSProperties}>{children}</TabNav.Root>
 }
 
-export function NavTab({ to, children }: { to: NonNullable<LinkProps['to']>; children: ReactNode }) {
+type To = NonNullable<LinkProps['to']>
+
+const none: To[] = []
+
+export function NavTab({ to, also = none, children }: { to: To; also?: To[]; children: ReactNode }) {
   const matchRoute = useMatchRoute()
   return (
-    <TabNav.Link asChild active={Boolean(matchRoute({ to, fuzzy: true }))}>
+    <TabNav.Link asChild active={[to, ...also].some((path) => matchRoute({ to: path, fuzzy: true }))}>
       <Link to={to}>{children}</Link>
     </TabNav.Link>
   )

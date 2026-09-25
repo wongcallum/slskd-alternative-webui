@@ -24,6 +24,7 @@ export function Shell() {
             </NavTab>
             <NavTab to="/uploads">Uploads</NavTab>
             <NavTab to="/browse">Browse</NavTab>
+            <NavTab to="/rooms">Chat</NavTab>
           </NavTabs>
           <Flex align="center" gap="4" ml="auto" flexShrink="0">
             <SoulseekIndicator />

@@ -1,0 +1,172 @@
+.chat-scroll {
+  height: 100%;
+  overflow-y: auto;
+}
+
+/* While following the bottom, anchoring would scroll up with the lines slskd drops from the top. */
+.chat-scroll[data-following] {
+  overflow-anchor: none;
+}
+
+.chat-log {
+  display: grid;
+  grid-template-columns: max-content max-content minmax(0, 1fr);
+  align-content: end;
+  min-height: 100%;
+  padding: var(--space-2) 0;
+  font-size: var(--font-size-2);
+  line-height: var(--line-height-2);
+}
+
+.chat-line {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  column-gap: var(--space-3);
+  align-items: baseline;
+  padding: 1px var(--space-4);
+}
+
+.chat-line:hover {
+  background-color: var(--gray-a2);
+}
+
+.chat-line[data-self] {
+  background-color: var(--accent-a2);
+}
+
+.chat-line[data-mention] {
+  background-color: var(--amber-a3);
+  box-shadow: inset 3px 0 0 0 var(--amber-9);
+}
+
+.chat-line[data-pending] > * {
+  opacity: 0.55;
+}
+
+.chat-time {
+  color: var(--gray-10);
+  font-size: var(--font-size-1);
+  font-variant-numeric: tabular-nums;
+}
+
+.chat-name {
+  max-width: 12rem;
+  overflow: hidden;
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.chat-line[data-self] .chat-name {
+  color: var(--accent-11);
+}
+
+.chat-name-button {
+  all: unset;
+  cursor: pointer;
+}
+
+.chat-name-button:hover {
+  text-decoration: underline;
+}
+
+.chat-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.chat-status {
+  margin-left: var(--space-2);
+  color: var(--amber-11);
+  font-size: var(--font-size-1);
+}
+
+.chat-divider {
+  display: flex;
+  grid-column: 1 / -1;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-2) var(--space-4);
+  color: var(--gray-11);
+  font-size: var(--font-size-1);
+}
+
+.chat-divider::before,
+.chat-divider::after {
+  flex: 1;
+  border-top: 1px solid var(--gray-a5);
+  content: '';
+}
+
+.chat-divider[data-new] {
+  color: var(--red-11);
+}
+
+.chat-divider[data-new]::before,
+.chat-divider[data-new]::after {
+  border-color: var(--red-a6);
+}
+
+.chat-note {
+  grid-column: 1 / -1;
+  padding: var(--space-2) var(--space-4);
+  color: var(--gray-11);
+  font-size: var(--font-size-1);
+}
+
+.chat-jump {
+  position: absolute;
+  bottom: var(--space-3);
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.chat-item {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  height: 32px;
+  padding: 0 var(--space-2) 0 var(--space-4);
+  color: var(--gray-11);
+  font-size: var(--font-size-2);
+  text-decoration: none;
+}
+
+.chat-item:hover {
+  background-color: var(--gray-a3);
+}
+
+.chat-item[data-active] {
+  background-color: var(--accent-a4);
+  color: var(--gray-12);
+}
+
+.chat-item[data-unread] {
+  color: var(--gray-12);
+  font-weight: var(--font-weight-medium);
+}
+
+.chat-item-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+a.chat-item-name {
+  align-self: stretch;
+  line-height: 32px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.chat-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  margin-right: var(--space-1);
+  border-radius: 50%;
+  background-color: var(--accent-9);
+}

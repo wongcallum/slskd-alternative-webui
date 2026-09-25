@@ -13,6 +13,9 @@ import { useCallback, useEffect } from 'react'
 import { BrowsePage } from '../browse/BrowsePage'
 import { type BrowseSearch, browseSearch, browseSearchDefaults } from '../browse/params'
 import { SharePage } from '../browse/share/SharePage'
+import { ChatPage } from '../chat/ChatPage'
+import { roomsSearch, roomsSearchDefaults } from '../chat/params'
+import { RoomView } from '../chat/RoomView'
 import { useResource } from '../lib/store'
 import { type ResultsSearch, resultsSearch, resultsSearchDefaults } from '../search/results/params'
 import { ResultsPage } from '../search/results/ResultsPage'
@@ -155,6 +158,24 @@ const browseRoute = createRoute({
   },
 })
 
+// The rooms and conversations share one page, whose sidebar stays mounted while switching between them.
+const chatRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  id: 'chat',
+  component: ChatPage,
+})
+
+const roomsRoute = createRoute({
+  getParentRoute: () => chatRoute,
+  path: 'rooms',
+  head: ({ match }) => title(match.search.room === '' ? 'Chat' : `${match.search.room} · Chat`),
+  validateSearch: roomsSearch,
+  search: { middlewares: [stripSearchParams(roomsSearchDefaults)] },
+  component: function Rooms() {
+    return <RoomView room={roomsRoute.useSearch().room} />
+  },
+})
+
 const systemRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'system',
@@ -199,6 +220,7 @@ export const router = createRouter({
     downloadsRoute,
     uploadsRoute,
     browseRoute,
+    chatRoute.addChildren([roomsRoute]),
     systemRoute.addChildren([systemIndexRoute, systemInfoRoute, systemLogsRoute]),
   ]),
   basepath: window.urlBase,
