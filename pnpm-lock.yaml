@@ -53,6 +53,9 @@ importers:
       valibot:
         specifier: ^1.5.0
         version: 1.5.0(typescript@7.0.2)
+      yaml:
+        specifier: ^2.9.1
+        version: 2.9.1
     devDependencies:
       '@types/node':
         specifier: ^24.13.6
@@ -65,7 +68,7 @@ importers:
         version: 19.3.0(@types/react@19.3.0)
       '@vitejs/plugin-react':
         specifier: ^6.1.1
-        version: 6.1.1(vite@8.3.0(@types/node@24.13.6))
+        version: 6.1.1(vite@8.3.0(@types/node@24.13.6)(yaml@2.9.1))
       oxfmt:
         specifier: ^0.70.0
         version: 0.70.0
@@ -83,7 +86,7 @@ importers:
         version: 7.0.2
       vite:
         specifier: ^8.3.0
-        version: 8.3.0(@types/node@24.13.6)
+        version: 8.3.0(@types/node@24.13.6)(yaml@2.9.1)
 
 packages:
 
@@ -1814,6 +1817,11 @@ packages:
       utf-8-validate:
         optional: true
 
+  yaml@2.9.1:
+    resolution: {integrity: sha512-3NxN8+78OdzbT7C/WjGsyfPAtJaN3FNDsWxv7Y7mcDsT/oOmgW8BpyQQFFBnvZE3j9Y2Sdz1ULFLezL7Eb2yFw==}
+    engines: {node: '>= 14.6'}
+    hasBin: true
+
 snapshots:
 
   '@floating-ui/core@1.8.0':
@@ -2910,10 +2918,10 @@ snapshots:
   '@typescript/typescript-win32-x64@7.0.2':
     optional: true
 
-  '@vitejs/plugin-react@6.1.1(vite@8.3.0(@types/node@24.13.6))':
+  '@vitejs/plugin-react@6.1.1(vite@8.3.0(@types/node@24.13.6)(yaml@2.9.1))':
     dependencies:
       '@rolldown/pluginutils': 1.0.1
-      vite: 8.3.0(@types/node@24.13.6)
+      vite: 8.3.0(@types/node@24.13.6)(yaml@2.9.1)
 
   abort-controller@3.0.0:
     dependencies:
@@ -3304,7 +3312,7 @@ snapshots:
     optionalDependencies:
       typescript: 7.0.2
 
-  vite@8.3.0(@types/node@24.13.6):
+  vite@8.3.0(@types/node@24.13.6)(yaml@2.9.1):
     dependencies:
       lightningcss: 1.33.0
       picomatch: 4.0.7
@@ -3314,6 +3322,7 @@ snapshots:
     optionalDependencies:
       '@types/node': 24.13.6
       fsevents: 2.3.3
+      yaml: 2.9.1
 
   webidl-conversions@3.0.1: {}
 
@@ -3323,3 +3332,5 @@ snapshots:
       webidl-conversions: 3.0.1
 
   ws@7.5.13: {}
+
+  yaml@2.9.1: {}
