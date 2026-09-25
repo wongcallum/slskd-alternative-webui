@@ -125,6 +125,7 @@ export function poll<T>(
     if (document.hidden && !whileHidden) return
     inFlight = true
     again = false
+    const started = performance.now()
     let cost = 0
     const measure: Measure = (work) => {
       const start = performance.now()
@@ -142,7 +143,8 @@ export function poll<T>(
     inFlight = false
     if (controller.signal.aborted) return
     const next = Math.max(typeof interval === 'number' ? interval : interval(), costFactor * cost)
-    sink.pace(next)
+    // Updates arrive a request apart as well as an interval, and a slow link's list takes seconds to download.
+    sink.pace(next + performance.now() - started)
     timer = setTimeout(tick, again ? 0 : next)
   }
 
