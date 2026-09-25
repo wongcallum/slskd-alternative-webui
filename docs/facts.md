@@ -1314,6 +1314,8 @@ share of 200k files in 15k directories (54 MB of JSON), with `idb` 8.0.3. "Block
 
 ## Browser APIs
 
+- Chromium keeps a failed dynamic `import()` in its module map: importing the same URL again fails at once, without a
+  request (observed in Chromium 153).
 - Web Locks (`navigator.locks`) needs a secure context
   ([MDN](https://developer.mozilla.org/en-US/docs/Web/API/Web_Locks_API)), so a plain-HTTP LAN install can't use it.
   `BroadcastChannel` doesn't.
