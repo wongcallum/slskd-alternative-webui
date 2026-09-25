@@ -174,7 +174,7 @@ export function StackedRow({
   )
 }
 
-// A stacked row's details, separated by dots. When they don't fit, the last one gives way first.
+// A stacked row's details, spaced apart. When they don't fit, the last one gives way first.
 export function Parts({ items }: { items: ReactNode[] }) {
   return items.map((part, index) =>
     part === undefined || part === null || part === false || part === '' ? null : (

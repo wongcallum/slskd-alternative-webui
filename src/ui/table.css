@@ -212,10 +212,8 @@
   text-overflow: ellipsis;
 }
 
-.table-part + .table-part::before {
-  margin: 0 0.5em;
-  color: var(--gray-a8);
-  content: '·';
+.table-part + .table-part {
+  margin-left: var(--space-3);
 }
 
 .table-sorts {
