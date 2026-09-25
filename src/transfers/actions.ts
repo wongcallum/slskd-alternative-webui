@@ -1,3 +1,5 @@
+import { isHTTPError } from 'ky'
+
 import { type Actions, actOnEach, begin as beginAction, idle, type Outcome, summarise } from '../lib/actions'
 import { api, describeError } from '../lib/api'
 import { type Atom, createAtom } from '../lib/store'
@@ -69,16 +71,27 @@ export async function retry(files: Transfer[]) {
     files.map((file) => file.id),
   )
   const infos = new Map<string, BatchInfo>()
+  // Retrying without the batch's destination would land the files somewhere else, unless the batch is gone.
+  const unreadable = new Map<string, string>()
   for (const batchId of new Set(files.map((file) => file.batchId))) {
     if (batchId === undefined) continue
     try {
       const info = api.get(`transfers/downloads/batches/${batchId}`, { signal: operation.signal })
       infos.set(batchId, await info.json<BatchInfo>())
-    } catch {
+    } catch (error) {
       if (operation.signal.aborted) return
+      if (!isHTTPError(error) || error.response.status !== 404) unreadable.set(batchId, describeError(error))
     }
   }
-  const groups = Map.groupBy(files, (file) => `${file.username}\n${file.batchId ?? ''}`)
+  const skipped = new Set(files.filter((file) => file.batchId !== undefined && unreadable.has(file.batchId)))
+  const details = [...new Set([...skipped].map((file) => file.batchId))].map(
+    (batchId) => `Couldn't read the batch to keep its folder: ${unreadable.get(batchId ?? '')}`,
+  )
+  operation.advance([...skipped].map((file) => file.id))
+  const groups = Map.groupBy(
+    files.filter((file) => !skipped.has(file)),
+    (file) => `${file.username}\n${file.batchId ?? ''}`,
+  )
   const batches = [...groups.values()].map((batch) => {
     const [{ username, batchId }] = batch as [Transfer]
     const info = batchId === undefined ? undefined : infos.get(batchId)
@@ -92,7 +105,9 @@ export async function retry(files: Transfer[]) {
   })
   const result = await enqueueBatches(operation, batches)
   if (result === undefined) return
-  operation.finish(summarise('Retried', files.length, result.failed, result.details, 'download'))
+  operation.finish(
+    summarise('Retried', files.length, skipped.size + result.failed, [...details, ...result.details], 'download'),
+  )
 }
 
 function setLookup(id: string, lookup: Lookup) {
