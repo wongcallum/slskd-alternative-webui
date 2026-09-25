@@ -129,7 +129,11 @@ export function FolderPane({ share, folder, unknown, fetchedAt, matches, sort, o
         </Flex>
       </Flex>
       {items.length === 0 ? (
-        <Empty>{matches !== undefined ? 'Nothing matches here.' : 'This folder is empty.'}</Empty>
+        matches === undefined ? (
+          <Empty>This folder is empty.</Empty>
+        ) : (
+          <NoMatches folder={folder} matches={matches} />
+        )
       ) : (
         <ItemList
           share={share}
@@ -140,5 +144,25 @@ export function FolderPane({ share, folder, unknown, fetchedAt, matches, sort, o
         />
       )}
     </Flex>
+  )
+}
+
+function NoMatches({ folder, matches }: { folder: Folder; matches: Matches }) {
+  let above = folder.parent
+  while (above !== undefined && !matches.counts.has(above)) above = above.parent
+  if (above === undefined) return <Empty>Nothing in this share matches.</Empty>
+  const path = above.path
+  return (
+    <Empty
+      actions={
+        <Link asChild>
+          <RouterLink from="/browse" to="/browse" search={(previous) => ({ ...previous, path })}>
+            Show {plural(matches.counts.get(above) ?? 0, 'match', 'matches')} in {above.name}
+          </RouterLink>
+        </Link>
+      }
+    >
+      Nothing in this folder matches.
+    </Empty>
   )
 }
