@@ -1,5 +1,5 @@
 import { ChevronDownIcon, ChevronRightIcon } from '@radix-ui/react-icons'
-import { Button, Flex, SegmentedControl, Select, Text } from '@radix-ui/themes'
+import { Button, Flex, SegmentedControl, Text } from '@radix-ui/themes'
 import { defaultRangeExtractor, type Range, useVirtualizer } from '@tanstack/react-virtual'
 import { type ReactNode, useCallback, useRef } from 'react'
 
@@ -7,7 +7,7 @@ import { countFiles } from '../lib/files'
 import { formatSpeed, plural } from '../lib/format'
 import { useFrom } from '../lib/media'
 import { useAtom } from '../lib/store'
-import { ConfirmButton } from '../ui/controls'
+import { type Choices, ChoiceSelect, ConfirmButton } from '../ui/controls'
 import {
   ColumnHeader,
   columnsHeight,
@@ -200,7 +200,7 @@ export function TransferList(props: ListProps) {
 
 const allFiles = (groups: Group[]) => groups.flatMap((group) => group.files)
 
-const shows: [Show, string][] = [
+const shows: Choices<Show> = [
   ['all', 'All'],
   ['succeeded', 'Succeeded'],
   ['failed', 'Failed'],
@@ -210,23 +210,9 @@ const shows: [Show, string][] = [
 // A select below md, where the segmented control doesn't fit beside the summary and the buttons.
 function ShowControl({ show, onShowChange }: { show: Show; onShowChange: (show: Show) => void }) {
   const md = useFrom('md')
-  const change = (value: string) => onShowChange(value as Show)
-  if (!md) {
-    return (
-      <Select.Root size="1" value={show} onValueChange={change}>
-        <Select.Trigger variant="soft" color="gray" aria-label="Show" />
-        <Select.Content>
-          {shows.map(([value, label]) => (
-            <Select.Item key={value} value={value}>
-              {label}
-            </Select.Item>
-          ))}
-        </Select.Content>
-      </Select.Root>
-    )
-  }
+  if (!md) return <ChoiceSelect label="Show" size="1" soft choices={shows} value={show} onChange={onShowChange} />
   return (
-    <SegmentedControl.Root size="1" value={show} onValueChange={change}>
+    <SegmentedControl.Root size="1" value={show} onValueChange={(value) => onShowChange(value as Show)}>
       {shows.map(([value, label]) => (
         <SegmentedControl.Item key={value} value={value}>
           {label}

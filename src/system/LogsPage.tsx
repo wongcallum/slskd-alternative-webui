@@ -1,14 +1,14 @@
-import { Flex, Select, Text } from '@radix-ui/themes'
+import { Flex, Text } from '@radix-ui/themes'
 import { memo, type ReactNode, useId, useMemo, useState } from 'react'
 import * as v from 'valibot'
 
-import { formatFullPreciseTime, formatPreciseTime } from '../lib/format'
+import { formatFullPreciseTime } from '../lib/format'
 import { oneOf, textParam } from '../lib/params'
-import { type Color, useFilterText } from '../ui/controls'
+import { type Choices, ChoiceSelect, type Color, useFilterText } from '../ui/controls'
 import { DetailsPane, Preformatted } from '../ui/details'
-import { HeldList, HeldToolbar, useHold } from '../ui/hold'
+import { HeldList, HeldRow, HeldToolbar, useHold } from '../ui/hold'
 import { Empty, Freshness, Polling } from '../ui/status'
-import { Cell, GridRow, type Layout, Parts, StackedRow } from '../ui/table'
+import { Cell, type Layout } from '../ui/table'
 import {
   type Level,
   logMatcher,
@@ -28,7 +28,12 @@ export const logsSearchDefaults = { q: '', level: 'debug' } as const
 
 export type LogsSearch = v.InferOutput<typeof logsSearch>
 
-const minimumLabels: Record<MinimumLevel, string> = { debug: 'Debug', info: 'Info', warning: 'Warning', error: 'Error' }
+const minimumChoices: Choices<MinimumLevel> = [
+  ['debug', 'Debug'],
+  ['info', 'Info'],
+  ['warning', 'Warning'],
+  ['error', 'Error'],
+]
 
 const levelLabels: Record<Level, string> = {
   Verbose: 'Verbose',
@@ -135,16 +140,7 @@ function LevelSelect({ value, onChange }: { value: MinimumLevel; onChange: (leve
       <Text as="label" size="2" color="gray" htmlFor={id}>
         Level at least
       </Text>
-      <Select.Root value={value} onValueChange={(level) => onChange(level as MinimumLevel)}>
-        <Select.Trigger id={id} />
-        <Select.Content>
-          {minimumLevels.map((level) => (
-            <Select.Item key={level} value={level}>
-              {minimumLabels[level]}
-            </Select.Item>
-          ))}
-        </Select.Content>
-      </Select.Root>
+      <ChoiceSelect id={id} choices={minimumChoices} value={value} onChange={onChange} />
     </Flex>
   )
 }
@@ -182,39 +178,28 @@ const LogRow = memo(function LogRow({ record, layout, selected, onSelect }: LogR
     </>
   )
   const source = shortName(record.subContext ?? record.context)
-  if (layout === 'stacked') {
-    return (
-      <StackedRow
-        selected={selected}
-        dimmed={isQuiet(record.level)}
-        title={message}
-        meta={
-          <Parts
-            items={[formatPreciseTime(record.time), <LevelText key="level" level={record.level} size="1" />, source]}
-          />
-        }
-        style={{ cursor: 'pointer' }}
-        onClick={() => onSelect(record)}
-      />
-    )
-  }
   return (
-    <GridRow
-      template={templates[layout]}
+    <HeldRow
+      layout={layout}
+      templates={templates}
+      time={record.time}
       selected={selected}
       dimmed={isQuiet(record.level)}
-      style={{ cursor: 'pointer' }}
+      title={message}
+      details={[<LevelText key="level" level={record.level} size="1" />, source]}
+      cells={
+        <>
+          <div className="table-cell">
+            <LevelText level={record.level} />
+          </div>
+          <Cell title={sourceOf(record)}>{source}</Cell>
+          <Flex className="table-cell" align="center" gap="2" title={record.firstLine}>
+            {message}
+          </Flex>
+        </>
+      }
       onClick={() => onSelect(record)}
-    >
-      <Cell title={formatFullPreciseTime(record.time)}>{formatPreciseTime(record.time)}</Cell>
-      <div className="table-cell">
-        <LevelText level={record.level} />
-      </div>
-      <Cell title={sourceOf(record)}>{source}</Cell>
-      <Flex className="table-cell" align="center" gap="2" title={record.firstLine}>
-        {message}
-      </Flex>
-    </GridRow>
+    />
   )
 })
 

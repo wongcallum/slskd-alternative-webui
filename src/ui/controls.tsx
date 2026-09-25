@@ -10,6 +10,7 @@ import {
   type FlexProps,
   IconButton,
   Popover,
+  Select,
   Text,
   TextField,
   type TextProps,
@@ -257,6 +258,44 @@ export function FilterField({
     <Box flexGrow={{ initial: '1', sm: '0' }} flexBasis={{ initial: '160px', sm: width }} minWidth="0">
       {field}
     </Box>
+  )
+}
+
+export type Choices<V extends string> = readonly (readonly [V, string, ...unknown[]])[]
+
+export function ChoiceSelect<V extends string>({
+  choices,
+  value,
+  onChange,
+  id,
+  label,
+  size,
+  soft,
+}: {
+  choices: Choices<V>
+  value: V
+  onChange: (value: V) => void
+  id?: string
+  label?: string
+  size?: '1' | '2'
+  soft?: boolean
+}) {
+  return (
+    <Select.Root size={size} value={value} onValueChange={(next) => onChange(next as V)}>
+      <Select.Trigger
+        id={id}
+        variant={soft ? 'soft' : undefined}
+        color={soft ? 'gray' : undefined}
+        aria-label={label}
+      />
+      <Select.Content>
+        {choices.map(([choice, text]) => (
+          <Select.Item key={choice} value={choice}>
+            {text}
+          </Select.Item>
+        ))}
+      </Select.Content>
+    </Select.Root>
   )
 }
 

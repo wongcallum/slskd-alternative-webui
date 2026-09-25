@@ -1,10 +1,10 @@
 import { MixerHorizontalIcon } from '@radix-ui/react-icons'
-import { Button, Flex, Grid, Popover, Select, Text, TextField } from '@radix-ui/themes'
+import { Button, Flex, Grid, Popover, Text, TextField } from '@radix-ui/themes'
 import { type ReactNode, useId, useState } from 'react'
 import * as v from 'valibot'
 
 import { positiveDecimal, positiveInteger } from '../../lib/params'
-import { CheckboxField } from '../../ui/controls'
+import { CheckboxField, ChoiceSelect } from '../../ui/controls'
 import { countFilters, type FilterSearch, noFilters, qualities } from './params'
 
 type FiltersProps = { filters: FilterSearch; onChange: (patch: Partial<FilterSearch>) => void; children?: ReactNode }
@@ -25,20 +25,13 @@ export function FiltersButton({ filters, onChange, children }: FiltersProps) {
           <Text as="label" size="2" htmlFor={qualityId}>
             Quality at least
           </Text>
-          <Select.Root
+          <ChoiceSelect
+            id={qualityId}
             size="1"
+            choices={qualities}
             value={filters.quality}
-            onValueChange={(quality) => onChange({ quality: quality as FilterSearch['quality'] })}
-          >
-            <Select.Trigger id={qualityId} />
-            <Select.Content>
-              {qualities.map(([value, label]) => (
-                <Select.Item key={value} value={value}>
-                  {label}
-                </Select.Item>
-              ))}
-            </Select.Content>
-          </Select.Root>
+            onChange={(quality) => onChange({ quality })}
+          />
           <AmountField
             label="Min file size"
             unit="MiB"

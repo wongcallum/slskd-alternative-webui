@@ -1,12 +1,25 @@
+import { ReloadIcon, TrashIcon } from '@radix-ui/react-icons'
 import { Flex, Link } from '@radix-ui/themes'
 import { Link as RouterLink } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 
 import { describeError } from '../lib/api'
 import type { RecordList } from '../lib/db'
-import { Toolbar } from './controls'
+import { GatedIconButton, Toolbar } from './controls'
 import { Empty, ErrorCallout, Loading } from './status'
-import { ColumnHeader, HeaderRow, type Layout, rowHeight, stackedHeight, useListLayout, VirtualTable } from './table'
+import {
+  ActionsCell,
+  ColumnHeader,
+  GridRow,
+  HeaderRow,
+  type Layout,
+  Parts,
+  rowHeight,
+  StackedRow,
+  stackedHeight,
+  useListLayout,
+  VirtualTable,
+} from './table'
 
 type Column = { label: string; end?: boolean; wide?: boolean }
 
@@ -78,20 +91,71 @@ export function UserListPage<E extends { username: string }>({
   )
 }
 
-export function UserLink({ username, to }: { username: string; to: '/browse' | '/users' }) {
+type To = '/browse' | '/users'
+
+// A stored user's row. Stacked, a status replaces the details while there is one.
+export function UserListRow({
+  username,
+  to,
+  layout,
+  templates,
+  status,
+  details,
+  cells,
+  onDelete,
+  again,
+}: {
+  username: string
+  to: To
+  layout: Layout
+  templates: Record<Exclude<Layout, 'stacked'>, string>
+  status: ReactNode
+  details: ReactNode[]
+  cells: ReactNode
+  onDelete?: () => void
+  again: { label: string; gate?: string; onClick: () => void }
+}) {
+  const actions = (
+    <>
+      {onDelete !== undefined && (
+        <GatedIconButton label="Delete" onClick={onDelete}>
+          <TrashIcon />
+        </GatedIconButton>
+      )}
+      <GatedIconButton label={again.label} gate={again.gate} onClick={again.onClick}>
+        <ReloadIcon />
+      </GatedIconButton>
+    </>
+  )
+  if (layout === 'stacked') {
+    return (
+      <StackedRow
+        title={<UserLink username={username} to={to} />}
+        meta={status ?? <Parts items={details} />}
+        actions={actions}
+      />
+    )
+  }
+  return (
+    <GridRow template={templates[layout]}>
+      <div className="table-cell" title={username}>
+        <UserLink username={username} to={to} />
+      </div>
+      {cells}
+      <Flex className="table-cell" align="center">
+        {status}
+      </Flex>
+      <ActionsCell>{actions}</ActionsCell>
+    </GridRow>
+  )
+}
+
+function UserLink({ username, to }: { username: string; to: To }) {
   return (
     <Link asChild size="2" weight="medium" truncate>
       <RouterLink to={to} search={{ user: username }}>
         {username}
       </RouterLink>
     </Link>
-  )
-}
-
-export function UserLinkCell({ username, to }: { username: string; to: '/browse' | '/users' }) {
-  return (
-    <div className="table-cell" title={username}>
-      <UserLink username={username} to={to} />
-    </div>
   )
 }
