@@ -3,7 +3,7 @@
 - Don't write tests.
 - By default, write no comments. Comments are written when there is behaviour that would surprise a competent reader of the code.
 - Read the docs instead of trusting your training knowledge.
-- Throwaway scripts, screenshots and dumps go in `$TMPDIR`.
+- Throwaway scripts, screenshots and dumps go in `/tmp`.
 - Read README.md, docs/design.md and docs/facts.md
 - Browser checks: `playwright-core` with `executablePath: process.env.CHROMIUM`, run from the repo root as `node --input-type=module <<'EOF'`.
   Never run `playwright install`. If `$CHROMIUM` is unset, run under `devenv shell --`.
