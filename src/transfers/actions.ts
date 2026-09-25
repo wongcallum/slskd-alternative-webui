@@ -2,17 +2,14 @@ import { isHTTPError } from 'ky'
 
 import { type Actions, actOnEach, begin as beginAction, idle, type Outcome, summarise } from '../lib/actions'
 import { api, describeError } from '../lib/api'
-import { type Atom, createAtom } from '../lib/store'
+import { createAtom } from '../lib/store'
 import { sessionSignal } from '../session/session'
 import { enqueueBatches } from './enqueue'
-import { type Direction, type Transfer, transfers } from './transfers'
+import { type Direction, perDirection, type Transfer, transfers } from './transfers'
 
 type ActionKind = 'retry' | 'cancel' | 'remove' | 'clear'
 
-export const actions: Record<Direction, Atom<Actions<ActionKind>>> = {
-  download: createAtom<Actions<ActionKind>>(idle),
-  upload: createAtom<Actions<ActionKind>>(idle),
-}
+export const actions = perDirection(() => createAtom<Actions<ActionKind>>(idle))
 
 export type Lookup = { pending: boolean; place?: number; error?: string; at?: number }
 

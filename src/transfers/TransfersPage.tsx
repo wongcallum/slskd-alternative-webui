@@ -26,6 +26,7 @@ import {
   isFinished,
   isRetryable,
   pollInterval,
+  shows,
   type Transfer,
   type Transfers,
   transfers,
@@ -33,7 +34,7 @@ import {
 
 export const transfersSearch = v.object({
   q: textParam,
-  show: oneOf(['all', 'succeeded', 'failed', 'cancelled'], 'all'),
+  show: oneOf(shows, 'all'),
   activeSort: sortOf(columnIds.active),
   finishedSort: sortOf(columnIds.finished),
 })

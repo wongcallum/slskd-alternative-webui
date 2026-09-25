@@ -1,37 +1,26 @@
-import {
-  createColumnHelper,
-  createExpandedRowModel,
-  createSortedRowModel,
-  type Row,
-  rowExpandingFeature,
-  rowSelectionFeature,
-  rowSortingFeature,
-  sortFn_basic,
-  tableFeatures,
-  type useTable,
-} from '@tanstack/react-table'
+import { createColumnHelper, type Row, sortFn_basic, type useTable } from '@tanstack/react-table'
 
 import { createAtom } from '../../lib/store'
-import { type Expansion, type Layout, sortByName, stackedHeight, stackedHeight3, type Templates } from '../../ui/table'
+import {
+  type Expansion,
+  groupFeatures,
+  type Layout,
+  sortByName,
+  stackedHeight,
+  stackedHeight3,
+  type Templates,
+} from '../../ui/table'
 import { availability, type ResultFile, type ResultGroup } from './results'
 
 export const columnIds = ['name', 'user', 'files', 'size', 'quality', 'length', 'speed', 'queue'] as const
 
-export const features = tableFeatures({
-  rowSortingFeature,
-  sortedRowModel: createSortedRowModel(),
-  rowExpandingFeature,
-  expandedRowModel: createExpandedRowModel(),
-  rowSelectionFeature,
-})
-
 type Item = ResultGroup | ResultFile
 
-export type TableRow = Row<typeof features, Item>
+export type TableRow = Row<typeof groupFeatures, Item>
 
-export type ResultTable = ReturnType<typeof useTable<typeof features, Item>>
+export type ResultTable = ReturnType<typeof useTable<typeof groupFeatures, Item>>
 
-const helper = createColumnHelper<typeof features, Item>()
+const helper = createColumnHelper<typeof groupFeatures, Item>()
 
 export const columns = helper.columns([
   helper.accessor((item) => item.name, { id: 'name', sortFn: sortByName, sortDescFirst: false }),

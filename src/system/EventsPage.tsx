@@ -13,7 +13,7 @@ import { HeldList, HeldRow, HeldToolbar, useHold } from '../ui/hold'
 import { Busy, Empty, Freshness, Polling } from '../ui/status'
 import { Cell, type Layout, rowHeight } from '../ui/table'
 import { YamlView } from '../ui/YamlView'
-import { UserMenu } from '../users/UserMenu'
+import { UserCell, UserMenu } from '../users/UserMenu'
 import {
   type EventRecord,
   eventMatcher,
@@ -278,13 +278,7 @@ const EventRow = memo(function EventRow({ record, layout, selected, onSelect }: 
       cells={
         <>
           <Cell title={record.type}>{typeLabel(record.type)}</Cell>
-          <div className="table-cell" title={user}>
-            {user !== undefined && (
-              <Text size="2">
-                <UserMenu username={user} />
-              </Text>
-            )}
-          </div>
+          <UserCell username={user} />
           <Flex className="table-cell" align="center" gap="2" title={text}>
             {details}
           </Flex>

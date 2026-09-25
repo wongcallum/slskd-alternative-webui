@@ -206,7 +206,7 @@ export function TransferList(props: ListProps) {
 
 const allFiles = (groups: Group[]) => groups.flatMap((group) => group.files)
 
-const shows: Choices<Show> = [
+const showChoices: Choices<Show> = [
   ['all', 'All'],
   ['succeeded', 'Succeeded'],
   ['failed', 'Failed'],
@@ -216,10 +216,10 @@ const shows: Choices<Show> = [
 // A select below md, where the segmented control doesn't fit beside the summary and the buttons.
 function ShowControl({ show, onShowChange }: { show: Show; onShowChange: (show: Show) => void }) {
   const md = useFrom('md')
-  if (!md) return <ChoiceSelect label="Show" size="1" soft choices={shows} value={show} onChange={onShowChange} />
+  if (!md) return <ChoiceSelect label="Show" size="1" soft choices={showChoices} value={show} onChange={onShowChange} />
   return (
     <SegmentedControl.Root size="1" value={show} onValueChange={(value) => onShowChange(value as Show)}>
-      {shows.map(([value, label]) => (
+      {showChoices.map(([value, label]) => (
         <SegmentedControl.Item key={value} value={value}>
           {label}
         </SegmentedControl.Item>

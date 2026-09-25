@@ -1,12 +1,10 @@
-import { Spinner } from '@radix-ui/themes'
 import { Link as RouterLink } from '@tanstack/react-router'
 
-import { formatBytes } from '../../lib/format'
 import { useAtom } from '../../lib/store'
 import { filesUnder, type Item, type TreeFile } from '../../lib/tree'
-import { useSoulseekGate } from '../../soulseek/soulseek'
+import { DownloadButton } from '../../transfers/DownloadButton'
 import { MarkBadge } from '../../transfers/MarkBadge'
-import { ActionButton, OutcomeLine } from '../../ui/controls'
+import { OutcomeLine } from '../../ui/controls'
 import { audioColumns } from '../../ui/tree/columns'
 import type { FolderLinkProps, Selection, TreeConfig } from '../../ui/tree/FolderPane'
 import type { FileBadge } from '../../ui/tree/ItemList'
@@ -20,8 +18,6 @@ const selectable = (item: Item) => (item.kind === 'folder' ? item.fileCount > it
 
 function DownloadAction({ username, selection }: { username: string; selection: Selection }) {
   const { tree, folder, items, clear } = selection
-  const soulseekGate = useSoulseekGate()
-  const downloads = useAtom(shareDownloadsOf(username))
   let count = 0
   let size = 0
   for (const item of items) {
@@ -29,11 +25,10 @@ function DownloadAction({ username, selection }: { username: string; selection: 
     size += item.kind === 'folder' ? item.size - item.lockedSize : item.size
   }
   return (
-    <ActionButton
-      label={`Download ${count.toLocaleString()} (${formatBytes(size)})`}
-      busy="Enqueueing"
-      progress={downloads.running.download}
-      gate={soulseekGate}
+    <DownloadButton
+      downloads={shareDownloadsOf(username)}
+      count={count}
+      size={size}
       onClick={() =>
         void downloadFiles(
           username,
@@ -53,13 +48,7 @@ function downloadBadge(username: string) {
   if (badge === undefined) {
     badge = function DownloadBadge({ file }: { file: TreeFile }) {
       const { pending, marks } = useAtom(shareDownloadsOf(username))
-      const mark = marks.get(file.id)
-      return (
-        <>
-          {mark !== undefined && <MarkBadge mark={mark} />}
-          {pending.has(file.id) && <Spinner size="1" />}
-        </>
-      )
+      return <MarkBadge mark={marks.get(file.id)} pending={pending.has(file.id)} />
     }
     badges.set(username, badge)
   }
