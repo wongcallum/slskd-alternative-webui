@@ -4,7 +4,7 @@ import { useSyncExternalStore } from 'react'
 import { http } from '../lib/api'
 import { createListeners } from '../lib/listeners'
 
-export type Session =
+type Session =
   | { status: 'checking' }
   | { status: 'unreachable'; error: unknown; retry: () => void }
   | { status: 'open' }

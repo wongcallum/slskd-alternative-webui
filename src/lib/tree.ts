@@ -1,7 +1,7 @@
 import { describeRange, qualityOf, type RawFile } from './files'
 import { byName, parseQuery } from './text'
 
-export type InputFile = RawFile & { modifiedAt?: number; hidden?: boolean; link?: boolean }
+type InputFile = RawFile & { modifiedAt?: number; hidden?: boolean; link?: boolean }
 
 export type InputDirectory = { name: string; files: InputFile[]; modifiedAt?: number; hidden?: boolean }
 

@@ -155,7 +155,7 @@ export async function createSearch(text: string) {
   return raw.id
 }
 
-export type ListActionKind = 'stop' | 'delete'
+type ListActionKind = 'stop' | 'delete'
 
 export const listActions = createAtom<Actions<ListActionKind>>(idle)
 

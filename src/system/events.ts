@@ -16,7 +16,7 @@ type RawData = {
   transfer?: { username?: string }
 }
 
-export type Summary = { user?: string; room?: string; text?: string; replayed?: boolean }
+type Summary = { user?: string; room?: string; text?: string; replayed?: boolean }
 
 export type EventRecord = {
   id: string

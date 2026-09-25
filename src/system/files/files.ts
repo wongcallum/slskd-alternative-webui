@@ -9,7 +9,7 @@ type RawEntry = { name: string; fullName: string; attributes: string; modifiedAt
 
 type RawListing = RawEntry & { files: RawEntry[]; directories: RawEntry[] }
 
-export const roots = [
+const roots = [
   { id: 'downloads', name: 'Downloads' },
   { id: 'incomplete', name: 'Incomplete' },
 ] as const
@@ -186,7 +186,7 @@ export function targetsOf(items: readonly Item[]): Target[] {
   return targets
 }
 
-export type FileActions = Actions<'delete'> & { sharedDeleted: boolean }
+type FileActions = Actions<'delete'> & { sharedDeleted: boolean }
 
 export const fileActions = createAtom<FileActions>({ ...idle, sharedDeleted: false })
 

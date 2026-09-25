@@ -9,7 +9,7 @@ import { urlBase } from './urlBase'
 
 export type HubStatus = { state: 'stopped' | 'connecting' | 'connected' | 'reconnecting'; attempt: number }
 
-export type Hub = {
+type Hub = {
   subscribe: (listener: () => void) => () => void
   watch: (listener: () => void) => () => void
   getStatus: () => HubStatus

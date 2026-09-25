@@ -22,7 +22,7 @@ import { type FileBadge, ItemList } from './ItemList'
 // It's rendered through Radix's Link with asChild, so it has to pass the props it's given on to its anchor.
 export type FolderLinkProps = { path: string } & Omit<ComponentProps<'a'>, 'href'>
 
-export type FolderLink = ComponentType<FolderLinkProps>
+type FolderLink = ComponentType<FolderLinkProps>
 
 // What a view adds to the shared tree: its columns and how to link to a folder, and optionally what can be selected,
 // what to do with a selection, what to show beside it, and a badge on files.

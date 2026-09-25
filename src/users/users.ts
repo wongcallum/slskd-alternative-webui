@@ -7,10 +7,10 @@ import { describePeerError } from '../soulseek/soulseek'
 export type Presence = 'Online' | 'Away' | 'Offline'
 
 // From the server, along with the address.
-export type UserStatus = { presence: Presence; privileged: boolean; address?: string; fetchedAt: number }
+type UserStatus = { presence: Presence; privileged: boolean; address?: string; fetchedAt: number }
 
 // From the user's own client. The picture is stored apart, so the list stays small.
-export type UserInfo = {
+type UserInfo = {
   description: string
   hasPicture: boolean
   freeSlot: boolean
@@ -175,7 +175,7 @@ type RawDirection = {
   exceptions: { exception: string; count: number }[]
 }
 
-export type Reason = { exception: string; count: number }
+type Reason = { exception: string; count: number }
 
 export type DirectionHistory = {
   total: number
@@ -186,7 +186,7 @@ export type DirectionHistory = {
   reasons: readonly Reason[]
 }
 
-export type History = { download: DirectionHistory; upload: DirectionHistory }
+type History = { download: DirectionHistory; upload: DirectionHistory }
 
 // slskd's own errored count takes four exact states, so failed is whatever else didn't succeed.
 const directionOf = (raw: RawDirection): DirectionHistory => ({

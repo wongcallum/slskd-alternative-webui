@@ -31,7 +31,7 @@ export function qualityOf(file: RawFile): [number, string] {
   return [-1, '']
 }
 
-export type Rated = { quality: number; qualityLabel: string; bitRate?: number }
+type Rated = { quality: number; qualityLabel: string; bitRate?: number }
 
 export function describeRange(worst: Rated | undefined, best: Rated | undefined): [number, string] {
   if (worst === undefined || best === undefined) return [-1, '']
