@@ -33,6 +33,11 @@ const viewLabels: Record<OptionView, string> = { effective: 'Effective', file: '
 
 const checking = "Checking slskd's options"
 
+const checkingStart = 'Checking how slskd was started'
+
+// A gate that's only waiting for an answer shows as loading, not as a reason.
+const waiting = (gate: string | undefined) => gate === checking || gate === checkingStart
+
 const remoteOff = "slskd's remote_configuration is off"
 
 function fileGate(data: Options | undefined) {
@@ -45,7 +50,7 @@ function sourcesGate(data: Options | undefined, startup: { data?: { debug: boole
   if (gate !== undefined) return gate
   if (startup.data === undefined) {
     return startup.error === undefined
-      ? 'Checking how slskd was started'
+      ? checkingStart
       : `Can't tell how slskd was started: ${describeError(startup.error)}`
   }
   return startup.data.debug ? undefined : "slskd wasn't started with debug on"
@@ -223,7 +228,8 @@ function FileView({ control, gate, known }: { control: ReactNode; gate?: string;
 
   let content: ReactNode
   if (text === undefined) {
-    if (!available) content = <Unavailable>{gate}, so the file can't be read or saved here.</Unavailable>
+    if (waiting(gate)) content = <Loading />
+    else if (!available) content = <Unavailable>{gate}, so the file can't be read or saved here.</Unavailable>
     else if (file.readError !== undefined) content = <Unavailable>Can't read the file: {file.readError}</Unavailable>
     else content = <Loading />
   } else {
@@ -383,6 +389,11 @@ const providerPattern = /^(.*?)( \([A-Za-z]+ConfigurationProvider.*\))$/
 function SourcesView({ control, gate }: { control: ReactNode; gate?: string }) {
   return gate === undefined ? (
     <SourcesContent control={control} />
+  ) : waiting(gate) ? (
+    <SystemPage>
+      <Toolbar control={control} />
+      <Loading />
+    </SystemPage>
   ) : (
     <SystemPage>
       <Toolbar control={control} />
