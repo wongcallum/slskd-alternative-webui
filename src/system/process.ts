@@ -5,9 +5,9 @@ type Metric = { samples: { value: number; labels?: Record<string, string> }[] }
 
 type Metrics = Partial<Record<string, Metric>>
 
-export type ProcessInfo = { startedAt?: number; runtime?: string; os?: string; architecture?: string; memory?: number }
+type ProcessInfo = { startedAt?: number; runtime?: string; os?: string; architecture?: string; memory?: number }
 
-export const processPollInterval = 10_000
+const processPollInterval = 10_000
 
 // slskd answers with JSON only when Accept is exactly application/json, which is what ky sends for .json().
 export const processInfo = createResource<ProcessInfo>((sink) =>

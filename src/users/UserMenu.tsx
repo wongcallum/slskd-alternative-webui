@@ -1,5 +1,5 @@
 import './users.css'
-import { DropdownMenu } from '@radix-ui/themes'
+import { DropdownMenu, Text } from '@radix-ui/themes'
 import { useNavigate } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 
@@ -41,6 +41,18 @@ function Items({ username, here }: { username: string; here?: Place }) {
       )}
       {here !== 'browse' && <DropdownMenu.Item onSelect={() => browseUser(username)}>Browse</DropdownMenu.Item>}
     </>
+  )
+}
+
+export function UserCell({ username }: { username?: string }) {
+  return (
+    <div className="table-cell" title={username}>
+      {username !== undefined && (
+        <Text size="2">
+          <UserMenu username={username} />
+        </Text>
+      )}
+    </div>
   )
 }
 

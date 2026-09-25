@@ -3,8 +3,9 @@ import { useSyncExternalStore } from 'react'
 
 import { http } from '../lib/api'
 import { createListeners } from '../lib/listeners'
+import { onStoredChange } from '../lib/stored'
 
-export type Session =
+type Session =
   | { status: 'checking' }
   | { status: 'unreachable'; error: unknown; retry: () => void }
   | { status: 'open' }
@@ -104,8 +105,7 @@ export function logout() {
   settle({ status: 'anonymous', ended: false })
 }
 
-function onStorage(event: StorageEvent) {
-  if (event.storageArea !== localStorage || (event.key !== null && event.key !== tokenKey)) return
+function onTokenChange() {
   if (session.status === 'open') return
   const token = localStorage.getItem(tokenKey)
   if (token !== null) {
@@ -114,6 +114,6 @@ function onStorage(event: StorageEvent) {
 }
 
 export function startSession() {
-  window.addEventListener('storage', onStorage)
+  onStoredChange(tokenKey, onTokenChange)
   void check(false)
 }

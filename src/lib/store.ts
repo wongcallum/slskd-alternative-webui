@@ -1,3 +1,4 @@
+import { functionalUpdate } from '@tanstack/react-table'
 import { useSyncExternalStore } from 'react'
 
 import { onSessionEnd } from '../session/session'
@@ -29,6 +30,12 @@ export function shallowEqual<T extends object>(a: T, b: T) {
   const keys = Object.keys(a) as (keyof T)[]
   return keys.length === Object.keys(b).length && keys.every((key) => Object.is(a[key], b[key]))
 }
+
+// The previous array while nothing in it changed, since every push and poll carries new ones.
+export const sameItems = <T>(previous: readonly T[] | undefined, next: readonly T[]) =>
+  previous !== undefined && previous.length === next.length && previous.every((each, i) => Object.is(each, next[i]))
+    ? previous
+    : next
 
 export function createResource<T extends object>(start: (sink: Sink<T>) => Source): Resource<T> {
   let snapshot: Snapshot<T> = {}
@@ -180,6 +187,27 @@ export function poll<T>(
   }
 }
 
+// Resolves true once the data passes, or false at the timeout. The resource keeps running meanwhile.
+export function waitFor<T>(resource: Resource<T>, passes: (data: T) => boolean, signal: AbortSignal, timeout: number) {
+  return new Promise<boolean>((resolve, reject) => {
+    const timer = setTimeout(() => finish(() => resolve(false)), timeout)
+    const check = () => {
+      const { data } = resource.getSnapshot()
+      if (data !== undefined && passes(data)) finish(() => resolve(true))
+    }
+    const onAbort = () => finish(() => reject(signal.reason))
+    const unsubscribe = resource.subscribe(check)
+    signal.addEventListener('abort', onAbort)
+    function finish(settle: () => void) {
+      clearTimeout(timer)
+      unsubscribe()
+      signal.removeEventListener('abort', onAbort)
+      settle()
+    }
+    check()
+  })
+}
+
 export const useResource = <T>(resource: Resource<T>) => useSyncExternalStore(resource.subscribe, resource.getSnapshot)
 
 export const useWatchedResource = <T>(resource: Resource<T>) =>
@@ -235,8 +263,7 @@ export function createAtom<T>(initial: T): Atom<T> {
   const atom: Atom<T> = {
     get: () => value,
     set(next) {
-      // oxlint-disable-next-line unicorn/no-instanceof-builtins -- typeof can't narrow a generic T
-      value = next instanceof Function ? next(value) : next
+      value = functionalUpdate(next, value)
       listeners.notify()
     },
     subscribe: listeners.add,

@@ -11,10 +11,19 @@ import type { ReactNode } from 'react'
 
 import { formatDuration } from '../../lib/format'
 import { useFrom } from '../../lib/media'
+import { sortOf, textParam } from '../../lib/params'
 import { byName, compareNames } from '../../lib/text'
 import type { Item } from '../../lib/tree'
 
-export const paneColumnIds = ['name', 'folder', 'files', 'size'] as const
+const paneColumnIds = ['name', 'folder', 'files', 'size'] as const
+
+export const treeSearch = <const T extends string>(extraIds: readonly T[]) => ({
+  path: textParam,
+  q: textParam,
+  sort: sortOf([...paneColumnIds, ...extraIds]),
+})
+
+export const treeSearchDefaults = { path: '', q: '' } as const
 
 // Each view adds its own columns after the name, files or folder, and size. A wide one only shows from lg.
 export type ExtraColumn = {
@@ -46,7 +55,7 @@ export const paneColumns = (extras: readonly ExtraColumn[]) =>
     ),
   )
 
-export type PaneWidth = 'stacked' | 'narrow' | 'medium' | 'wide'
+type PaneWidth = 'stacked' | 'narrow' | 'medium' | 'wide'
 
 export function usePaneWidth(): PaneWidth {
   const sm = useFrom('sm')

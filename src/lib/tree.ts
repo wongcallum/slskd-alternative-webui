@@ -1,7 +1,7 @@
-import { describeRange, qualityOf, type RawFile } from './files'
-import { byName, parseQuery } from './text'
+import { describeRange, qualityOf, type RawFile, widenRange } from './files'
+import { byName, queryMatcher } from './text'
 
-export type InputFile = RawFile & { modifiedAt?: number; hidden?: boolean; link?: boolean }
+type InputFile = RawFile & { modifiedAt?: number; hidden?: boolean; link?: boolean }
 
 export type InputDirectory = { name: string; files: InputFile[]; modifiedAt?: number; hidden?: boolean }
 
@@ -101,9 +101,7 @@ function total(folder: Folder) {
       folder.lockedCount++
       folder.lockedSize += file.size
     }
-    if (file.quality < 0) continue
-    if (folder.worst === undefined || file.quality < folder.worst.quality) folder.worst = file
-    if (folder.best === undefined || file.quality > folder.best.quality) folder.best = file
+    widenRange(folder, file)
   }
   for (const child of folder.folders) {
     total(child)
@@ -112,12 +110,8 @@ function total(folder: Folder) {
     folder.size += child.size
     folder.lockedSize += child.lockedSize
     folder.length += child.length
-    if (child.worst !== undefined && (folder.worst === undefined || child.worst.quality < folder.worst.quality)) {
-      folder.worst = child.worst
-    }
-    if (child.best !== undefined && (folder.best === undefined || child.best.quality > folder.best.quality)) {
-      folder.best = child.best
-    }
+    widenRange(folder, child.worst)
+    widenRange(folder, child.best)
   }
   ;[folder.quality, folder.qualityLabel] = describeRange(folder.worst, folder.best)
 }
@@ -208,19 +202,13 @@ export function nearestFolder(tree: Tree, path: string) {
 export type Matches = { own: ReadonlyMap<Folder, TreeFile[]>; counts: ReadonlyMap<Folder, number> }
 
 export function matchTree(tree: Tree, query: string): Matches | undefined {
-  const { include, exclude } = parseQuery(query)
-  if (include.length + exclude.length === 0) return undefined
+  const matches = queryMatcher(query)
+  if (matches === undefined) return undefined
   const own = new Map<Folder, TreeFile[]>()
   const counts = new Map<Folder, number>()
-  function visit(folder: Folder) {
+  const visit = (folder: Folder): number => {
     let count = 0
-    const matched: TreeFile[] = []
-    for (const file of folder.files) {
-      const search = folder.search + tree.separator + file.name.toLowerCase()
-      if (include.every((term) => search.includes(term)) && !exclude.some((term) => search.includes(term))) {
-        matched.push(file)
-      }
-    }
+    const matched = folder.files.filter((file) => matches(folder.search + tree.separator + file.name.toLowerCase()))
     if (matched.length > 0) {
       own.set(folder, matched.sort(byName))
       count += matched.length

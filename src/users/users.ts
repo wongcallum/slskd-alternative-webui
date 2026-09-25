@@ -1,16 +1,16 @@
 import { api, describeError } from '../lib/api'
-import { announce, createRecordList, type Database, db, onAnnounce } from '../lib/db'
-import { createAtom, createResource, createResourceMap, without } from '../lib/store'
+import { announce, createRecordList, type Database, db, onAnnounce, removeUser } from '../lib/db'
+import { createAtom, createResource, createResourceMap, load, without } from '../lib/store'
 import { sessionSignal } from '../session/session'
 import { describePeerError } from '../soulseek/soulseek'
 
 export type Presence = 'Online' | 'Away' | 'Offline'
 
 // From the server, along with the address.
-export type UserStatus = { presence: Presence; privileged: boolean; address?: string; fetchedAt: number }
+type UserStatus = { presence: Presence; privileged: boolean; address?: string; fetchedAt: number }
 
 // From the user's own client. The picture is stored apart, so the list stays small.
-export type UserInfo = {
+type UserInfo = {
   description: string
   hasPicture: boolean
   freeSlot: boolean
@@ -37,7 +37,9 @@ export const lookedUpAt = (record: UserRecord) => Math.max(record.status?.fetche
 
 const kept = 100
 
-export const { list: userList, load: loadUserList } = createRecordList('users')
+const { list: userList, load: loadUserList, useList } = createRecordList('users')
+
+export const useUserList = useList
 
 // A picture that's been read, or null for none.
 export const pictures = createAtom<ReadonlyMap<string, string | null>>(new Map())
@@ -62,14 +64,7 @@ export const lookupErrors = createAtom<ReadonlyMap<string, LookupErrors>>(new Ma
 
 export const dismissLookupErrors = (username: string) => lookupErrors.set((current) => without(current, username))
 
-async function remove(database: Database, username: string) {
-  const transaction = database.transaction(['users', 'pictures'], 'readwrite')
-  await Promise.all([
-    transaction.objectStore('users').delete(username),
-    transaction.objectStore('pictures').delete(username),
-    transaction.done,
-  ])
-}
+const remove = (database: Database, username: string) => removeUser(database, ['users', 'pictures'], username)
 
 async function evict(database: Database) {
   const records = await database.getAll('users')
@@ -175,7 +170,7 @@ type RawDirection = {
   exceptions: { exception: string; count: number }[]
 }
 
-export type Reason = { exception: string; count: number }
+type Reason = { exception: string; count: number }
 
 export type DirectionHistory = {
   total: number
@@ -186,7 +181,7 @@ export type DirectionHistory = {
   reasons: readonly Reason[]
 }
 
-export type History = { download: DirectionHistory; upload: DirectionHistory }
+type History = { download: DirectionHistory; upload: DirectionHistory }
 
 // slskd's own errored count takes four exact states, so failed is whatever else didn't succeed.
 const directionOf = (raw: RawDirection): DirectionHistory => ({
@@ -200,19 +195,12 @@ const directionOf = (raw: RawDirection): DirectionHistory => ({
 
 // Read from slskd's own database, so it loads with the page rather than on a gesture.
 export const transferHistory = createResourceMap((username) =>
-  createResource<History>((sink) => {
-    const controller = new AbortController()
-    async function load() {
-      try {
-        const raw = await api
-          .get(`telemetry/reports/transfers/users/${encodeURIComponent(username)}`, { signal: controller.signal })
-          .json<{ Download: RawDirection; Upload: RawDirection }>()
-        sink.set({ download: directionOf(raw.Download), upload: directionOf(raw.Upload) })
-      } catch (error) {
-        if (!controller.signal.aborted) sink.fail(error)
-      }
-    }
-    void load()
-    return { stop: () => controller.abort(), refresh: () => void load() }
-  }),
+  createResource<History>((sink) =>
+    load(sink, async (signal) => {
+      const raw = await api
+        .get(`telemetry/reports/transfers/users/${encodeURIComponent(username)}`, { signal })
+        .json<{ Download: RawDirection; Upload: RawDirection }>()
+      return { download: directionOf(raw.Download), upload: directionOf(raw.Upload) }
+    }),
+  ),
 )

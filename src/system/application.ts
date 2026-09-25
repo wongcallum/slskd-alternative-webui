@@ -1,6 +1,6 @@
 import { api } from '../lib/api'
-import { applicationHub, followHub, useLive, type Via } from '../lib/hubs'
-import { createAtom, createResource, useResource } from '../lib/store'
+import { applicationHub, followHub, useLiveResource, type Via } from '../lib/hubs'
+import { createAtom, createResource, sameItems } from '../lib/store'
 
 // GET /application omits nulls, while the hub keeps them.
 type RawState = {
@@ -93,14 +93,6 @@ export const applicationPollInterval = 2000
 // Release builds report a fourth version part of 0, which their tags don't have.
 const trimVersion = (version: string) => version.replace(/^(\d+\.\d+\.\d+)\.0$/, '$1')
 
-let rooms: readonly string[] = []
-
-// Every push carries a new array, which would count as a change.
-function sameRooms(next: string[]) {
-  if (next.length !== rooms.length || next.some((room, index) => room !== rooms[index])) rooms = next
-  return rooms
-}
-
 function fromState(via: Via, state: RawState): Application {
   const { version, server, user, distributedNetwork: network, shares } = state
   const incoming = state.health.search.incoming
@@ -142,7 +134,7 @@ function fromState(via: Via, state: RawState): Application {
     children: network.children.length,
     childLimit: network.childLimit,
     acceptsChildren: network.canAcceptChildren,
-    rooms: sameRooms(state.rooms),
+    rooms: sameItems(application.getSnapshot().data?.rooms, state.rooms),
   }
 }
 
@@ -172,6 +164,8 @@ application.watch(() => {
   if (username !== undefined && username !== ownUsername.get()) ownUsername.set(username)
 })
 
+export const stateGate = (known: boolean) => (known ? undefined : "slskd's state is out of date")
+
 export const releaseNotes = (version: string) => `https://github.com/slskd/slskd/releases/tag/${version}`
 
 // slskd clears scanPending after a cancelled scan, although searches then miss what it added. During a scan, scanPending
@@ -187,28 +181,4 @@ export function pendingItems(data: Application) {
   return items
 }
 
-export function useApplication() {
-  const { data, error } = useResource(application)
-  return { data, error, ...useLive(data?.via, applicationHub, application, applicationPollInterval) }
-}
-
-export function waitForApplication(predicate: (data: Application) => boolean, signal: AbortSignal, timeout: number) {
-  return new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(() => finish(new Error('Timed out waiting for slskd')), timeout)
-    const check = () => {
-      const { data } = application.getSnapshot()
-      if (data !== undefined && predicate(data)) finish()
-    }
-    const onAbort = () => finish(signal.reason)
-    const unsubscribe = application.subscribe(check)
-    signal.addEventListener('abort', onAbort)
-    function finish(error?: unknown) {
-      clearTimeout(timer)
-      unsubscribe()
-      signal.removeEventListener('abort', onAbort)
-      if (error === undefined) resolve()
-      else reject(error)
-    }
-    check()
-  })
-}
+export const useApplication = () => useLiveResource(application, applicationHub, applicationPollInterval)

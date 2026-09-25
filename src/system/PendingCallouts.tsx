@@ -9,7 +9,7 @@ import { useRun } from '../lib/useRun'
 import { useSession } from '../session/session'
 import { reconnect } from '../soulseek/soulseek'
 import { ActionButton, ConfirmButton } from '../ui/controls'
-import { type Application, rescanNeeded } from './application'
+import { type Application, rescanNeeded, stateGate } from './application'
 import { lifecycle, restart } from './lifecycle'
 
 export function PendingCallout({ error, children }: { error?: string; children: ReactNode }) {
@@ -33,13 +33,11 @@ export function PendingCallout({ error, children }: { error?: string; children: 
   )
 }
 
-const outOfDate = "slskd's state is out of date"
-
 export function useLifecycleGate(known: boolean) {
   const { phase } = useAtom(lifecycle)
   if (phase === 'restarting') return 'slskd is restarting'
   if (phase === 'shutDown') return 'slskd is shut down'
-  return known ? undefined : outOfDate
+  return stateGate(known)
 }
 
 export function RestartButton({ known, color }: { known: boolean; color?: 'amber' }) {
@@ -49,7 +47,6 @@ export function RestartButton({ known, color }: { known: boolean; color?: 'amber
   return (
     <ConfirmButton
       label="Restart"
-      busy="Restarting"
       color={color}
       gate={gate ?? (browsing ? 'Wait for the browse to finish' : undefined)}
       title="Restart slskd?"
@@ -81,7 +78,6 @@ export function PendingCallouts({ data, known }: { data: Application; known: boo
           <Callout.Text>Changed Soulseek settings apply after a reconnect.</Callout.Text>
           <ActionButton
             label="Reconnect"
-            busy="Reconnecting"
             color="amber"
             loading={reconnecting.running}
             gate={known ? undefined : 'Soulseek status unknown'}

@@ -7,7 +7,7 @@ export const toStringOptions: ToStringOptions = { lineWidth: 0 }
 
 export type YamlKind = 'key' | 'string' | 'literal' | 'comment'
 
-export type YamlPart = { start: number; text: string; kind?: YamlKind }
+type YamlPart = { start: number; text: string; kind?: YamlKind }
 
 // Everything that isn't a scalar is indentation, punctuation or a comment, so a '#' outside the scalars starts one.
 export function highlightYaml(source: string): YamlPart[] {

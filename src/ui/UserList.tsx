@@ -17,6 +17,7 @@ import {
   rowHeight,
   StackedRow,
   stackedHeight,
+  type Templates,
   useListLayout,
   VirtualTable,
 } from './table'
@@ -24,6 +25,17 @@ import {
 type Column = { label: string; end?: boolean; wide?: boolean }
 
 const entryKey = (entry: { username: string }) => entry.username
+
+export function UserPage({ toolbar, children }: { toolbar: ReactNode; children: ReactNode }) {
+  return (
+    <Flex direction="column" height="100%">
+      <Toolbar gap="4" py="3">
+        {toolbar}
+      </Toolbar>
+      {children}
+    </Flex>
+  )
+}
 
 // A landing page: a box to ask for a user, over everyone stored, running or failed.
 export function UserListPage<E extends { username: string }>({
@@ -41,7 +53,7 @@ export function UserListPage<E extends { username: string }>({
   list: RecordList<unknown>
   what: string
   empty: string
-  templates: Record<Exclude<Layout, 'stacked'>, string>
+  templates: Templates
   minWidth: number
   columns: Column[]
   entries: readonly E[]
@@ -81,14 +93,7 @@ export function UserListPage<E extends { username: string }>({
       />
     )
   }
-  return (
-    <Flex direction="column" height="100%">
-      <Toolbar gap="4" py="3">
-        {toolbar}
-      </Toolbar>
-      {content}
-    </Flex>
-  )
+  return <UserPage toolbar={toolbar}>{content}</UserPage>
 }
 
 type To = '/browse' | '/users'
@@ -108,7 +113,7 @@ export function UserListRow({
   username: string
   to: To
   layout: Layout
-  templates: Record<Exclude<Layout, 'stacked'>, string>
+  templates: Templates
   status: ReactNode
   details: ReactNode[]
   cells: ReactNode

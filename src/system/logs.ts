@@ -1,7 +1,7 @@
 import { api } from '../lib/api'
-import { followHub, logsHub, useLive, type Via } from '../lib/hubs'
-import { createResource, useResource } from '../lib/store'
-import { parseQuery } from '../lib/text'
+import { followHub, logsHub, useLiveResource, type Via } from '../lib/hubs'
+import { createResource } from '../lib/store'
+import { queryMatcher } from '../lib/text'
 
 // GET /logs omits a null subContext, while the hub keeps it.
 type RawLog = { timestamp: string; context: string; subContext?: string | null; level: Level; message: string }
@@ -111,17 +111,11 @@ export const logs = createResource<Logs>((sink) => {
   }
 })
 
-export function useLogs() {
-  const { data, error } = useResource(logs)
-  return { data, error, ...useLive(data?.via, logsHub, logs, logPollInterval) }
-}
+export const useLogs = () => useLiveResource(logs, logsHub, logPollInterval)
 
 export function logMatcher(minimum: MinimumLevel, query: string) {
   const rank = minimumRank[minimum]
-  const { include, exclude } = parseQuery(query)
-  if (rank === 0 && include.length + exclude.length === 0) return undefined
-  return (record: LogRecord) =>
-    levels.indexOf(record.level) >= rank &&
-    include.every((term) => record.search.includes(term)) &&
-    !exclude.some((term) => record.search.includes(term))
+  const matches = queryMatcher(query)
+  if (rank === 0 && matches === undefined) return undefined
+  return (record: LogRecord) => levels.indexOf(record.level) >= rank && (matches?.(record.search) ?? true)
 }

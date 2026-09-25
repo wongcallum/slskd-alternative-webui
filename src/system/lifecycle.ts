@@ -3,10 +3,7 @@ import { applicationHub } from '../lib/hubs'
 import { createAtom } from '../lib/store'
 import { sessionSignal } from '../session/session'
 
-export type Lifecycle =
-  | { phase: 'running'; error?: string }
-  | { phase: 'restarting'; since: number }
-  | { phase: 'shutDown' }
+type Lifecycle = { phase: 'running'; error?: string } | { phase: 'restarting'; since: number } | { phase: 'shutDown' }
 
 export const lifecycle = createAtom<Lifecycle>({ phase: 'running' })
 

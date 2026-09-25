@@ -2,7 +2,7 @@ import { isHTTPError } from 'ky'
 
 import { api } from '../lib/api'
 import { createResource, createResourceMap, poll, type Resource } from '../lib/store'
-import { compareExactly } from '../lib/text'
+import { byUsername } from '../lib/text'
 import { application } from '../system/application'
 import { lastOpen, type Message, reuseMessages } from './messages'
 
@@ -31,8 +31,6 @@ export const conversationPollInterval = 2000
 export const conversationMessageLimit = 100
 
 const path = (username: string) => `conversations/${encodeURIComponent(username)}`
-
-const byUsername = (a: Conversation, b: Conversation) => compareExactly(a.username, b.username)
 
 // Polled wherever the app is open, for the unread count in the nav and the title, which shows in a hidden tab too.
 export const conversations = createResource<Conversations>((sink) => {

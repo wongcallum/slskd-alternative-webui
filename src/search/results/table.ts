@@ -1,37 +1,26 @@
-import {
-  createColumnHelper,
-  createExpandedRowModel,
-  createSortedRowModel,
-  type Row,
-  rowExpandingFeature,
-  rowSelectionFeature,
-  rowSortingFeature,
-  sortFn_basic,
-  tableFeatures,
-  type useTable,
-} from '@tanstack/react-table'
+import { createColumnHelper, type Row, sortFn_basic, type useTable } from '@tanstack/react-table'
 
 import { createAtom } from '../../lib/store'
-import { type Expansion, type Layout, sortByName, stackedHeight, stackedHeight3 } from '../../ui/table'
+import {
+  type Expansion,
+  groupFeatures,
+  type Layout,
+  sortByName,
+  stackedHeight,
+  stackedHeight3,
+  type Templates,
+} from '../../ui/table'
 import { availability, type ResultFile, type ResultGroup } from './results'
 
 export const columnIds = ['name', 'user', 'files', 'size', 'quality', 'length', 'speed', 'queue'] as const
 
-export const features = tableFeatures({
-  rowSortingFeature,
-  sortedRowModel: createSortedRowModel(),
-  rowExpandingFeature,
-  expandedRowModel: createExpandedRowModel(),
-  rowSelectionFeature,
-})
-
 type Item = ResultGroup | ResultFile
 
-export type TableRow = Row<typeof features, Item>
+export type TableRow = Row<typeof groupFeatures, Item>
 
-export type ResultTable = ReturnType<typeof useTable<typeof features, Item>>
+export type ResultTable = ReturnType<typeof useTable<typeof groupFeatures, Item>>
 
-const helper = createColumnHelper<typeof features, Item>()
+const helper = createColumnHelper<typeof groupFeatures, Item>()
 
 export const columns = helper.columns([
   helper.accessor((item) => item.name, { id: 'name', sortFn: sortByName, sortDescFirst: false }),
@@ -61,7 +50,7 @@ export const columnLabels: Record<(typeof columnIds)[number], string> = {
 
 export const endAligned = new Set<string>(['files', 'size', 'length', 'speed', 'queue'])
 
-export const templates: Record<Exclude<Layout, 'stacked'>, string> = {
+export const templates: Templates = {
   wide: '40px minmax(280px, 1fr) 150px 90px 100px 160px 80px 110px 80px 132px',
   medium: '40px minmax(260px, 1fr) 120px 60px 90px 120px 90px 60px 132px',
 }

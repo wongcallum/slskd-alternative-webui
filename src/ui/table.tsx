@@ -1,7 +1,16 @@
 import './table.css'
 import { ArrowDownIcon, ArrowUpIcon, ChevronDownIcon, ChevronRightIcon } from '@radix-ui/react-icons'
 import { Checkbox, Flex, type FlexProps, Text, VisuallyHidden } from '@radix-ui/themes'
-import { constructSortFn, type ExpandedStateList } from '@tanstack/react-table'
+import {
+  constructSortFn,
+  createExpandedRowModel,
+  createSortedRowModel,
+  type ExpandedStateList,
+  rowExpandingFeature,
+  rowSelectionFeature,
+  rowSortingFeature,
+  tableFeatures,
+} from '@tanstack/react-table'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import {
   type CSSProperties,
@@ -27,6 +36,14 @@ const preventShiftSelection = (event: MouseEvent) => {
 
 export const sortByName = constructSortFn({ sort: compareNames })
 
+export const groupFeatures = tableFeatures({
+  rowSortingFeature,
+  sortedRowModel: createSortedRowModel(),
+  rowExpandingFeature,
+  expandedRowModel: createExpandedRowModel(),
+  rowSelectionFeature,
+})
+
 export type Expansion = { all: boolean; toggled: ExpandedStateList }
 
 export const collapsed: Expansion = { all: false, toggled: {} }
@@ -45,6 +62,12 @@ export function expandedState(expansion: Expansion, rows: Iterable<{ id: string 
   for (const { id } of rows) all[id] = isExpanded(expansion, id)
   return all
 }
+
+export const groupState = (row: {
+  getIsExpanded: () => boolean
+  getIsAllSubRowsSelected: () => boolean
+  getIsSomeSelected: () => boolean
+}) => ({ expanded: row.getIsExpanded(), selected: row.getIsAllSubRowsSelected(), partial: row.getIsSomeSelected() })
 
 type SelectableRow = {
   subRows: readonly unknown[]
@@ -76,6 +99,8 @@ export const stackedHeight3 = 72
 export const columnsHeight = 32
 
 export type Layout = 'stacked' | 'medium' | 'wide'
+
+export type Templates = Record<Exclude<Layout, 'stacked'>, string>
 
 export function useLayout(): Layout {
   const md = useFrom('md')
