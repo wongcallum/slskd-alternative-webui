@@ -180,6 +180,27 @@ export function DismissibleText({
   )
 }
 
+// Why an action failed, or else why it can't be done yet.
+export function ActionNote({
+  error,
+  gate,
+  size,
+  mt,
+}: {
+  error?: string
+  gate?: string
+  size: '1' | '2'
+  mt?: '1' | '2'
+}) {
+  const text = error ?? gate
+  if (text === undefined) return null
+  return (
+    <Text as="p" size={size} mt={mt} color={error === undefined ? 'gray' : 'red'}>
+      {text}
+    </Text>
+  )
+}
+
 export function Busy({ children }: { children: ReactNode }) {
   return (
     <Flex align="center" gap="2" minWidth="0">

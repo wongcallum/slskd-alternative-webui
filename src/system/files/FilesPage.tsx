@@ -11,7 +11,7 @@ import { Ago, FetchedResource, Fetching } from '../../ui/status'
 import type { ExtraColumn } from '../../ui/tree/columns'
 import type { Selection, TreeConfig } from '../../ui/tree/FolderPane'
 import { TreeView } from '../../ui/tree/TreeView'
-import { useApplication } from '../application'
+import { stateGate, useApplication } from '../application'
 import { useOptions } from '../options/options'
 import { rescan } from '../shares/shares'
 import { SystemPage } from '../SystemPage'
@@ -150,7 +150,7 @@ function SharedHint() {
       <ActionButton
         label="Rescan"
         loading={run.running}
-        gate={known ? undefined : "slskd's state is out of date"}
+        gate={stateGate(known)}
         onClick={() =>
           run.run(async () => {
             await rescan()

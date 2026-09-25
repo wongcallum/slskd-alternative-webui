@@ -26,6 +26,18 @@ type Column = { label: string; end?: boolean; wide?: boolean }
 
 const entryKey = (entry: { username: string }) => entry.username
 
+// A page about one user or all of them, whose toolbar leads with a box to ask for a user.
+export function UserPage({ toolbar, children }: { toolbar: ReactNode; children: ReactNode }) {
+  return (
+    <Flex direction="column" height="100%">
+      <Toolbar gap="4" py="3">
+        {toolbar}
+      </Toolbar>
+      {children}
+    </Flex>
+  )
+}
+
 // A landing page: a box to ask for a user, over everyone stored, running or failed.
 export function UserListPage<E extends { username: string }>({
   toolbar,
@@ -82,14 +94,7 @@ export function UserListPage<E extends { username: string }>({
       />
     )
   }
-  return (
-    <Flex direction="column" height="100%">
-      <Toolbar gap="4" py="3">
-        {toolbar}
-      </Toolbar>
-      {content}
-    </Flex>
-  )
+  return <UserPage toolbar={toolbar}>{content}</UserPage>
 }
 
 type To = '/browse' | '/users'

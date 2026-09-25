@@ -8,9 +8,10 @@ import { describeError } from '../lib/api'
 import { formatBytes, plural } from '../lib/format'
 import { useAtom, useResource } from '../lib/store'
 import { useSoulseekGate } from '../soulseek/soulseek'
-import { ActionButton, Tip, Toolbar } from '../ui/controls'
+import { ActionButton, Tip } from '../ui/controls'
 import { LinkedText } from '../ui/LinkedText'
 import { Ago, Busy, Loading } from '../ui/status'
+import { UserPage } from '../ui/UserList'
 import { LookUpBox } from './LookUpBox'
 import { LookupErrorLine, PresenceLabel } from './LookupStatus'
 import {
@@ -55,25 +56,28 @@ export function ProfilePage({ username }: { username: string }) {
   }
 
   return (
-    <Flex direction="column" height="100%">
-      <Toolbar gap="4" py="3">
-        <LookUpBox current={username} />
-        {record !== undefined && (
-          <Flex ml="auto" align="center" gap="3" flexShrink="0">
-            <Text size="2" color="gray">
-              Updated <Ago time={lookedUpAt(record)} />
-            </Text>
-            <ActionButton label="Look up again" loading={running} gate={gate} onClick={() => void lookUp(username)} />
-          </Flex>
-        )}
-      </Toolbar>
+    <UserPage
+      toolbar={
+        <>
+          <LookUpBox current={username} />
+          {record !== undefined && (
+            <Flex ml="auto" align="center" gap="3" flexShrink="0">
+              <Text size="2" color="gray">
+                Updated <Ago time={lookedUpAt(record)} />
+              </Text>
+              <ActionButton label="Look up again" loading={running} gate={gate} onClick={() => void lookUp(username)} />
+            </Flex>
+          )}
+        </>
+      }
+    >
       <Box flexGrow="1" overflow="auto">
         <Flex direction="column" gap="4" p="4" maxWidth="900px">
           {content}
           <TransferHistory username={username} />
         </Flex>
       </Box>
-    </Flex>
+    </UserPage>
   )
 }
 

@@ -11,6 +11,7 @@ import { type Choices, ChoiceSelect, ConfirmButton } from '../ui/controls'
 import {
   ColumnHeader,
   columnsHeight,
+  groupState,
   HeaderRow,
   type Layout,
   rowHeight,
@@ -159,9 +160,7 @@ export function TransferList(props: ListProps) {
           group={original}
           direction={direction}
           layout={layout}
-          expanded={row.getIsExpanded()}
-          selected={row.getIsAllSubRowsSelected()}
-          partial={row.getIsSomeSelected()}
+          {...groupState(row)}
           gate={gates.soulseek}
           onSelect={onSelect[section]}
           onToggle={onToggle}

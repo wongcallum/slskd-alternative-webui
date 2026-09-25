@@ -24,7 +24,14 @@ import {
 import { audioColumns } from '../../ui/tree/columns'
 import type { TreeConfig } from '../../ui/tree/FolderPane'
 import { TreeView } from '../../ui/tree/TreeView'
-import { type Application, application, applicationPollInterval, rescanNeeded, useApplication } from '../application'
+import {
+  type Application,
+  application,
+  applicationPollInterval,
+  rescanNeeded,
+  stateGate,
+  useApplication,
+} from '../application'
 import { useOptions } from '../options/options'
 import { PendingCallout } from '../PendingCallouts'
 import { SystemPage } from '../SystemPage'
@@ -80,7 +87,7 @@ function pendingReason(data: Application) {
 
 function ScanBar({ data, known }: { data: Application; known: boolean }) {
   const run = useRun()
-  const gate = known ? undefined : "slskd's state is out of date"
+  const gate = stateGate(known)
   if (data.scanning) {
     return (
       <Bar error={run.error}>
