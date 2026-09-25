@@ -36,6 +36,7 @@ export function createResource<T extends object>(start: (sink: Sink<T>) => Sourc
   const listeners = createListeners()
   let subscribers = 0
   let source: Source | undefined
+  let stopTimer: ReturnType<typeof setTimeout> | undefined
 
   function emit(next: Snapshot<T>) {
     snapshot = next
@@ -72,13 +73,16 @@ export function createResource<T extends object>(start: (sink: Sink<T>) => Sourc
   return {
     subscribe(listener) {
       const unwatch = listeners.add(listener)
-      if (++subscribers === 1) source = start(createSink())
+      clearTimeout(stopTimer)
+      if (++subscribers === 1) source ??= start(createSink())
       return () => {
         unwatch()
-        if (--subscribers === 0) {
+        if (--subscribers > 0) return
+        // A page that reads it too may be mounting in the same commit, as between the search list and its results.
+        stopTimer = setTimeout(() => {
           source?.stop()
           source = undefined
-        }
+        })
       }
     },
     watch: listeners.add,
