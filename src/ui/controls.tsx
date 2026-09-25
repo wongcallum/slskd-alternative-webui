@@ -119,9 +119,10 @@ export function GatedIconButton({
   )
 }
 
+// While there's progress, the button counts it after its busy label.
 type ActionButtonProps = {
   label: string
-  busy: string
+  busy?: string
   progress?: Progress
   loading?: boolean
   gate?: string
@@ -142,7 +143,7 @@ export function ActionButton({ label, busy, progress, loading, gate, color, onCl
     >
       {progress === undefined
         ? label
-        : `${busy} ${progress.done.toLocaleString()} / ${progress.total.toLocaleString()}`}
+        : `${busy ?? label} ${progress.done.toLocaleString()} / ${progress.total.toLocaleString()}`}
     </Button>
   )
   return gate === undefined || progress !== undefined ? button : <Tip content={gate}>{button}</Tip>

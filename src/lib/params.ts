@@ -39,3 +39,6 @@ export function useSortParam<S extends string>(sort: S | undefined, onChange: (s
     onChange(formatSort(functionalUpdate(updater, sorting)) as S | undefined)
   return { sorting, onSortingChange }
 }
+
+// A page's search params, and how it changes them.
+export type SearchProps<S> = { search: S; onSearchChange: (patch: Partial<S>) => void }

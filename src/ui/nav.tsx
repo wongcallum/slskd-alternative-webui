@@ -1,4 +1,5 @@
-import { TabNav } from '@radix-ui/themes'
+import { ArrowLeftIcon } from '@radix-ui/react-icons'
+import { IconButton, TabNav } from '@radix-ui/themes'
 import { Link, type LinkProps, useMatchRoute } from '@tanstack/react-router'
 import { type CSSProperties, type ReactNode, useEffect, useRef } from 'react'
 
@@ -10,6 +11,16 @@ export function NavTabs({ children }: { children: ReactNode }) {
 export type To = NonNullable<LinkProps['to']>
 
 const none: To[] = []
+
+export function BackLink({ to, label }: { to: To; label: string }) {
+  return (
+    <IconButton asChild variant="ghost" color="gray" aria-label={label}>
+      <Link to={to}>
+        <ArrowLeftIcon />
+      </Link>
+    </IconButton>
+  )
+}
 
 export function useIsActive() {
   const matchRoute = useMatchRoute()

@@ -17,6 +17,7 @@ import {
   rowHeight,
   StackedRow,
   stackedHeight,
+  type Templates,
   useListLayout,
   VirtualTable,
 } from './table'
@@ -41,7 +42,7 @@ export function UserListPage<E extends { username: string }>({
   list: RecordList<unknown>
   what: string
   empty: string
-  templates: Record<Exclude<Layout, 'stacked'>, string>
+  templates: Templates
   minWidth: number
   columns: Column[]
   entries: readonly E[]
@@ -108,7 +109,7 @@ export function UserListRow({
   username: string
   to: To
   layout: Layout
-  templates: Record<Exclude<Layout, 'stacked'>, string>
+  templates: Templates
   status: ReactNode
   details: ReactNode[]
   cells: ReactNode

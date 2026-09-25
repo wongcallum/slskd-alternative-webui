@@ -2,6 +2,7 @@ import { Flex, Text } from '@radix-ui/themes'
 import { memo, type ReactNode, useId, useMemo, useState } from 'react'
 
 import { formatFullPreciseTime } from '../lib/format'
+import type { SearchProps } from '../lib/params'
 import { type Choices, ChoiceSelect, type Color, useFilterText } from '../ui/controls'
 import { DetailsPane, Preformatted } from '../ui/details'
 import { HeldList, HeldRow, HeldToolbar, useHold } from '../ui/hold'
@@ -52,10 +53,7 @@ const none: LogRecord[] = []
 // Held records are kept whole, since records are also dropped at the bottom.
 type Marker = { records: LogRecord[]; newest: number }
 
-type Props = {
-  search: LogsSearch
-  onSearchChange: (patch: Partial<LogsSearch>) => void
-}
+type Props = SearchProps<LogsSearch>
 
 export function LogsPage({ search, onSearchChange }: Props) {
   const { data, error, live } = useLogs()
@@ -106,16 +104,7 @@ export function LogsPage({ search, onSearchChange }: Props) {
   }
 
   return (
-    <SystemPage
-      status={
-        <Freshness
-          resource={logs}
-          interval={logPollInterval}
-          error={data === undefined ? undefined : error}
-          live={live}
-        />
-      }
-    >
+    <SystemPage status={<Freshness resource={logs} interval={logPollInterval} live={live} />}>
       <HeldToolbar placeholder="Filter by message or source" filter={filter} hold={hold} unseen={unseen}>
         <LevelSelect value={search.level} onChange={(level) => onSearchChange({ level })} />
       </HeldToolbar>

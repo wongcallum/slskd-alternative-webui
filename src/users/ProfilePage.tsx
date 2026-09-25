@@ -49,7 +49,7 @@ export function ProfilePage({ username }: { username: string }) {
         <Text color="gray">
           Looking up asks the Soulseek server for {username}'s status, and {username} for their profile.
         </Text>
-        <ActionButton label={`Look up ${username}`} busy="" gate={gate} onClick={() => void lookUp(username)} />
+        <ActionButton label={`Look up ${username}`} gate={gate} onClick={() => void lookUp(username)} />
       </Flex>
     )
   }
@@ -63,13 +63,7 @@ export function ProfilePage({ username }: { username: string }) {
             <Text size="2" color="gray">
               Updated <Ago time={lookedUpAt(record)} />
             </Text>
-            <ActionButton
-              label="Look up again"
-              busy=""
-              loading={running}
-              gate={gate}
-              onClick={() => void lookUp(username)}
-            />
+            <ActionButton label="Look up again" loading={running} gate={gate} onClick={() => void lookUp(username)} />
           </Flex>
         )}
       </Toolbar>

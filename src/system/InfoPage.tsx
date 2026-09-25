@@ -16,16 +16,7 @@ import { SystemPage } from './SystemPage'
 export function InfoPage() {
   const { data, error, live, known } = useApplication()
   return (
-    <SystemPage
-      status={
-        <Freshness
-          resource={application}
-          interval={applicationPollInterval}
-          error={data === undefined ? undefined : error}
-          live={live}
-        />
-      }
-    >
+    <SystemPage status={<Freshness resource={application} interval={applicationPollInterval} live={live} />}>
       <Box flexGrow="1" minHeight="0" overflow="auto">
         {data === undefined ? (
           <Polling what="slskd's state" error={error} />
@@ -96,7 +87,6 @@ function SlskdCard({ data, known }: { data: Application; known: boolean }) {
       <Flex gap="2" wrap="wrap">
         <ActionButton
           label="Check for updates"
-          busy="Checking"
           loading={check.running}
           gate={checkGate}
           onClick={() => check.run(() => api.get('application/version/latest', { searchParams: { forceCheck: true } }))}
@@ -104,7 +94,6 @@ function SlskdCard({ data, known }: { data: Application; known: boolean }) {
         <RestartButton known={known} />
         <ConfirmButton
           label="Shut down"
-          busy="Shutting down"
           color="red"
           gate={gate}
           title="Shut down slskd?"
@@ -176,7 +165,7 @@ function AccountCard({ data }: { data: Application }) {
       />
       <Flex align="center" gap="3" wrap="wrap">
         {data.username === undefined ? (
-          <ActionButton label="Get privileges" busy="" gate="No Soulseek username" onClick={() => {}} />
+          <ActionButton label="Get privileges" gate="No Soulseek username" onClick={() => {}} />
         ) : (
           <Button asChild size="1" variant="soft">
             <a

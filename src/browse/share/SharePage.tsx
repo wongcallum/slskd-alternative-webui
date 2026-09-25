@@ -5,6 +5,7 @@ import { type ReactNode, useEffect, useMemo } from 'react'
 import { describeError } from '../../lib/api'
 import { formatBytes, plural } from '../../lib/format'
 import { useFrom } from '../../lib/media'
+import type { SearchProps } from '../../lib/params'
 import { useAtom } from '../../lib/store'
 import { useSoulseekGate } from '../../soulseek/soulseek'
 import { ActionButton, Tip, Toolbar, toolbarStyle } from '../../ui/controls'
@@ -17,10 +18,7 @@ import type { BrowseSearch } from '../params'
 import { UserBox } from '../UserBox'
 import { shareConfig } from './shareConfig'
 
-type Props = {
-  search: BrowseSearch
-  onSearchChange: (patch: Partial<BrowseSearch>) => void
-}
+type Props = SearchProps<BrowseSearch>
 
 export function SharePage({ search, onSearchChange }: Props) {
   const username = search.user
@@ -66,7 +64,7 @@ export function SharePage({ search, onSearchChange }: Props) {
       <Flex direction="column" align="start" gap="3" p="5">
         <Heading size="4">Not browsed yet</Heading>
         <Text color="gray">Browsing fetches {username}'s whole share.</Text>
-        <ActionButton label={`Browse ${username}`} busy="Browsing" gate={gate} onClick={() => void browse(username)} />
+        <ActionButton label={`Browse ${username}`} gate={gate} onClick={() => void browse(username)} />
       </Flex>
     )
   } else content = <Loading />
@@ -107,7 +105,7 @@ export function SharePage({ search, onSearchChange }: Props) {
               </Text>
             )}
             {ready !== undefined && (
-              <ActionButton label="Browse again" busy="Browsing" gate={gate} onClick={() => void browse(username)} />
+              <ActionButton label="Browse again" gate={gate} onClick={() => void browse(username)} />
             )}
           </Flex>
         </Flex>

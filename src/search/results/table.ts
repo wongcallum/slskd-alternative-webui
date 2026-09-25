@@ -12,7 +12,7 @@ import {
 } from '@tanstack/react-table'
 
 import { createAtom } from '../../lib/store'
-import { type Expansion, type Layout, sortByName, stackedHeight, stackedHeight3 } from '../../ui/table'
+import { type Expansion, type Layout, sortByName, stackedHeight, stackedHeight3, type Templates } from '../../ui/table'
 import { availability, type ResultFile, type ResultGroup } from './results'
 
 export const columnIds = ['name', 'user', 'files', 'size', 'quality', 'length', 'speed', 'queue'] as const
@@ -61,7 +61,7 @@ export const columnLabels: Record<(typeof columnIds)[number], string> = {
 
 export const endAligned = new Set<string>(['files', 'size', 'length', 'speed', 'queue'])
 
-export const templates: Record<Exclude<Layout, 'stacked'>, string> = {
+export const templates: Templates = {
   wide: '40px minmax(280px, 1fr) 150px 90px 100px 160px 80px 110px 80px 132px',
   medium: '40px minmax(260px, 1fr) 120px 60px 90px 120px 90px 60px 132px',
 }
