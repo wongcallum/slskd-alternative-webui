@@ -131,7 +131,7 @@ function LandingRow({ entry }: { entry: Entry }) {
   const cached = stats !== undefined && notCached === undefined
   const gate = running === undefined ? soulseekGate : `Already browsing ${username}`
   let status: ReactNode = null
-  if (running !== undefined) status = <BrowseProgress username={username} running={running} />
+  if (running !== undefined) status = <BrowseProgress running={running} />
   else if (failure !== undefined) status = <FailureLine username={username} failure={failure} />
   else if (notCached !== undefined) {
     status = (
@@ -158,6 +158,11 @@ function LandingRow({ entry }: { entry: Entry }) {
         {status}
       </Flex>
       <ActionsCell>
+        {cached && (
+          <GatedIconButton label="Delete" onClick={() => void deleteShare(username)}>
+            <TrashIcon />
+          </GatedIconButton>
+        )}
         <GatedIconButton
           label={stats === undefined ? 'Browse again' : 'Re-browse'}
           gate={gate}
@@ -165,11 +170,6 @@ function LandingRow({ entry }: { entry: Entry }) {
         >
           <ReloadIcon />
         </GatedIconButton>
-        {cached && (
-          <GatedIconButton label="Delete" onClick={() => void deleteShare(username)}>
-            <TrashIcon />
-          </GatedIconButton>
-        )}
       </ActionsCell>
     </GridRow>
   )

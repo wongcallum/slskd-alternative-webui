@@ -154,7 +154,7 @@ export const GroupRow = memo(function GroupRow({
       <Cell end title={hidden > 0 ? `${plural(hidden, 'file')} filtered out` : undefined}>
         {hidden > 0
           ? `${group.files.length.toLocaleString()} of ${group.total.toLocaleString()}`
-          : `${group.matched.toLocaleString()}${fetched ? ` + ${extra.toLocaleString()}` : ''}`}
+          : `${group.matched.toLocaleString()}${fetched && extra > 0 ? ` + ${extra.toLocaleString()}` : ''}`}
       </Cell>
       <Cell end>{formatBytes(group.size)}</Cell>
       <Cell title={group.qualityLabel}>{group.qualityLabel}</Cell>
