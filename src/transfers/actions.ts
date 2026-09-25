@@ -99,7 +99,9 @@ function setLookup(id: string, lookup: Lookup) {
   lookups.set((current) => new Map(current).set(id, lookup))
 }
 
-export async function lookUpPositions(files: Transfer[]) {
+export async function lookUpPositions(requested: Transfer[]) {
+  const files = requested.filter((file) => lookups.get().get(file.id)?.pending !== true)
+  if (files.length === 0) return
   const signal = sessionSignal()
   lookups.set((current) => {
     const next = new Map(current)
