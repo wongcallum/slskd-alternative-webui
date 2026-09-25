@@ -162,7 +162,7 @@ export function ActionsCell({ gap = '3', children }: { gap?: FlexProps['gap']; c
 
 type SelectAll = {
   getIsAllRowsSelected: () => boolean
-  getIsSomeRowsSelected: () => boolean
+  getSelectedRowModel: () => { flatRows: readonly unknown[] }
   toggleAllRowsSelected: () => void
 }
 
@@ -172,7 +172,8 @@ export function HeaderRow({ template, table, children }: { template: string; tab
       {table !== undefined && (
         <CheckCell
           selected={table.getIsAllRowsSelected()}
-          partial={table.getIsSomeRowsSelected()}
+          // getIsSomeRowsSelected counts ids left in the state by rows that were deleted, filtered out or moved.
+          partial={table.getSelectedRowModel().flatRows.length > 0}
           onToggle={() => table.toggleAllRowsSelected()}
         />
       )}
