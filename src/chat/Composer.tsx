@@ -1,11 +1,11 @@
 import { PaperPlaneIcon } from '@radix-ui/react-icons'
-import { Box, IconButton, Text, TextField, Tooltip } from '@radix-ui/themes'
+import { Box, IconButton, Text, TextField } from '@radix-ui/themes'
 import { type KeyboardEvent, useState } from 'react'
 
 import { describeError } from '../lib/api'
 import { useAtom } from '../lib/store'
 import { useSoulseekGate } from '../soulseek/soulseek'
-import { disabledProps } from '../ui/controls'
+import { disabledProps, GateTip } from '../ui/controls'
 import { drafts } from './messages'
 
 type Props = { draftKey: string; placeholder: string; send: (text: string) => Promise<void> }
@@ -57,7 +57,7 @@ export function Composer({ draftKey, placeholder, send }: Props) {
         onKeyDown={onKeyDown}
       >
         <TextField.Slot side="right">
-          <Tooltip content={reason ?? 'Send'}>
+          <GateTip gate={reason} label="Send">
             <IconButton
               size="1"
               variant="ghost"
@@ -68,7 +68,7 @@ export function Composer({ draftKey, placeholder, send }: Props) {
             >
               <PaperPlaneIcon />
             </IconButton>
-          </Tooltip>
+          </GateTip>
         </TextField.Slot>
       </TextField.Root>
       {(error ?? gate) !== undefined && (

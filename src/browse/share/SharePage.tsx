@@ -1,12 +1,12 @@
 import { DotsHorizontalIcon } from '@radix-ui/react-icons'
-import { Flex, Heading, IconButton, Text, Tooltip } from '@radix-ui/themes'
+import { Flex, Heading, IconButton, Text } from '@radix-ui/themes'
 import { type ReactNode, useEffect, useMemo } from 'react'
 
 import { describeError } from '../../lib/api'
 import { formatBytes, plural } from '../../lib/format'
 import { useAtom } from '../../lib/store'
 import { useSoulseekGate } from '../../soulseek/soulseek'
-import { ActionButton, toolbarStyle } from '../../ui/controls'
+import { ActionButton, Tip, toolbarStyle } from '../../ui/controls'
 import { Ago, Empty, ErrorCallout, Loading } from '../../ui/status'
 import { TreeView } from '../../ui/tree/TreeView'
 import { UserMenu } from '../../users/UserMenu'
@@ -86,11 +86,11 @@ export function SharePage({ search, onSearchChange }: Props) {
         )}
         <Flex ml="auto" align="center" gap="3" flexShrink="0">
           {ready?.notCached !== undefined && (
-            <Tooltip content={ready.notCached}>
+            <Tip content={ready.notCached}>
               <Text size="2" color="amber">
                 Not cached
               </Text>
-            </Tooltip>
+            </Tip>
           )}
           {ready !== undefined && (
             <Text size="2" color="gray">

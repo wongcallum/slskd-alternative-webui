@@ -12,9 +12,10 @@ import {
   type TextProps,
   Tooltip,
 } from '@radix-ui/themes'
-import { type CSSProperties, type ReactNode, useDeferredValue, useState } from 'react'
+import { type CSSProperties, type ReactElement, type ReactNode, useDeferredValue, useState } from 'react'
 
 import { type Actions, dismissOutcome, type Progress } from '../lib/actions'
+import { useTouch } from '../lib/media'
 import { type Atom, useAtom } from '../lib/store'
 
 export type Color = NonNullable<TextProps['color']>
@@ -26,6 +27,28 @@ export const disabledProps = (disabled: boolean) => ({
   'aria-disabled': disabled || undefined,
   'data-disabled': disabled || undefined,
 })
+
+// A tooltip that a tap opens too, for what can't be learned elsewhere: why an action is disabled, or what went wrong.
+// Radix's tooltips never open from touch.
+export function Tip({ content, children }: { content: ReactNode; children: ReactElement }) {
+  const touch = useTouch()
+  if (!touch) return <Tooltip content={content}>{children}</Tooltip>
+  return (
+    <Popover.Root>
+      <Popover.Trigger>{children}</Popover.Trigger>
+      <Popover.Content size="1" maxWidth="320px">
+        <Text as="p" size="2" style={{ whiteSpace: 'pre-line', overflowWrap: 'anywhere' }}>
+          {content}
+        </Text>
+      </Popover.Content>
+    </Popover.Root>
+  )
+}
+
+// An enabled control's tooltip is only its label, so a tap goes straight to the action.
+export function GateTip({ gate, label, children }: { gate?: string; label: string; children: ReactElement }) {
+  return gate === undefined ? <Tooltip content={label}>{children}</Tooltip> : <Tip content={gate}>{children}</Tip>
+}
 
 export function GatedIconButton({
   label,
@@ -40,19 +63,22 @@ export function GatedIconButton({
   onClick: () => void
   children: ReactNode
 }) {
+  const button = (
+    <IconButton
+      size="1"
+      variant="ghost"
+      color={color}
+      aria-label={label}
+      {...disabledProps(gate !== undefined)}
+      onClick={() => gate === undefined && onClick()}
+    >
+      {children}
+    </IconButton>
+  )
   return (
-    <Tooltip content={gate ?? label}>
-      <IconButton
-        size="1"
-        variant="ghost"
-        color={color}
-        aria-label={label}
-        {...disabledProps(gate !== undefined)}
-        onClick={() => gate === undefined && onClick()}
-      >
-        {children}
-      </IconButton>
-    </Tooltip>
+    <GateTip gate={gate} label={label}>
+      {button}
+    </GateTip>
   )
 }
 
@@ -82,7 +108,7 @@ export function ActionButton({ label, busy, progress, loading, gate, color, onCl
         : `${busy} ${progress.done.toLocaleString()} / ${progress.total.toLocaleString()}`}
     </Button>
   )
-  return gate === undefined || progress !== undefined ? button : <Tooltip content={gate}>{button}</Tooltip>
+  return gate === undefined || progress !== undefined ? button : <Tip content={gate}>{button}</Tip>
 }
 
 export function ConfirmButton({

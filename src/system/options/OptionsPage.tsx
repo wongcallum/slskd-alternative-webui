@@ -1,9 +1,9 @@
-import { Box, Button, Callout, Flex, SegmentedControl, Text, Tooltip } from '@radix-ui/themes'
+import { Box, Button, Callout, Flex, SegmentedControl, Text } from '@radix-ui/themes'
 import { lazy, type ReactNode, Suspense, useEffect, useMemo, useState } from 'react'
 
 import { describeError } from '../../lib/api'
 import { useAtom, useResource } from '../../lib/store'
-import { ActionButton, disabledProps, toolbarStyle } from '../../ui/controls'
+import { ActionButton, disabledProps, Tip, toolbarStyle } from '../../ui/controls'
 import { Preformatted } from '../../ui/details'
 import { Fetched, FetchedResource, Freshness, Loading, Polling } from '../../ui/status'
 import { YamlView } from '../../ui/YamlView'
@@ -119,9 +119,9 @@ function ViewControl({
         // The tooltip goes inside, since its trigger's data-state would replace the item's.
         return (
           <SegmentedControl.Item key={id} value={id} {...disabledProps(true)} style={{ color: 'var(--gray-a9)' }}>
-            <Tooltip content={gate}>
+            <Tip content={gate}>
               <span>{viewLabels[id]}</span>
-            </Tooltip>
+            </Tip>
           </SegmentedControl.Item>
         )
       })}

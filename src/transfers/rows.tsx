@@ -1,10 +1,10 @@
 import { ListBulletIcon, ReloadIcon } from '@radix-ui/react-icons'
-import { Flex, Progress, Spinner, Text, Tooltip } from '@radix-ui/themes'
+import { Flex, Progress, Spinner, Text } from '@radix-ui/themes'
 import { memo } from 'react'
 
 import { BrowseUserButton } from '../browse/BrowseUserButton'
 import { formatBytes, formatProgress, formatSpeed, formatTime, toTime } from '../lib/format'
-import { type Color, type Detail, DetailList, DetailsButton, GatedIconButton } from '../ui/controls'
+import { type Color, type Detail, DetailList, DetailsButton, GatedIconButton, Tip } from '../ui/controls'
 import { Ago } from '../ui/status'
 import { ActionsCell, Cell, CheckCell, GridRow, GroupNameCell } from '../ui/table'
 import { UserMenu } from '../users/UserMenu'
@@ -129,11 +129,11 @@ function FileStatus({
           {label}
         </Text>
       ) : (
-        <Tooltip content={file.exception}>
+        <Tip content={file.exception}>
           <Text size="2" color={color}>
             {label}
           </Text>
-        </Tooltip>
+        </Tip>
       )}
       {file.state === 'Queued, Remotely' &&
         lookup?.pending !== true &&
@@ -150,11 +150,11 @@ function FileStatus({
           </Text>
         )}
       {lookup?.error !== undefined && !lookup.pending && file.state === 'Queued, Remotely' && (
-        <Tooltip content={lookup.error}>
+        <Tip content={lookup.error}>
           <Text size="1" color="red">
             position check failed
           </Text>
-        </Tooltip>
+        </Tip>
       )}
       {direction === 'download' && file.attempts > 1 && (
         <Text size="1" color="gray">

@@ -5,7 +5,7 @@ import { type ReactNode, useDeferredValue, useMemo, useState } from 'react'
 
 import { api, describeError } from '../lib/api'
 import { compareExactly } from '../lib/text'
-import { FilterField } from '../ui/controls'
+import { FilterField, GateTip } from '../ui/controls'
 import { ErrorCallout, Loading } from '../ui/status'
 import { ColumnHeader, GridRow, HeaderRow, VirtualTable } from '../ui/table'
 import { joinRoom, useJoinedRooms } from './rooms'
@@ -45,9 +45,9 @@ export function JoinRoomDialog({ gate, children }: { gate?: string; children: Re
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Tooltip content={gate ?? 'Join a room'}>
+      <GateTip gate={gate} label="Join a room">
         <Dialog.Trigger>{children}</Dialog.Trigger>
-      </Tooltip>
+      </GateTip>
       <Dialog.Content maxWidth="560px">
         <Dialog.Title>Join a room</Dialog.Title>
         {open && <RoomPicker listing={listing} onRetry={() => void load()} onJoined={() => setOpen(false)} />}

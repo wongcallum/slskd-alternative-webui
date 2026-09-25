@@ -1,5 +1,5 @@
 import { ChevronRightIcon, Cross2Icon } from '@radix-ui/react-icons'
-import { Box, Callout, Code, Flex, Text, Tooltip } from '@radix-ui/themes'
+import { Box, Callout, Code, Flex, Text } from '@radix-ui/themes'
 import { Link as RouterLink } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 
@@ -7,7 +7,7 @@ import { describeError } from '../../lib/api'
 import { plural } from '../../lib/format'
 import { useResource } from '../../lib/store'
 import { useRun } from '../../lib/useRun'
-import { ActionButton, toolbarStyle } from '../../ui/controls'
+import { ActionButton, Tip, toolbarStyle } from '../../ui/controls'
 import { Busy, Empty, ErrorCallout, FetchedResource, Freshness, Loading } from '../../ui/status'
 import { Cell, ColumnHeader, GridRow, HeaderRow, rowHeight } from '../../ui/table'
 import { audioColumns } from '../../ui/tree/columns'
@@ -188,9 +188,9 @@ function ShareTable({ onOpen }: { onOpen: (path: string) => void }) {
 function Count({ value }: { value?: number }) {
   if (value !== undefined) return value.toLocaleString()
   return (
-    <Tooltip content="Counted at the next scan">
+    <Tip content="Counted at the next scan">
       <span>–</span>
-    </Tooltip>
+    </Tip>
   )
 }
 
