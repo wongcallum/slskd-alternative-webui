@@ -14,7 +14,7 @@ import { BrowsePage } from '../browse/BrowsePage'
 import { type BrowseSearch, browseSearch, browseSearchDefaults } from '../browse/params'
 import { SharePage } from '../browse/share/SharePage'
 import { useResource } from '../lib/store'
-import { rememberedFilters, type ResultsSearch, resultsSearch, resultsSearchDefaults } from '../search/results/params'
+import { type ResultsSearch, resultsSearch, resultsSearchDefaults } from '../search/results/params'
 import { ResultsPage } from '../search/results/ResultsPage'
 import { searches } from '../search/searches'
 import { type SearchesSearch, SearchesPage, searchesSearch, searchesSearchDefaults } from '../search/SearchesPage'
@@ -30,13 +30,18 @@ import { Shell } from './Shell'
 
 const title = (name: string) => ({ meta: [{ title: `${name} · slskd` }] })
 
-// Params that change as you type or click replace the history entry.
+// Params that filter or sort replace the history entry. Changing a navigation param pushes one, so Back returns to it.
 function useSearchChange<T extends object>(
-  navigate: (options: { search: (previous: T) => T; replace: true }) => Promise<void>,
+  navigate: (options: { search: (previous: T) => T; replace: boolean }) => Promise<void>,
+  navigation?: keyof T,
 ) {
   return useCallback(
-    (patch: Partial<T>) => navigate({ search: (previous) => ({ ...previous, ...patch }), replace: true }),
-    [navigate],
+    (patch: Partial<T>) =>
+      navigate({
+        search: (previous) => ({ ...previous, ...patch }),
+        replace: navigation === undefined || !(navigation in patch),
+      }),
+    [navigate, navigation],
   )
 }
 
@@ -88,10 +93,6 @@ const searchRoute = createRoute({
   head: ({ params }) => title(searches.getSnapshot().data?.byId.get(params.id)?.text ?? 'Search'),
   validateSearch: resultsSearch,
   search: { middlewares: [stripSearchParams(resultsSearchDefaults)] },
-  beforeLoad: ({ search, params }) => {
-    const filters = rememberedFilters(search)
-    if (filters !== undefined) throw redirect({ to: '/searches/$id', params, search: { ...search, ...filters } })
-  },
   component: function SearchResults() {
     const { id } = searchRoute.useParams()
     const router = useRouter()
@@ -147,7 +148,7 @@ const browseRoute = createRoute({
   search: { middlewares: [stripSearchParams(browseSearchDefaults)] },
   component: function Browse() {
     const search = browseRoute.useSearch()
-    const onSearchChange = useSearchChange<BrowseSearch>(browseRoute.useNavigate())
+    const onSearchChange = useSearchChange<BrowseSearch>(browseRoute.useNavigate(), 'path')
     if (search.user === '') return <BrowsePage />
     return <SharePage key={search.user} search={search} onSearchChange={onSearchChange} />
   },
