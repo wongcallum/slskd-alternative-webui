@@ -31,7 +31,7 @@ export function AppMenu() {
           <>
             <DropdownMenu.Label>
               slskd {data.version}
-              {data.build !== undefined && ` · ${data.build} build`}
+              {data.build !== undefined && ` (${data.build} build)`}
             </DropdownMenu.Label>
             <DropdownMenu.Separator />
           </>

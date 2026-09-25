@@ -18,7 +18,7 @@ function Speed({ direction }: { direction: Direction }) {
   const tooltip =
     counts === undefined
       ? label
-      : `${exact ? '' : 'About '}${counts.running.toLocaleString()} ${direction}ing · ${counts.queued.toLocaleString()} queued`
+      : `${exact ? '' : 'About '}${counts.running.toLocaleString()} ${direction}ing and ${counts.queued.toLocaleString()} queued`
   return (
     <Tooltip content={tooltip}>
       <Button asChild variant="ghost" color="gray" style={{ justifyContent: 'start' }}>

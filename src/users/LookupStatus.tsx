@@ -29,7 +29,7 @@ export function LookupErrorLine({ username, errors }: { username: string; errors
   const { lines, color } = describeLookupErrors(errors)
   return (
     <DismissibleText color={color} title={lines.join('\n')} onDismiss={() => dismissLookupErrors(username)}>
-      {lines.join(' · ')}
+      {lines.join('. ')}
     </DismissibleText>
   )
 }

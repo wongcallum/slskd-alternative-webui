@@ -10,6 +10,7 @@ import {
   useState,
 } from 'react'
 
+import { nameOf } from '../../lib/files'
 import { plural } from '../../lib/format'
 import { byName } from '../../lib/text'
 import { type Folder, type Item, type Matches, matchesUnder, relativePath, type Tree } from '../../lib/tree'
@@ -40,7 +41,7 @@ export type TreeConfig = {
 type Props = {
   tree: Tree
   folder: Folder
-  unknown: boolean
+  missing?: string
   fetchedAt: number
   matches?: Matches
   sorting: SortingState
@@ -52,7 +53,7 @@ type Props = {
 export function FolderPane({
   tree,
   folder,
-  unknown,
+  missing,
   fetchedAt,
   matches,
   sorting,
@@ -99,37 +100,39 @@ export function FolderPane({
   else if (folder.folders.length === 0) summary = plural(folder.files.length, 'file')
   else {
     summary = plural(folder.folders.length, 'folder')
-    if (folder.files.length > 0) summary += ` · ${plural(folder.files.length, 'file')}`
+    if (folder.files.length > 0) summary += `, ${plural(folder.files.length, 'file')}`
   }
 
   return (
     <Flex direction="column" flexGrow="1" minWidth="0">
       <Flex align="center" gap="4" px="4" py="2" flexShrink="0" minHeight="48px" style={toolbarStyle}>
-        <Flex align="center" gap="1" minWidth="0" style={{ overflow: 'hidden' }}>
-          {trail.map((each, index) => (
-            <Fragment key={each.id}>
-              {index > 0 && (
-                <Text size="2" color="gray" style={{ flexShrink: 0 }}>
-                  ›
-                </Text>
-              )}
-              {each === folder ? (
-                <Text size="2" weight="medium" truncate title={each.path || each.name}>
-                  {each.name}
-                </Text>
-              ) : (
-                <Link asChild size="2" color="gray" truncate style={{ flexShrink: index === 0 ? 0 : 1 }}>
-                  <FolderLink path={each.path}>{each.name}</FolderLink>
-                </Link>
-              )}
-            </Fragment>
-          ))}
+        <Flex align="center" gap="3" minWidth="0" style={{ overflow: 'hidden' }}>
+          <Flex align="center" gap="1" minWidth="0" style={{ overflow: 'hidden' }}>
+            {trail.map((each, index) => (
+              <Fragment key={each.id}>
+                {index > 0 && (
+                  <Text size="2" color="gray" style={{ flexShrink: 0 }}>
+                    ›
+                  </Text>
+                )}
+                {each === folder ? (
+                  <Text size="2" weight="medium" truncate title={each.path || each.name}>
+                    {each.name}
+                  </Text>
+                ) : (
+                  <Link asChild size="2" color="gray" truncate style={{ flexShrink: index === 0 ? 0 : 1 }}>
+                    <FolderLink path={each.path}>{each.name}</FolderLink>
+                  </Link>
+                )}
+              </Fragment>
+            ))}
+          </Flex>
           <Text size="2" color="gray" style={{ flexShrink: 0, whiteSpace: 'nowrap' }}>
-            · {summary}
+            {summary}
           </Text>
-          {unknown && (
+          {missing !== undefined && (
             <Text size="2" color="amber" style={{ flexShrink: 0, whiteSpace: 'nowrap' }}>
-              · Not in {scope} as fetched <Ago time={fetchedAt} />
+              “{nameOf(missing)}” isn't in {scope} as of <Ago time={fetchedAt} />
             </Text>
           )}
         </Flex>

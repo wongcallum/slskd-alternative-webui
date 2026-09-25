@@ -138,8 +138,13 @@ export function EventsPage({ search, onSearchChange }: Props) {
         {data !== undefined && (
           <Text size="2" color="gray">
             {filtered
-              ? `${shown.length.toLocaleString()} of ${held.length.toLocaleString()} loaded match · ${data.total.toLocaleString()} in total`
+              ? `${shown.length.toLocaleString()} of the ${held.length.toLocaleString()} loaded events match`
               : `${held.length.toLocaleString()} of ${plural(data.total, 'event')} loaded`}
+          </Text>
+        )}
+        {data !== undefined && filtered && (
+          <Text size="2" color="gray">
+            {data.total.toLocaleString()} in total
           </Text>
         )}
       </HeldToolbar>

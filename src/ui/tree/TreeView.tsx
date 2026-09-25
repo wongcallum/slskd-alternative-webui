@@ -72,7 +72,7 @@ export function TreeView<S extends string>({ tree, fetchedAt, search, onSearchCh
         key={folder.id}
         tree={tree}
         folder={folder}
-        unknown={folder.path !== search.path}
+        missing={folder.path === search.path ? undefined : search.path}
         fetchedAt={fetchedAt}
         matches={matches}
         sorting={sorting}

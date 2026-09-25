@@ -121,7 +121,7 @@ function Profile({ record, errors }: { record: UserRecord; errors?: LookupErrors
                 {info.freeSlot ? 'Free upload slot' : 'No free upload slot'}
               </Text>
               <Text size="2" color="gray">
-                {plural(info.slots, 'upload slot')} · {info.queue.toLocaleString()} queued
+                {plural(info.slots, 'upload slot')}, {info.queue.toLocaleString()} queued
               </Text>
               {info.fetchedAt < newest && <AsOf time={info.fetchedAt} />}
             </Flex>
@@ -180,7 +180,7 @@ function CachedShare({ username }: { username: string }) {
   if (share === undefined) return null
   return (
     <Text size="2" color="gray">
-      Share cached: {plural(share.files, 'file')} · {formatBytes(share.size)} · fetched <Ago time={share.fetchedAt} />
+      Share browsed <Ago time={share.fetchedAt} />: {plural(share.files, 'file')}, {formatBytes(share.size)}
     </Text>
   )
 }
@@ -249,7 +249,7 @@ function Direction({
         ) : (
           <>
             <Text size="2">
-              {history.succeeded.toLocaleString()} succeeded · {formatBytes(history.bytes)}
+              {history.succeeded.toLocaleString()} succeeded ({formatBytes(history.bytes)})
             </Text>
             {history.failed > 0 && (
               <Tooltip content={reasons.join('\n')} style={{ whiteSpace: 'pre-line' }}>
