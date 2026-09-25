@@ -128,7 +128,7 @@ function JoinedRoom({ room }: { room: string }) {
             <MessageLog
               messages={data.messages}
               pending={pending}
-              username={username}
+              ownName={username}
               note={
                 data.messages.length >= roomMessageLimit
                   ? `slskd keeps only the newest ${roomMessageLimit} messages.`

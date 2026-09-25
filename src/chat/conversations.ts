@@ -55,13 +55,14 @@ export const conversations = createResource<Conversations>((sink) => {
   )
 })
 
-function toMessage(raw: RawPrivateMessage, ownName: string): Message {
+function toMessage(raw: RawPrivateMessage): Message {
   const self = raw.direction === 'Out'
   return {
     // Every sent message has id 0.
     key: `${raw.direction} ${raw.id} ${raw.timestamp}`,
     time: Date.parse(raw.timestamp),
-    username: self ? ownName : raw.username,
+    // A sent message's username is the other party's.
+    username: self ? '' : raw.username,
     text: raw.message,
     self,
     mention: false,
@@ -94,22 +95,16 @@ const messageResources = createResourceMap((username) => {
           // Nothing has been sent or received yet.
           if (!isHTTPError(error) || error.response.status !== 404) throw error
         }
-        const ownName = application.getSnapshot().data?.username ?? 'You'
         const previous = resource.getSnapshot().data
         const raws = measure(() => JSON.parse(text) as RawPrivateMessage[])
         const unread = raws.filter((raw) => raw.direction === 'In' && !raw.isAcknowledged)
         if (first) {
           first = false
           const oldest = unread[0]
-          newFrom = oldest === undefined ? undefined : toMessage(oldest, ownName).key
+          newFrom = oldest === undefined ? undefined : toMessage(oldest).key
         }
         if (unread.length > 0) await acknowledge(username, signal)
-        const messages = measure(() =>
-          reuseMessages(
-            previous?.messages,
-            raws.map((raw) => toMessage(raw, ownName)),
-          ),
-        )
+        const messages = measure(() => reuseMessages(previous?.messages, raws.map(toMessage)))
         return { messages, newFrom }
       },
       conversationPollInterval,
