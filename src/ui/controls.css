@@ -4,3 +4,17 @@
     flex-basis: 100%;
   }
 }
+
+/* SegmentedControl draws each label twice, a bold copy that's named and a regular one that's aria-hidden, and shows one
+   at a time. A disabled item's label can be focused to say why, which would make two tab stops, so it keeps only the
+   named copy, in the regular weight while it's off. */
+.rt-SegmentedControlItem[data-disabled] .rt-SegmentedControlItemLabelInactive {
+  visibility: hidden;
+}
+
+.rt-SegmentedControlItem[data-disabled][data-state='off'] .rt-SegmentedControlItemLabelActive {
+  opacity: 1;
+  font-weight: var(--font-weight-regular);
+  letter-spacing: var(--tab-inactive-letter-spacing);
+  word-spacing: var(--tab-inactive-word-spacing);
+}
