@@ -91,12 +91,7 @@ export function FolderPane({ share, folder, unknown, fetchedAt, matches, sort, o
                 </Text>
               ) : (
                 <Link asChild size="2" color="gray" truncate style={{ flexShrink: index === 0 ? 0 : 1 }}>
-                  <RouterLink
-                    from="/browse"
-                    to="/browse"
-                    search={(previous) => ({ ...previous, path: each.path })}
-                    replace
-                  >
+                  <RouterLink from="/browse" to="/browse" search={(previous) => ({ ...previous, path: each.path })}>
                     {each.name}
                   </RouterLink>
                 </Link>

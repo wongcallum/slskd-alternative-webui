@@ -99,7 +99,8 @@ and we cache browsed share trees in IndexedDB), show when each result was fetche
   Remounting `<RouterProvider>` can render a stale page (see the facts).
 - Paths match stock's.
 - Invalid search params fall back to their defaults, and defaults and invalid values stay out of the URL. Params
-  that change as you type or click replace the history entry.
+  that filter or sort a view replace the history entry. Opening a folder in Browse pushes one, so Back returns to
+  the previous folder.
 - No router devtools, code splitting or scroll restoration.
 
 ### Shell
