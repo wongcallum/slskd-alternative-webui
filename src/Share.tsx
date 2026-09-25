@@ -433,7 +433,7 @@ const TreeRow = memo(function TreeRow({
 }: TreeRowProps) {
   const parent = folder.folders.length > 0
   return (
-    // TODO: keyboard handling (docs/plan.md, after the plan) makes tree items focusable.
+    // TODO: keyboard handling makes tree items focusable.
     // oxlint-disable-next-line jsx-a11y/interactive-supports-focus
     <div
       className="tree-row"

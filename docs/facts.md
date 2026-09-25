@@ -161,9 +161,9 @@ Error bodies are JSON strings. Encode the username segment with `encodeURICompon
 
 ## Shutdown
 
-- Observed in phase 2: while a hub WebSocket was connected, SIGTERM made slskd log "Application is shutting
+- Observed once: while a hub WebSocket was connected, SIGTERM made slskd log "Application is shutting
   down" and "Client stopped" and then hang instead of exiting. `dev/slskd stop` kills it after 10 s.
-- Observed in phase 3, with no Soulseek credentials configured: it exited in 0.3 s with both hubs connected.
+- Observed later, with no Soulseek credentials configured: it exited in 0.3 s with both hubs connected.
   What triggers the hang is unknown.
 
 ## Application hub
@@ -467,8 +467,8 @@ Paths are relative to `../slskd/src/web/src`.
 
 ### Search filter syntax
 
-Stock's result filter (`lib/searches.js:40-190`). We replaced it with a Filters popover (see the plan's Search
-section):
+Stock's result filter (`lib/searches.js:40-190`). We replaced it with a Filters popover (see
+[Search](design.md#search)):
 
 - The text is lowercased and split on single spaces. Numeric tokens are found anywhere in the text, with no word
   boundary, and only the first match counts:
