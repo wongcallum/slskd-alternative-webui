@@ -1,13 +1,13 @@
 import * as v from 'valibot'
 
 import { sortOf, textParam } from '../lib/params'
-import { columnIds } from './share/paneTable'
+import { audioColumnIds, paneColumnIds } from '../ui/tree/columns'
 
 export const browseSearch = v.object({
   user: textParam,
   path: textParam,
   q: textParam,
-  sort: sortOf(columnIds),
+  sort: sortOf([...paneColumnIds, ...audioColumnIds]),
 })
 
 export const browseSearchDefaults = { user: '', path: '', q: '' } as const
