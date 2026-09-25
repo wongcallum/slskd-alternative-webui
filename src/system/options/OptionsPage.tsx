@@ -135,7 +135,7 @@ function Toolbar({ control, children }: { control: ReactNode; children?: ReactNo
     <>
       <Flex align="center" gap="3" px="4" py="2" flexShrink="0" wrap="wrap" style={toolbarStyle}>
         {control}
-        <Flex ml="auto" align="center" gap="3" minWidth="0" wrap="wrap">
+        <Flex ml="auto" align="center" gap="3" minWidth="0">
           {children}
         </Flex>
       </Flex>
