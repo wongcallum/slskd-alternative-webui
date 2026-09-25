@@ -3,7 +3,7 @@ import { useResource, useStale, useWatchedResource } from '../lib/store'
 import { metrics } from './metrics'
 import { type Direction, pollInterval, transfers } from './transfers'
 
-export type Figures = {
+type Figures = {
   exact: boolean
   live: boolean
   counts?: { running: number; queued: number }

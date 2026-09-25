@@ -3,7 +3,7 @@ import { useSyncExternalStore } from 'react'
 import { useAtom } from '../lib/store'
 import { createStoredAtom } from '../lib/stored'
 
-export type Appearance = 'light' | 'dark'
+type Appearance = 'light' | 'dark'
 
 // Following the system is stored as no choice at all, which index.html's script relies on.
 export const themeChoice = createStoredAtom<Appearance | undefined>(

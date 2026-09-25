@@ -9,7 +9,7 @@ type RawDirection = {
 
 type RawMetrics = { downloads: RawDirection; uploads: RawDirection }
 
-export type Metrics = { running: number; queued: number; speed: number }
+type Metrics = { running: number; queued: number; speed: number }
 
 // slskd's gauges lag the lists by a few seconds and can briefly dip below zero (see docs/facts.md).
 const createMetrics = (direction: Direction): Resource<Metrics> =>
