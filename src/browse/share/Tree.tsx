@@ -8,6 +8,7 @@ import {
   useTable,
 } from '@tanstack/react-table'
 import { memo, useCallback, useMemo } from 'react'
+
 import { createAtom, useAtom } from '../../lib/store'
 import { type Expansion, expandedState, isExpanded, rowId, stop, toggleExpanded, VirtualTable } from '../../ui/table'
 import type { Folder, Matches, Share } from '../shareTree'

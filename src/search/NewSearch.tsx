@@ -1,6 +1,7 @@
 import { MagnifyingGlassIcon } from '@radix-ui/react-icons'
 import { Box, Button, Flex, Spinner, Text, TextField } from '@radix-ui/themes'
 import { type SubmitEvent, useState } from 'react'
+
 import { useSoulseekGate } from '../soulseek/soulseek'
 import { disabledProps } from '../ui/controls'
 import { useCreateSearch } from './useCreateSearch'

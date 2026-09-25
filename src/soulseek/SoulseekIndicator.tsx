@@ -1,5 +1,6 @@
 import { Button, DataList, Flex, Popover, Text } from '@radix-ui/themes'
 import { useState } from 'react'
+
 import { describeError } from '../lib/api'
 import { applicationHub, type HubStatus, metricsHub, searchHub, useHub, useWatchedHub } from '../lib/hubs'
 import { type Color, disabledProps } from '../ui/controls'

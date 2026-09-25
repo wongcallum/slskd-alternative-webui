@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react'
+
 import { onSessionEnd } from '../session/session'
 import { createListeners } from './listeners'
 

@@ -1,5 +1,6 @@
 import { Box, Heading, Link, Text } from '@radix-ui/themes'
 import { type ErrorComponentProps, Link as RouterLink } from '@tanstack/react-router'
+
 import { describeError } from '../lib/api'
 import { ErrorCallout } from '../ui/status'
 

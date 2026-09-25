@@ -1,4 +1,5 @@
 import { Text, Tooltip } from '@radix-ui/themes'
+
 import type { Color } from '../ui/controls'
 import type { Search } from './searches'
 

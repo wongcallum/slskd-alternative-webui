@@ -1,6 +1,7 @@
 import { CardStackPlusIcon, DownloadIcon, LockClosedIcon } from '@radix-ui/react-icons'
 import { Badge, Flex, IconButton, Spinner, Text } from '@radix-ui/themes'
 import { memo } from 'react'
+
 import { BrowseUserButton } from '../../browse/BrowseUserButton'
 import { formatBytes, formatDuration, formatSpeed, formatTime, plural } from '../../lib/format'
 import type { Mark } from '../../transfers/enqueue'

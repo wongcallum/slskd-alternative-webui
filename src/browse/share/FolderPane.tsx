@@ -1,7 +1,8 @@
 import { Flex, Link, Text } from '@radix-ui/themes'
-import { type RowSelectionState, useTable } from '@tanstack/react-table'
 import { Link as RouterLink } from '@tanstack/react-router'
+import { type RowSelectionState, useTable } from '@tanstack/react-table'
 import { Fragment, useCallback, useMemo, useState } from 'react'
+
 import { formatBytes, plural } from '../../lib/format'
 import { useSortParam } from '../../lib/params'
 import { useAtom } from '../../lib/store'

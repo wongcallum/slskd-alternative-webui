@@ -1,4 +1,5 @@
 import { filesize, partial } from 'filesize'
+
 import { useClock } from './store'
 
 const options = { base: 2, standard: 'iec', round: 1 } as const

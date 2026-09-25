@@ -1,5 +1,6 @@
 import { Cross2Icon } from '@radix-ui/react-icons'
 import { Box, Flex, IconButton, Progress, Spinner, Text } from '@radix-ui/themes'
+
 import { formatBytes, formatProgress } from '../lib/format'
 import { stop } from '../ui/table'
 import { type Browse, dismissFailure, type Failure } from './browse'
