@@ -1,12 +1,14 @@
-import { Cross2Icon, PauseIcon, PlayIcon } from '@radix-ui/react-icons'
-import { Box, Button, Flex, IconButton, Select, Text, Tooltip } from '@radix-ui/themes'
-import { memo, type ReactNode, type RefObject, type UIEvent, useId, useMemo, useRef, useState } from 'react'
+import { Flex, Select, Text } from '@radix-ui/themes'
+import { memo, type ReactNode, useId, useMemo, useState } from 'react'
 import * as v from 'valibot'
 
+import { formatFullPreciseTime, formatPreciseTime } from '../lib/format'
 import { oneOf, textParam } from '../lib/params'
-import { type Color, FilterField, toolbarStyle, useFilterText } from '../ui/controls'
+import { type Color, useFilterText } from '../ui/controls'
+import { DetailsPane, Preformatted } from '../ui/details'
+import { HeldList, HeldToolbar, useHold } from '../ui/hold'
 import { Empty, Freshness, Polling } from '../ui/status'
-import { Cell, ColumnHeader, GridRow, HeaderRow, VirtualTable } from '../ui/table'
+import { Cell, GridRow } from '../ui/table'
 import {
   type Level,
   logMatcher,
@@ -41,24 +43,6 @@ const levelColors: Partial<Record<Level, Color>> = { Warning: 'amber', Error: 'r
 
 const isQuiet = (level: Level) => level === 'Verbose' || level === 'Debug'
 
-const clock = {
-  hour: '2-digit',
-  minute: '2-digit',
-  second: '2-digit',
-  fractionalSecondDigits: 3,
-  hourCycle: 'h23',
-} as const
-
-const timeOnly = new Intl.DateTimeFormat(undefined, clock)
-
-const dayAndTime = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', ...clock })
-
-const fullTime = new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'short', day: 'numeric', ...clock })
-
-const isToday = (time: number) => new Date(time).toDateString() === new Date().toDateString()
-
-const formatLogTime = (time: number) => (isToday(time) ? timeOnly : dayAndTime).format(time)
-
 const shortName = (name: string) => name.slice(name.lastIndexOf('.') + 1)
 
 const sourceOf = (record: LogRecord) =>
@@ -68,9 +52,8 @@ const newestId = (records: LogRecord[]) => records.reduce((newest, record) => Ma
 
 const none: LogRecord[] = []
 
-// The view holds still while scrolled away from the newest records or paused, so reading isn't disturbed by
-// records arriving at the top or being dropped at the bottom.
-type Frozen = { records: LogRecord[]; newest: number; paused: boolean }
+// Held records are kept whole, since records are also dropped at the bottom.
+type Marker = { records: LogRecord[]; newest: number }
 
 type Props = {
   search: LogsSearch
@@ -81,9 +64,9 @@ export function LogsPage({ search, onSearchChange }: Props) {
   const { data, error, live } = useLogs()
   const filter = useFilterText(search.q, (q) => onSearchChange({ q }))
   const records = data?.records ?? none
-  const [frozen, setFrozen] = useState<Frozen>()
+  const hold = useHold<Marker>(() => ({ records, newest: newestId(records) }))
+  const frozen = hold.marker
   const [selected, setSelected] = useState<LogRecord>()
-  const scrollRef = useRef<HTMLDivElement>(null)
 
   const matches = useMemo(() => logMatcher(search.level, filter.query), [search.level, filter.query])
   const held = frozen?.records ?? records
@@ -101,26 +84,7 @@ export function LogsPage({ search, onSearchChange }: Props) {
     return ` (${count.toLocaleString()}${old === 0 && records.length === maxRecords ? '+' : ''} new)`
   }, [frozen, records, matches])
 
-  // Without the list there's nothing to scroll back up.
-  if (frozen?.paused === false && shown.length === 0) setFrozen(undefined)
-
-  const freeze = (paused: boolean) =>
-    setFrozen((current) => ({
-      records: current?.records ?? records,
-      newest: current?.newest ?? newestId(records),
-      paused,
-    }))
-
-  function onScroll(event: UIEvent<HTMLDivElement>) {
-    const away = event.currentTarget.scrollTop >= 1
-    if (away && frozen === undefined) freeze(false)
-    else if (!away && frozen?.paused === false) setFrozen(undefined)
-  }
-
-  function resume() {
-    setFrozen(undefined)
-    scrollRef.current?.scrollTo({ top: 0 })
-  }
+  hold.releaseIfEmpty(shown.length === 0)
 
   let content: ReactNode
   if (data === undefined) {
@@ -129,12 +93,15 @@ export function LogsPage({ search, onSearchChange }: Props) {
     content = <Empty>{held.length === 0 ? 'No log records yet.' : 'Nothing matches.'}</Empty>
   } else {
     content = (
-      <LogList
+      <HeldList
+        template={template}
+        labels={labels}
         records={shown}
+        itemKey={recordId}
         selected={selected?.id}
-        onSelect={(record) => setSelected(record.id === selected?.id ? undefined : record)}
-        scrollRef={scrollRef}
-        onScroll={onScroll}
+        onSelect={setSelected}
+        renderRow={(record, isSelected, toggle) => <LogRow record={record} selected={isSelected} onSelect={toggle} />}
+        hold={hold}
       />
     )
   }
@@ -150,30 +117,9 @@ export function LogsPage({ search, onSearchChange }: Props) {
         />
       }
     >
-      <Flex align="center" gap="3" px="4" py="2" flexShrink="0" style={toolbarStyle}>
-        <FilterField
-          placeholder="Filter by message or source"
-          value={filter.text}
-          onChange={filter.change}
-          style={{ width: 280 }}
-        />
+      <HeldToolbar placeholder="Filter by message or source" filter={filter} hold={hold} unseen={unseen}>
         <LevelSelect value={search.level} onChange={(level) => onSearchChange({ level })} />
-        <Flex ml="auto" align="center" gap="3" flexShrink="0">
-          {frozen === undefined ? (
-            <Tooltip content="Hold the list still. Scrolling down does too.">
-              <Button size="1" variant="soft" color="gray" onClick={() => freeze(true)}>
-                <PauseIcon />
-                Pause
-              </Button>
-            </Tooltip>
-          ) : (
-            <Button size="1" variant="soft" onClick={resume}>
-              <PlayIcon />
-              Resume{unseen}
-            </Button>
-          )}
-        </Flex>
-      </Flex>
+      </HeldToolbar>
       {content}
       {selected !== undefined && <RecordDetails record={selected} onClose={() => setSelected(undefined)} />}
     </SystemPage>
@@ -203,39 +149,9 @@ function LevelSelect({ value, onChange }: { value: MinimumLevel; onChange: (leve
 
 const template = '170px 80px 200px minmax(300px, 1fr)'
 
-const minWidth = 900
+const labels = ['Time', 'Level', 'Source', 'Message']
 
 const recordId = (record: LogRecord) => record.id
-
-type LogListProps = {
-  records: LogRecord[]
-  selected?: number
-  onSelect: (record: LogRecord) => void
-  scrollRef: RefObject<HTMLDivElement | null>
-  onScroll: (event: UIEvent<HTMLDivElement>) => void
-}
-
-function LogList({ records, selected, onSelect, scrollRef, onScroll }: LogListProps) {
-  const header = (
-    <HeaderRow template={template}>
-      <ColumnHeader label="Time" />
-      <ColumnHeader label="Level" />
-      <ColumnHeader label="Source" />
-      <ColumnHeader label="Message" />
-    </HeaderRow>
-  )
-  return (
-    <VirtualTable
-      minWidth={minWidth}
-      header={header}
-      items={records}
-      itemKey={recordId}
-      renderItem={(record) => <LogRow record={record} selected={record.id === selected} onSelect={onSelect} />}
-      scrollRef={scrollRef}
-      onScroll={onScroll}
-    />
-  )
-}
 
 function LevelText({ level }: { level: Level }) {
   return (
@@ -256,7 +172,7 @@ const LogRow = memo(function LogRow({ record, selected, onSelect }: LogRowProps)
       style={{ cursor: 'pointer' }}
       onClick={() => onSelect(record)}
     >
-      <Cell title={fullTime.format(record.time)}>{formatLogTime(record.time)}</Cell>
+      <Cell title={formatFullPreciseTime(record.time)}>{formatPreciseTime(record.time)}</Cell>
       <div className="table-cell">
         <LevelText level={record.level} />
       </div>
@@ -277,43 +193,21 @@ const LogRow = memo(function LogRow({ record, selected, onSelect }: LogRowProps)
 
 function RecordDetails({ record, onClose }: { record: LogRecord; onClose: () => void }) {
   return (
-    <Flex
-      direction="column"
-      gap="2"
-      flexShrink="0"
-      maxHeight="45%"
-      px="4"
-      py="3"
-      style={{ boxShadow: 'inset 0 1px 0 0 var(--gray-a5)' }}
+    <DetailsPane
+      header={
+        <>
+          <LevelText level={record.level} />
+          <Text size="2" color="gray">
+            {formatFullPreciseTime(record.time)}
+          </Text>
+          <Text size="2" color="gray" style={{ wordBreak: 'break-word' }}>
+            {sourceOf(record)}
+          </Text>
+        </>
+      }
+      onClose={onClose}
     >
-      <Flex align="center" gap="3" wrap="wrap">
-        <LevelText level={record.level} />
-        <Text size="2" color="gray">
-          {fullTime.format(record.time)}
-        </Text>
-        <Text size="2" color="gray" style={{ wordBreak: 'break-word' }}>
-          {sourceOf(record)}
-        </Text>
-        <Flex ml="auto">
-          <IconButton size="1" variant="ghost" color="gray" aria-label="Close" onClick={onClose}>
-            <Cross2Icon />
-          </IconButton>
-        </Flex>
-      </Flex>
-      <Box minHeight="0" overflow="auto">
-        <Text asChild size="2">
-          <pre
-            style={{
-              margin: 0,
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-              fontFamily: 'var(--code-font-family)',
-            }}
-          >
-            {record.message}
-          </pre>
-        </Text>
-      </Box>
-    </Flex>
+      <Preformatted>{record.message}</Preformatted>
+    </DetailsPane>
   )
 }

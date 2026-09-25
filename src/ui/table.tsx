@@ -236,6 +236,7 @@ export function VirtualTable<T>({
   label,
   scrollRef: externalRef,
   onScroll,
+  footer,
 }: {
   minWidth: number
   header?: ReactNode
@@ -248,6 +249,7 @@ export function VirtualTable<T>({
   label?: string
   scrollRef?: RefObject<HTMLDivElement | null>
   onScroll?: UIEventHandler<HTMLDivElement>
+  footer?: ReactNode
 }) {
   const ownRef = useRef<HTMLDivElement>(null)
   const scrollRef = externalRef ?? ownRef
@@ -289,6 +291,7 @@ export function VirtualTable<T>({
           )
         })}
       </div>
+      {footer}
     </div>
   )
 }

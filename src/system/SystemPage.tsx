@@ -14,6 +14,7 @@ export function SystemPage({ status, children }: { status?: ReactNode; children:
       <Flex align="center" gap="3" px="4" flexShrink="0" style={toolbarStyle}>
         <NavTabs>
           <NavTab to="/system/info">Info</NavTab>
+          <NavTab to="/system/options">Options</NavTab>
           <NavTab to="/system/shares">
             <Flex align="center" gap="2">
               Shares
@@ -21,6 +22,7 @@ export function SystemPage({ status, children }: { status?: ReactNode; children:
             </Flex>
           </NavTab>
           <NavTab to="/system/files">Files</NavTab>
+          <NavTab to="/system/events">Events</NavTab>
           <NavTab to="/system/logs">Logs</NavTab>
         </NavTabs>
         <Flex ml="auto" align="center" gap="4" flexShrink="0">
