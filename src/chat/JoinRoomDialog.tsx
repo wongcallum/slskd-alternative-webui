@@ -152,7 +152,7 @@ function RoomPicker({ listing, onRetry, onJoined }: { listing: Listing; onRetry:
           </Text>
         </Flex>
       )}
-      <Flex direction="column" height="400px">
+      <Flex direction="column" height="clamp(160px, 50dvh, 400px)">
         {list}
       </Flex>
       <Flex align="center" justify="between" gap="3">

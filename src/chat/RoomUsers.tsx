@@ -26,7 +26,7 @@ const compact = new Intl.NumberFormat(undefined, { notation: 'compact' })
 const userKey = (user: RoomUser) => user.username
 
 // slskd takes a user's details as they join and never updates them, so status and speed would soon be wrong.
-export function RoomUsers({ room }: { room: string }) {
+export function RoomUsers({ room, fill }: { room: string; fill?: boolean }) {
   const { data, error } = useResource(roomUsers(room))
   const [filter, setFilter] = useState('')
   const needle = useDeferredValue(filter).toLowerCase()
@@ -47,14 +47,21 @@ export function RoomUsers({ room }: { room: string }) {
         minWidth={0}
         items={shown}
         itemKey={userKey}
-        rowSize={32}
+        rowSize={fill ? 40 : 32}
         renderItem={(user) => <UserRow user={user} />}
       />
     )
   }
 
   return (
-    <Flex direction="column" width="260px" flexShrink="0" style={{ boxShadow: 'inset 1px 0 0 0 var(--gray-a5)' }}>
+    <Flex
+      direction="column"
+      width={fill ? undefined : '260px'}
+      flexGrow={fill ? '1' : undefined}
+      flexShrink="0"
+      minHeight="0"
+      style={fill ? undefined : { boxShadow: 'inset 1px 0 0 0 var(--gray-a5)' }}
+    >
       <Flex direction="column" gap="2" px="3" py="2" flexShrink="0">
         <Text size="2" color="gray">
           {users === undefined ? 'Users' : plural(users.length, 'user')}
