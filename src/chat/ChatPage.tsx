@@ -5,6 +5,7 @@ import { Outlet, Link as RouterLink, useLocation, useNavigate } from '@tanstack/
 import type { ReactNode } from 'react'
 
 import { plural } from '../lib/format'
+import { useFrom } from '../lib/media'
 import { useResource } from '../lib/store'
 import { useRun } from '../lib/useRun'
 import { useSoulseekGate } from '../soulseek/soulseek'
@@ -15,13 +16,19 @@ import type { Target } from './messages'
 import { MessageUserField } from './MessageUserField'
 import { leaveRoom, useJoinedRooms, useRoomNews } from './rooms'
 
+// Below sm there's room for the list or what's open. Without a room or conversation open the list shows, rather than
+// the last one opening again, so there's always a list to go back to.
 export function ChatPage() {
+  const sm = useFrom('sm')
+  const open = useOpenTarget()
   return (
     <Flex height="100%">
-      <Sidebar />
-      <Flex flexGrow="1" minWidth="0">
-        <Outlet />
-      </Flex>
+      {(sm || open === undefined) && <Sidebar />}
+      {(sm || open !== undefined) && (
+        <Flex flexGrow="1" minWidth="0">
+          <Outlet />
+        </Flex>
+      )}
     </Flex>
   )
 }
@@ -52,7 +59,7 @@ function Sidebar() {
   return (
     <Flex
       direction="column"
-      width="220px"
+      width={{ initial: '100%', sm: '220px' }}
       flexShrink="0"
       overflowY="auto"
       py="2"

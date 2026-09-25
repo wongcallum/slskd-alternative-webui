@@ -1,5 +1,4 @@
-import { useSyncExternalStore } from 'react'
-
+import { useMedia } from '../lib/media'
 import { useAtom } from '../lib/store'
 import { createStoredAtom } from '../lib/stored'
 
@@ -12,15 +11,8 @@ export const themeChoice = createStoredAtom<Appearance | undefined>(
   undefined,
 )
 
-const prefersDark = window.matchMedia('(prefers-color-scheme: dark)')
-
-function subscribeSystem(listener: () => void) {
-  prefersDark.addEventListener('change', listener)
-  return () => prefersDark.removeEventListener('change', listener)
-}
-
 export function useAppearance(): Appearance {
   const choice = useAtom(themeChoice)
-  const systemDark = useSyncExternalStore(subscribeSystem, () => prefersDark.matches)
+  const systemDark = useMedia('(prefers-color-scheme: dark)')
   return choice ?? (systemDark ? 'dark' : 'light')
 }

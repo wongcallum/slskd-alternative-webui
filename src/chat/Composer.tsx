@@ -1,11 +1,12 @@
 import { PaperPlaneIcon } from '@radix-ui/react-icons'
-import { Box, IconButton, Text, TextField, Tooltip } from '@radix-ui/themes'
+import { Box, IconButton, Text, TextField } from '@radix-ui/themes'
 import { type KeyboardEvent, useState } from 'react'
 
 import { describeError } from '../lib/api'
+import { useTouch } from '../lib/media'
 import { useAtom } from '../lib/store'
 import { useSoulseekGate } from '../soulseek/soulseek'
-import { disabledProps } from '../ui/controls'
+import { disabledProps, GateTip } from '../ui/controls'
 import { drafts } from './messages'
 
 type Props = { draftKey: string; placeholder: string; send: (text: string) => Promise<void> }
@@ -13,6 +14,7 @@ type Props = { draftKey: string; placeholder: string; send: (text: string) => Pr
 // The text stays until slskd has taken it, so a failed send can be retried as it is.
 export function Composer({ draftKey, placeholder, send }: Props) {
   const gate = useSoulseekGate()
+  const touch = useTouch()
   const text = useAtom(drafts).get(draftKey) ?? ''
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string>()
@@ -47,19 +49,24 @@ export function Composer({ draftKey, placeholder, send }: Props) {
   }
 
   return (
-    <Box px="4" py="3" flexShrink="0" style={{ boxShadow: 'inset 0 1px 0 0 var(--gray-a5)' }}>
+    <Box
+      px={{ initial: '3', sm: '4' }}
+      py={{ initial: '2', sm: '3' }}
+      flexShrink="0"
+      style={{ boxShadow: 'inset 0 1px 0 0 var(--gray-a5)' }}
+    >
       <TextField.Root
-        size="2"
-        autoFocus
+        size={{ initial: '3', sm: '2' }}
+        autoFocus={!touch}
         placeholder={placeholder}
         value={text}
         onChange={(event) => setText(event.target.value)}
         onKeyDown={onKeyDown}
       >
         <TextField.Slot side="right">
-          <Tooltip content={reason ?? 'Send'}>
+          <GateTip gate={reason} label="Send">
             <IconButton
-              size="1"
+              size={{ initial: '2', sm: '1' }}
               variant="ghost"
               aria-label="Send"
               loading={sending}
@@ -68,7 +75,7 @@ export function Composer({ draftKey, placeholder, send }: Props) {
             >
               <PaperPlaneIcon />
             </IconButton>
-          </Tooltip>
+          </GateTip>
         </TextField.Slot>
       </TextField.Root>
       {(error ?? gate) !== undefined && (

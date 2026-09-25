@@ -6,11 +6,11 @@ import { dismissLookupErrors, type LookupErrors, type Presence } from './users'
 
 const presenceColors: Record<Presence, Color> = { Online: 'green', Away: 'amber', Offline: 'gray' }
 
-export function PresenceLabel({ presence }: { presence: Presence }) {
+export function PresenceLabel({ presence, size = '2' }: { presence: Presence; size?: '1' | '2' }) {
   return (
     <Flex align="center" gap="2">
       <StatusDot color={presenceColors[presence]} />
-      <Text size="2">{presence}</Text>
+      <Text size={size}>{presence}</Text>
     </Flex>
   )
 }

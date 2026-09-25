@@ -1,7 +1,7 @@
-import { Text, Tooltip } from '@radix-ui/themes'
+import { Text } from '@radix-ui/themes'
 
 import { plural } from '../lib/format'
-import type { Color } from '../ui/controls'
+import { type Color, Tip } from '../ui/controls'
 import type { Search } from './searches'
 
 const stateLabels: Record<string, [string, Color, string?]> = {
@@ -16,14 +16,14 @@ const stateLabels: Record<string, [string, Color, string?]> = {
   'Completed, Errored': ['Errored', 'red', "slskd couldn't finish it, for example because Soulseek disconnected"],
 }
 
-export function SearchState({ search }: { search: Search }) {
+export function SearchState({ search, size = '2' }: { search: Search; size?: '1' | '2' }) {
   const [label, color, hint] = stateLabels[search.state] ?? [search.state, 'gray']
   const text = (
-    <Text size="2" color={color}>
+    <Text size={size} color={color}>
       {label}
     </Text>
   )
-  return hint === undefined ? text : <Tooltip content={hint}>{text}</Tooltip>
+  return hint === undefined ? text : <Tip content={hint}>{text}</Tip>
 }
 
 export function describeCounts(search: Search) {

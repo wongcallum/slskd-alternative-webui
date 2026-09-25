@@ -16,7 +16,7 @@ import { byName } from '../../lib/text'
 import { type Folder, type Item, type Matches, matchesUnder, relativePath, type Tree } from '../../lib/tree'
 import { SelectionActions, toolbarStyle } from '../controls'
 import { Ago, Empty } from '../status'
-import { type ExtraColumn, paneColumns, paneFeatures, paneLayout, sortItems } from './columns'
+import { type ExtraColumn, paneColumns, paneFeatures, paneLayout, sortItems, usePaneWidth } from './columns'
 import { type FileBadge, ItemList } from './ItemList'
 
 // It's rendered through Radix's Link with asChild, so it has to pass the props it's given on to its anchor.
@@ -72,9 +72,10 @@ export function FolderPane({
     return [...sortItems(folder.folders, sorting, extras, folderOf), ...sortItems(files, sorting, extras, folderOf)]
   }, [folder, matches, sorting, extras, folderOf])
   const columns = useMemo(() => paneColumns(extras), [extras])
+  const width = usePaneWidth()
   const layout = useMemo(
-    () => paneLayout(extras, selectable !== undefined, matches !== undefined),
-    [extras, selectable, matches],
+    () => paneLayout(extras, selectable !== undefined, matches !== undefined, width),
+    [extras, selectable, matches, width],
   )
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const table = useTable({
@@ -104,8 +105,17 @@ export function FolderPane({
   }
 
   return (
-    <Flex direction="column" flexGrow="1" minWidth="0">
-      <Flex align="center" gap="4" px="4" py="2" flexShrink="0" minHeight="48px" style={toolbarStyle}>
+    <Flex direction="column" flexGrow="1" minWidth="0" minHeight="0">
+      <Flex
+        align="center"
+        gap="4"
+        wrap={{ initial: 'wrap', sm: 'nowrap' }}
+        px="4"
+        py="2"
+        flexShrink="0"
+        minHeight="48px"
+        style={toolbarStyle}
+      >
         <Flex align="center" gap="3" minWidth="0" style={{ overflow: 'hidden' }}>
           <Flex align="center" gap="1" minWidth="0" style={{ overflow: 'hidden' }}>
             {trail.map((each, index) => (
@@ -153,7 +163,7 @@ export function FolderPane({
         <ItemList
           table={table}
           layout={layout}
-          extras={extras}
+          stacked={width === 'stacked'}
           selectable={selectable !== undefined}
           filtered={matches !== undefined}
           separator={tree.separator}

@@ -26,8 +26,6 @@ Install Nix and devenv (`nix profile add nixpkgs#devenv`), then enter the enviro
 
 ## Roadmap
 
-- Proper responsiveness. On narrow screens the tabs, the speeds and the update notice collapse into the menu, the notice
-  as an amber dot on its button.
 - Keyboard handling: ↵ into a folder and ⌫ up in Browse, `/` to focus a filter, `d` to download, `?` for the keys.
   Weigh `@headless-tree` for Browse's tree then, since it brings an ARIA tree with keys.
 - Filter criteria (quality, size) for Browse.

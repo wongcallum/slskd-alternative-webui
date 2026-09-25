@@ -1,4 +1,4 @@
-import { Badge, Box, Button, Dialog, Flex, Grid, Heading, Link, Spinner, Text, Tooltip } from '@radix-ui/themes'
+import { Badge, Box, Button, Dialog, Flex, Grid, Heading, Link, Spinner, Text } from '@radix-ui/themes'
 import { Link as RouterLink, useNavigate } from '@tanstack/react-router'
 import { type ReactNode, useEffect } from 'react'
 
@@ -8,7 +8,7 @@ import { describeError } from '../lib/api'
 import { formatBytes, plural } from '../lib/format'
 import { useAtom, useResource } from '../lib/store'
 import { useSoulseekGate } from '../soulseek/soulseek'
-import { ActionButton, toolbarStyle } from '../ui/controls'
+import { ActionButton, Tip, Toolbar } from '../ui/controls'
 import { LinkedText } from '../ui/LinkedText'
 import { Ago, Busy, Loading } from '../ui/status'
 import { LookUpBox } from './LookUpBox'
@@ -60,7 +60,7 @@ export function ProfilePage({ username }: { username: string }) {
 
   return (
     <Flex direction="column" height="100%">
-      <Flex align="center" gap="4" px="4" py="3" flexShrink="0" style={toolbarStyle}>
+      <Toolbar gap="4" py="3">
         <LookUpBox current={username} />
         {record !== undefined && (
           <Flex ml="auto" align="center" gap="3" flexShrink="0">
@@ -76,7 +76,7 @@ export function ProfilePage({ username }: { username: string }) {
             />
           </Flex>
         )}
-      </Flex>
+      </Toolbar>
       <Box flexGrow="1" overflow="auto">
         <Flex direction="column" gap="4" p="4" maxWidth="900px">
           {content}
@@ -254,11 +254,11 @@ function Direction({
               {history.succeeded.toLocaleString()} succeeded ({formatBytes(history.bytes)})
             </Text>
             {history.failed > 0 && (
-              <Tooltip content={reasons.join('\n')} style={{ whiteSpace: 'pre-line' }}>
+              <Tip content={reasons.join('\n')}>
                 <Text size="2" color="red">
                   {history.failed.toLocaleString()} failed
                 </Text>
-              </Tooltip>
+              </Tip>
             )}
             {history.cancelled > 0 && (
               <Text size="2" color="gray">

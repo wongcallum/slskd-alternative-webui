@@ -1,9 +1,9 @@
 import { GearIcon } from '@radix-ui/react-icons'
-import { Box, IconButton, Tooltip } from '@radix-ui/themes'
+import { IconButton, Tooltip } from '@radix-ui/themes'
 import { Link, useMatchRoute } from '@tanstack/react-router'
 
 import { useResource } from '../lib/store'
-import { StatusDot } from '../ui/status'
+import { CornerDot } from '../ui/status'
 import { application, pendingItems } from './application'
 
 export function SystemLink() {
@@ -23,11 +23,7 @@ export function SystemLink() {
           aria-label="System"
         >
           <GearIcon width={18} height={18} />
-          {pending.length > 0 && (
-            <Box position="absolute" top="0" right="0" style={{ lineHeight: 0 }}>
-              <StatusDot color="amber" />
-            </Box>
-          )}
+          {pending.length > 0 && <CornerDot color="amber" />}
         </Link>
       </IconButton>
     </Tooltip>

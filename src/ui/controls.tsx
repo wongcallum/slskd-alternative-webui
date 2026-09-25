@@ -1,31 +1,83 @@
+import './controls.css'
 import { Cross2Icon, InfoCircledIcon, MagnifyingGlassIcon } from '@radix-ui/react-icons'
 import {
   AlertDialog,
+  Box,
   Button,
   Checkbox,
   DataList,
   Flex,
+  type FlexProps,
   IconButton,
   Popover,
+  Select,
   Text,
   TextField,
   type TextProps,
   Tooltip,
 } from '@radix-ui/themes'
-import { type CSSProperties, type ReactNode, useDeferredValue, useState } from 'react'
+import { type CSSProperties, type ReactElement, type ReactNode, useDeferredValue, useState } from 'react'
 
 import { type Actions, dismissOutcome, type Progress } from '../lib/actions'
+import { useFrom, useTouch } from '../lib/media'
 import { type Atom, useAtom } from '../lib/store'
 
 export type Color = NonNullable<TextProps['color']>
 
 export const toolbarStyle = { boxShadow: 'inset 0 -1px 0 0 var(--gray-a5)' }
 
+// Below sm, selection actions take a line of their own under the rest.
+export function Toolbar({
+  gap = '3',
+  py = '2',
+  children,
+}: {
+  gap?: FlexProps['gap']
+  py?: FlexProps['py']
+  children: ReactNode
+}) {
+  return (
+    <Flex className="toolbar" align="center" gap={gap} wrap="wrap" px="4" py={py} flexShrink="0" style={toolbarStyle}>
+      {children}
+    </Flex>
+  )
+}
+
+export function ToolbarEnd({ children }: { children: ReactNode }) {
+  return (
+    <Flex ml="auto" align="center" gap="4" flexShrink="0">
+      {children}
+    </Flex>
+  )
+}
+
 // Disabled actions stay focusable so their tooltip can say why.
 export const disabledProps = (disabled: boolean) => ({
   'aria-disabled': disabled || undefined,
   'data-disabled': disabled || undefined,
 })
+
+// A tooltip that a tap opens too, for what can't be learned elsewhere: why an action is disabled, or what went wrong.
+// Radix's tooltips never open from touch.
+export function Tip({ content, children }: { content: ReactNode; children: ReactElement }) {
+  const touch = useTouch()
+  if (!touch) return <Tooltip content={content}>{children}</Tooltip>
+  return (
+    <Popover.Root>
+      <Popover.Trigger>{children}</Popover.Trigger>
+      <Popover.Content size="1" maxWidth="320px">
+        <Text as="p" size="2" style={{ whiteSpace: 'pre-line', overflowWrap: 'anywhere' }}>
+          {content}
+        </Text>
+      </Popover.Content>
+    </Popover.Root>
+  )
+}
+
+// An enabled control's tooltip is only its label, so a tap goes straight to the action.
+export function GateTip({ gate, label, children }: { gate?: string; label: string; children: ReactElement }) {
+  return gate === undefined ? <Tooltip content={label}>{children}</Tooltip> : <Tip content={gate}>{children}</Tip>
+}
 
 export function GatedIconButton({
   label,
@@ -40,19 +92,22 @@ export function GatedIconButton({
   onClick: () => void
   children: ReactNode
 }) {
+  const button = (
+    <IconButton
+      size="1"
+      variant="ghost"
+      color={color}
+      aria-label={label}
+      {...disabledProps(gate !== undefined)}
+      onClick={() => gate === undefined && onClick()}
+    >
+      {children}
+    </IconButton>
+  )
   return (
-    <Tooltip content={gate ?? label}>
-      <IconButton
-        size="1"
-        variant="ghost"
-        color={color}
-        aria-label={label}
-        {...disabledProps(gate !== undefined)}
-        onClick={() => gate === undefined && onClick()}
-      >
-        {children}
-      </IconButton>
-    </Tooltip>
+    <GateTip gate={gate} label={label}>
+      {button}
+    </GateTip>
   )
 }
 
@@ -82,7 +137,7 @@ export function ActionButton({ label, busy, progress, loading, gate, color, onCl
         : `${busy} ${progress.done.toLocaleString()} / ${progress.total.toLocaleString()}`}
     </Button>
   )
-  return gate === undefined || progress !== undefined ? button : <Tooltip content={gate}>{button}</Tooltip>
+  return gate === undefined || progress !== undefined ? button : <Tip content={gate}>{button}</Tip>
 }
 
 export function ConfirmButton({
@@ -171,18 +226,21 @@ export function useFilterText(q: string, onChange: (q: string) => void) {
   }
 }
 
+// Given a width, the field has it from sm and fills its line below.
 export function FilterField({
   placeholder,
   value,
   onChange,
+  width,
   style,
 }: {
   placeholder: string
   value: string
   onChange: (value: string) => void
-  style: CSSProperties
+  width?: string
+  style?: CSSProperties
 }) {
-  return (
+  const field = (
     <TextField.Root
       size="2"
       placeholder={placeholder}
@@ -194,6 +252,50 @@ export function FilterField({
         <MagnifyingGlassIcon />
       </TextField.Slot>
     </TextField.Root>
+  )
+  if (width === undefined) return field
+  return (
+    <Box flexGrow={{ initial: '1', sm: '0' }} flexBasis={{ initial: '160px', sm: width }} minWidth="0">
+      {field}
+    </Box>
+  )
+}
+
+export type Choices<V extends string> = readonly (readonly [V, string, ...unknown[]])[]
+
+export function ChoiceSelect<V extends string>({
+  choices,
+  value,
+  onChange,
+  id,
+  label,
+  size,
+  soft,
+}: {
+  choices: Choices<V>
+  value: V
+  onChange: (value: V) => void
+  id?: string
+  label?: string
+  size?: '1' | '2'
+  soft?: boolean
+}) {
+  return (
+    <Select.Root size={size} value={value} onValueChange={(next) => onChange(next as V)}>
+      <Select.Trigger
+        id={id}
+        variant={soft ? 'soft' : undefined}
+        color={soft ? 'gray' : undefined}
+        aria-label={label}
+      />
+      <Select.Content>
+        {choices.map(([choice, text]) => (
+          <Select.Item key={choice} value={choice}>
+            {text}
+          </Select.Item>
+        ))}
+      </Select.Content>
+    </Select.Root>
   )
 }
 
@@ -225,17 +327,25 @@ export function SelectionActions({
   onClear: () => void
   children: ReactNode
 }) {
+  const sm = useFrom('sm')
   return (
-    <Flex align="center" gap="2">
+    <Flex className="toolbar-selection" align="center" gap="2" wrap="wrap">
       {count !== undefined && (
         <Text size="2" color="gray">
           {count.toLocaleString()} selected
         </Text>
       )}
+      {!sm && (
+        <IconButton size="1" variant="ghost" color="gray" aria-label="Clear selection" onClick={onClear}>
+          <Cross2Icon />
+        </IconButton>
+      )}
       {children}
-      <Button size="1" variant="ghost" color="gray" onClick={onClear}>
-        Clear selection
-      </Button>
+      {sm && (
+        <Button size="1" variant="ghost" color="gray" onClick={onClear}>
+          Clear selection
+        </Button>
+      )}
     </Flex>
   )
 }
