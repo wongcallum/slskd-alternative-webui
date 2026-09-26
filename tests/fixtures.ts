@@ -9,6 +9,8 @@ type TestFixtures = {
   slskd: Instance
   token: string | undefined
   api: APIRequestContext
+  // Whether a page may log failed requests, as it does while slskd restarts and after, until its token is dropped.
+  failedRequests: boolean
 }
 
 type WorkerFixtures = { pool: Map<string, Promise<Instance>> }
@@ -50,6 +52,18 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
     await context.dispose()
   },
   baseURL: async ({ slskd }, use) => use(`${slskd.base}/`),
+  failedRequests: [false, { option: true }],
+  page: async ({ page, failedRequests }, use) => {
+    const errors: string[] = []
+    page.on('pageerror', (error) => errors.push(error.message))
+    page.on('console', (message) => {
+      if (message.type() !== 'error') return
+      if (failedRequests && /^(Failed to load resource|WebSocket connection)/.test(message.text())) return
+      errors.push(message.text())
+    })
+    await use(page)
+    expect(errors).toEqual([])
+  },
 })
 
 export { expect }
@@ -64,4 +78,5 @@ export async function logInPage(page: Page) {
   await page.getByLabel('Username').fill(credentials.username)
   await page.getByLabel('Password').fill(credentials.password)
   await page.getByRole('button', { name: 'Log in' }).click()
+  await expect(page.getByRole('button', { name: 'Log in' })).toBeHidden()
 }
