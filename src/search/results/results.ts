@@ -5,7 +5,7 @@ import { createAtom } from '../../lib/store'
 import { byName, compareNames, queryMatcher } from '../../lib/text'
 import { filesUnder, type TreeFile } from '../../lib/tree'
 import { sessionSignal } from '../../session/session'
-import { createDownloads, enqueueDownloads } from '../../transfers/enqueue'
+import { type Batch, createDownloads, enqueueDownloads } from '../../transfers/enqueue'
 
 export type RawResponse = {
   username: string
@@ -36,6 +36,7 @@ export type ResultFile = {
   qualityLabel: string
   locked: boolean
   matched: boolean
+  fetchedWith?: string
   search: string
 }
 
@@ -291,6 +292,7 @@ const fetchedFile = (file: TreeFile, group: ResultGroup): ResultFile => ({
   name: file.filename.slice(group.directory.length + 1),
   quality: file.quality,
   qualityLabel: file.qualityLabel,
+  fetchedWith: group.directory,
 })
 
 // The folder comes from the user's whole share rather than a request for the folder, since slskd peers answer that
@@ -331,12 +333,35 @@ export async function fetchFolder(searchId: string, group: ResultGroup, fresh: b
 
 export const downloadsOf = createDownloads()
 
-// One batch per user, carrying the search so slskd's SEARCH_ID and SEARCH_TEXT destination variables work. A file
-// selected in two groups is downloaded once.
-export const download = (searchId: string, files: ResultFile[]) =>
-  enqueueDownloads(
-    downloadsOf(searchId),
-    [...Map.groupBy(new Map(files.map((file) => [file.id, file])).values(), (file) => file.username)].map(
-      ([username, batch]) => ({ username, label: username, files: batch, searchId }),
-    ),
-  )
+const within = (directory: string, root: string) =>
+  directory === root || directory.startsWith(`${root}\\`) || directory.startsWith(`${root}/`)
+
+// One batch per user, carrying the search so slskd's SEARCH_ID and SEARCH_TEXT destination variables work. Once a
+// fetched folder's subfolders are downloaded, everything under that folder goes in a batch per remote folder instead,
+// rooted at it, like a download from Browse. A file selected in two groups is downloaded once.
+export function download(searchId: string, files: ResultFile[]) {
+  const unique = [...new Map(files.map((file) => [file.id, file])).values()]
+  const roots = new Map<string, { username: string; directory: string }>()
+  for (const { username, directory, fetchedWith } of unique) {
+    if (fetchedWith !== undefined && directory !== fetchedWith) {
+      roots.set(`${username}\n${fetchedWith}`, { username, directory: fetchedWith })
+    }
+  }
+  const outermost = [...roots.values()].sort((a, b) => a.directory.length - b.directory.length)
+  const batches = new Map<string, Batch<ResultFile>>()
+  for (const file of unique) {
+    const root = outermost.find((each) => each.username === file.username && within(file.directory, each.directory))
+    const key = root === undefined ? file.username : `${file.username}\n${file.directory}`
+    let batch = batches.get(key)
+    if (batch === undefined) {
+      const destination =
+        root &&
+        [nameOf(root.directory), ...file.directory.slice(root.directory.length + 1).split(/[\\/]/)]
+          .filter((segment) => segment !== '')
+          .join('/')
+      batches.set(key, (batch = { username: file.username, label: file.username, files: [], searchId, destination }))
+    }
+    batch.files.push(file)
+  }
+  return enqueueDownloads(downloadsOf(searchId), [...batches.values()])
+}
