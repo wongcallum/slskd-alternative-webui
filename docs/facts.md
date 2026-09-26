@@ -559,6 +559,9 @@ configuration and the debug view were checked on the dev build with `SLSKD_REMOT
   - It rejects the documented `log_sql` and `case_sensitive_regex`, as well as camelCase and hyphenated keys. The
     runtime lowercases keys and drops `_` and `-`, so it takes them all. A file with a rejected spelling can't be saved
     through `PUT`, which validates too.
+  - It wants each property's name with `_` before every capital, so the two flags are `flags.log_s_q_l` and
+    `flags.case_sensitive_reg_ex` (`Core/Options.cs`). The first unknown key stops it, with a message that names the
+    key in quotes: `Property 'log_sql' not found on type 'slskd.Options+FlagsOptions'.`
   - It passes duplicate keys, `yes`/`no`/`on`/`off` for booleans, and a document that's empty or only comments.
 - `PUT /options/yaml` validates the text alone (env and the command line aren't merged in), copies the file to
   `<file>.bak` (replacing the last one and keeping its mode), writes the text verbatim and not atomically, and returns
