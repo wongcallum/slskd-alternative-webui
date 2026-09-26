@@ -231,10 +231,10 @@ export function matchesUnder(folder: Folder, matches: Matches) {
   return files
 }
 
-export function filesUnder(folder: Folder) {
+export function filesUnder(folder: Folder, withLocked = false) {
   const files: TreeFile[] = []
   function visit(current: Folder) {
-    for (const file of current.files) if (!file.locked) files.push(file)
+    for (const file of current.files) if (withLocked || !file.locked) files.push(file)
     for (const child of current.folders) visit(child)
   }
   visit(folder)
