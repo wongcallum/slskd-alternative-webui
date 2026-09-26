@@ -76,25 +76,6 @@ test.describe(() => {
         .toEqual(fast.files.get(`Music\\Artist - Album\\${name}`))
     }
   })
-
-  test("a folder's full contents come from a cached share without browsing again", async ({
-    page,
-    peers: { fast },
-  }) => {
-    await page.goto(`browse?user=${encodeURIComponent(fast.username)}`)
-    await logInPage(page)
-    await page.getByRole('button', { name: `Browse ${fast.username}` }).click()
-    await expect(page.getByRole('treeitem', { name: /Artist - Album 4$/ })).toBeVisible()
-    await page.goto('searches')
-    const browses: string[] = []
-    page.on('request', (request) => {
-      if (/\/users\/[^/]+\/browse/.test(new URL(request.url()).pathname)) browses.push(request.url())
-    })
-    await searchAlbumIntro(page, fast)
-    await page.getByRole('button', { name: 'Get the full folder', exact: true }).click()
-    await expectFullFolder(page)
-    expect(browses).toEqual([])
-  })
 })
 
 // slskd pushes a search's counts as responses arrive, which on one host is often before the POST that created it

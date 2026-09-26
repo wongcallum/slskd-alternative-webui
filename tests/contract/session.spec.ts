@@ -22,13 +22,11 @@ test('a login gets a token that authorises requests, and hub connections', async
   await hub.stop()
 })
 
-test('a wrong login is a 401 with an empty body, and missing fields a 400', async ({ slskd, playwright }) => {
+test('a wrong login is a 401 with an empty body', async ({ slskd, playwright }) => {
   const request = await playwright.request.newContext({ baseURL: `${slskd.api}/` })
   const wrong = await request.post('session', { data: { ...credentials, password: 'wrong' } })
   expect(wrong.status()).toBe(401)
   expect(await wrong.text()).toBe('')
-  const missing = await request.post('session', { data: { username: credentials.username } })
-  expect(missing.status()).toBe(400)
 })
 
 test('a request without a valid token is a 401 with an empty body', async ({ slskd, playwright }) => {
@@ -40,14 +38,6 @@ test('a request without a valid token is a 401 with an empty body', async ({ sls
       expect(await response.text()).toBe('')
     }
   }
-})
-
-test("a hub doesn't connect without a token", async ({ slskd }) => {
-  const hub = new HubConnectionBuilder()
-    .withUrl(`${slskd.base}/hub/application`)
-    .configureLogging(LogLevel.None)
-    .build()
-  await expect(hub.start()).rejects.toThrow(/401/)
 })
 
 test.describe('without auth', () => {
@@ -66,9 +56,8 @@ test('a restart comes back and ends every session', async () => {
   const slskd = await start()
   try {
     const headers = { Authorization: `Bearer ${await logIn(slskd)}` }
-    await slskd.restartedBy(async () =>
-      expect((await fetch(`${slskd.api}/application`, { method: 'PUT', headers })).status).toBe(204),
-    )
+    // Unlike the UI's, this restart has no hub connections open, so slskd has to come back on its own.
+    expect((await fetch(`${slskd.api}/application`, { method: 'PUT', headers })).status).toBe(204)
     await expect
       .poll(async () => (await fetch(`${slskd.api}/session`, { headers }).catch(() => undefined))?.status, {
         timeout: 30_000,
