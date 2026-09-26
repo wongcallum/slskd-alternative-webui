@@ -66,7 +66,9 @@ test('a restart comes back and ends every session', async () => {
   const slskd = await start()
   try {
     const headers = { Authorization: `Bearer ${await logIn(slskd)}` }
-    expect((await fetch(`${slskd.api}/application`, { method: 'PUT', headers })).status).toBe(204)
+    await slskd.restartedBy(async () =>
+      expect((await fetch(`${slskd.api}/application`, { method: 'PUT', headers })).status).toBe(204),
+    )
     await expect
       .poll(async () => (await fetch(`${slskd.api}/session`, { headers }).catch(() => undefined))?.status, {
         timeout: 30_000,
