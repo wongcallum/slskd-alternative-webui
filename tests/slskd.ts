@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { closeSync, existsSync, openSync, readFileSync } from 'node:fs'
+import { closeSync, existsSync, openSync, readFileSync, statSync } from 'node:fs'
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -35,6 +35,8 @@ export type Instance = {
   relaunch: () => Promise<void>
   // Signals slskd's process group, such as SIGSTOP to make it stop answering peers.
   signal: (signal: NodeJS.Signals) => void
+  // Runs `restart`, which asks slskd to restart, and waits until slskd has started again.
+  restartedBy: (restart: () => Promise<unknown>) => Promise<void>
   stop: () => Promise<void>
 }
 
@@ -238,6 +240,26 @@ export async function start(overrides: Partial<Config> = {}, extraEnv: Record<st
 
   const signal = (name: NodeJS.Signals) => process.kill(-group, name)
 
+  // TODO: once slskd's restart waits for the old process to let go of its single-instance lock (see the facts), this
+  // only needs to run `restart`. Until then the restarted process can quit on finding the lock still held, and the old
+  // one can hold it for up to 30 s, so a restart that fails that way is finished here.
+  async function restartedBy(restart: () => Promise<unknown>) {
+    const from = statSync(log).size
+    await restart()
+    const deadline = Date.now() + 30_000
+    for (;;) {
+      const since = readFileSync(log).subarray(from).toString()
+      if (since.includes('Application started')) return
+      if (since.includes('An instance of slskd is already running')) {
+        await stopGroup(group, false)
+        group = launch()
+        return waitUntilUp()
+      }
+      if (Date.now() > deadline) throw new Error(`slskd didn't start again after the restart:\n${since}`)
+      await sleep(100)
+    }
+  }
+
   async function stop() {
     await stopGroup(group)
     await rm(root, { recursive: true, force: true })
@@ -249,7 +271,7 @@ export async function start(overrides: Partial<Config> = {}, extraEnv: Record<st
     await stop()
     throw error
   }
-  return { config, base, api, root, configFile, log, ...dirs, waitUntilUp, relaunch, signal, stop }
+  return { config, base, api, root, configFile, log, ...dirs, waitUntilUp, relaunch, signal, restartedBy, stop }
 }
 
 export async function logIn(instance: Instance) {
