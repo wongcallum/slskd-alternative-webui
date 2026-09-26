@@ -124,6 +124,12 @@ down and deleting files ask for confirmation.
 - Stock packs filter criteria into the text box as a syntax (see the facts). We dropped it for a Filters popover,
   because its keywords collide with path text and can't be discovered.
 - The results page never reads the downloads list. Rows show Enqueued or Failed from the batch responses.
+- **A folder's full contents come from the user's whole share**, the one Browse caches, rather than a request for
+  the folder. slskd peers answer that request with files from other folders under bare names, so some listed paths
+  don't exist (see the facts), and old slskds will stay on the network long after a fix. A cached share is read
+  without asking the peer, and getting the folder again browses afresh.
+  - Rejected: trusting the answer, telling slskd peers apart by what they send, and dropping the button for the
+    row's Browse.
 
 ### Browse
 
