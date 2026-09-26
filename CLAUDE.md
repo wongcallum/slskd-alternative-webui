@@ -1,6 +1,8 @@
 - This is a solo project, so don't preserve backward compatibility. Don't write i18n or accommodate for legacy clients either.
 - Prefer using established dependencies over writing your own implementation.
-- Don't write tests.
+- Tests run against real slskd instances the harness starts, offline. `tests/contract` checks the slskd behaviour the UI
+  relies on, and `tests/ui` checks the pages in a browser. Don't mock slskd, and don't write unit or component tests.
+- When the code comes to rely on a new fact about slskd, add a contract test for it if it can be checked offline.
 - By default, write no comments. Comments are written when there is behaviour that would surprise a competent reader of the code.
 - Read the docs instead of trusting your training knowledge.
 - Throwaway scripts, screenshots and dumps go in `/tmp`.
