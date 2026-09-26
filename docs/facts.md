@@ -120,7 +120,8 @@ Everything is under `/transfers`, and returns 403 in relay agent mode.
 - **An slskd peer ignores a request for a file while its upload of an earlier request for it is still ending**
   ("Ignoring concurrent invocation", `Uploads/UploadService.cs`), and nothing retries it, so the new download stays
   `Queued, Remotely` for good. Observed on the test network when a file was requested again within milliseconds of
-  its earlier transfer ending or being cancelled.
+  its earlier transfer ending or being cancelled, including after the peer's upload record had completed: the record
+  completes a few milliseconds before the upload lets go of the file.
 - Cancelling a download while it's `Requested` or `Initializing` doesn't reach the peer, whose upload waits out its
   transfer timeout (at least 30 s, `soulseek.connection.timeout.transfer`) before it ends. Cancelling one that's
   `Queued, Remotely` or `InProgress` ends the peer's upload within moments, the queued one when the peer offers it

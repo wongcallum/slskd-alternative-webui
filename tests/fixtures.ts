@@ -96,12 +96,21 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
               .filter((file) => !file.state.startsWith('Completed'))
               .map((file) => ({ username, file })),
           )
-        // Downloads from the fast peer finish on their own. One from the slow peer is cancelled only once it's queued
-        // there or in progress, since cancelling it while it's being requested or started leaves the peer waiting out
-        // its transfer timeout. The queued ones go first, since cancelling the running one lets the next one start.
+        // Downloads from the fast peer finish on their own. Those from the slow peer are cancelled only once one is in
+        // progress and the rest are queued behind it, since cancelling one while it's being requested or started
+        // leaves the peer waiting out its transfer timeout, and one queued while the slot is free starts at once. The
+        // queued ones go first, since cancelling the running one lets the next one start.
         const settled = ({ username, file }: { username: string; file: RawTransfer }) =>
           username === slow.username && /Remotely|InProgress/.test(file.state)
-        await expect.poll(async () => (await unfinished()).every(settled), { timeout: 10_000 }).toBe(true)
+        await expect
+          .poll(
+            async () => {
+              const left = await unfinished()
+              return left.every(settled) && (left.length === 0 || left.some(({ file }) => file.state === 'InProgress'))
+            },
+            { timeout: 10_000 },
+          )
+          .toBe(true)
         const byRunning = (await unfinished()).sort(
           (a, b) => Number(a.file.state === 'InProgress') - Number(b.file.state === 'InProgress'),
         )
