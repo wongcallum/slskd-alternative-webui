@@ -7,11 +7,6 @@ are relative to `slskd/src/slskd`, and line numbers drift over time.
 
 ## API surface
 
-- REST is at `/api/v0/*`. Every action is `[Authorize]` except `GET /session/enabled` (bare
-  `true`/`false`) and `POST /session`. `/health` is also open.
-- The UI hubs are `/hub/{application,logs,search,metrics}`. They broadcast to all clients (there are no
-  groups), and each one sends a snapshot to a client when it connects. `/hub/relay` is for relay agents
-  and isn't for the UI.
 - **There is no transfers hub**, and there's no ETag, `If-None-Match` or `since` param anywhere. The
   transfer list endpoints have no pagination, and their only filter is `includeRemoved`.
   `GET /transfers/downloads` returns every non-removed download every time, uncompressed (3.5 MiB on a heavily
@@ -19,15 +14,10 @@ are relative to `slskd/src/slskd`, and line numbers drift over time.
   (`web/src/components/Transfers/Transfers.jsx:36`). Under load, stock saturates the main thread,
   starves the SignalR keepalive and shows "Lost connection". Avoiding that is the main reason this
   project exists. Events and telemetry reports do paginate with `offset`/`limit`.
-- Pushed:
-  - application hub: `STATE` on every change, and `OPTIONS` (redacted). See [Application hub](#application-hub).
-  - search hub: `LIST` on connect, then `CREATE`/`UPDATE`/`DELETE` without responses. A `RESPONSE` method is
-    declared but never sent. See [Search hub](#search-hub).
-  - logs hub: `BUFFER` on connect, then `LOG`. See [Logs](#logs).
-  - metrics hub: `Update` every second, carrying aggregate transfer counts. See [Metrics hub](#metrics-hub).
-- Poll-only: transfers, browse, search response bodies, rooms, conversations and events.
-- REST JSON omits nulls (`WhenWritingNull`, `Program.cs:981`), but hub payloads keep them. Both use
-  camelCase and string enums.
+- Hubs broadcast to every client (there are no groups). The search hub declares a `RESPONSE` method but never sends
+  it. Poll-only: transfers, browse, search response bodies, rooms, conversations and events.
+- REST JSON omits nulls (`WhenWritingNull`, `Program.cs:981`), but hub payloads keep them. Error bodies are JSON
+  strings or empty.
 
 ## Transfers
 
@@ -35,19 +25,11 @@ Paths below are relative to `Transfers/` unless they start with another director
 
 ### Records
 
-- The list shape is `[{ username, directories: [{ directory, fileCount, files: Transfer[] }] }]`. A `Transfer` has
-  `id, batchId?, username, direction, filename (full remote path), size, state, requestedAt, enqueuedAt?, startedAt?, endedAt?, bytesTransferred, averageSpeed, placeInQueue?, exception?, attempts, nextAttemptAt?, removed`,
-  plus the computed `bytesRemaining, percentComplete, elapsedTime?, remainingTime?` (`Types/Transfer.cs`).
-  - Sizes are bytes, `averageSpeed` is bytes per second, and `percentComplete` runs from 0 to 100.
-  - `averageSpeed` comes from Soulseek.NET 10.0.2 (`TransferInternal.cs`): an exponential moving average (α 0.2) of
-    1 s samples. It's 0 for a transfer's first second and is replaced by bytes ÷ duration once every byte is in. So
-    it underreads short transfers while they run: over a batch of 3–5 s files, the running rows' summed
-    `averageSpeed` showed 18% of the bytes actually moved (measured).
-  - `elapsedTime` and `remainingTime` are .NET TimeSpans (`"00:00:03.6311109"`). `elapsedTime` is measured
-    against the server's clock, so a running transfer's record changes on every poll.
-  - **`requestedAt` and `enqueuedAt` are UTC but serialised without the `Z`**, while `startedAt` and
-    `endedAt` have it. Only the latter two have a `SpecifyKind(Utc)` converter (`TransfersDbContext.cs`).
-  - `attempts` is 0 until a download's first attempt starts, and always 0 for uploads.
+- `averageSpeed` comes from Soulseek.NET 10.0.2 (`TransferInternal.cs`): an exponential moving average (α 0.2) of
+  1 s samples. It's 0 for a transfer's first second and is replaced by bytes ÷ duration once every byte is in. So
+  it underreads short transfers while they run: over a batch of 3–5 s files, the running rows' summed
+  `averageSpeed` showed 18% of the bytes actually moved (measured).
+- `attempts` is 0 until a download's first attempt starts, and always 0 for uploads.
 - `state` is a flags enum serialised like `"Completed, Succeeded"` or `"Queued, Locally"`. The states actually
   written are `Queued, Locally`, `Requested`, `Queued, Remotely` (downloads only), `Initializing`,
   `InProgress` and `Completed, Succeeded|Cancelled|TimedOut|Errored|Rejected|Aborted`. Bare `Queued` and
@@ -85,14 +67,11 @@ Paths below are relative to `Transfers/` unless they start with another director
 
 ### Endpoints
 
-Everything is under `/transfers`, needs `application/json` for bodies, and returns 403 in relay agent mode.
-Error bodies are JSON strings. Encode the username segment with `encodeURIComponent`.
+Everything is under `/transfers`, and returns 403 in relay agent mode.
 
-- `GET downloads` / `GET uploads` return every non-removed record, read from SQLite on **every** call with
-  no cache and no `ORDER BY` (in practice insertion order). The query visits every record of that direction
-  ever written, removed ones included. The only parameter is `includeRemoved`. There's no pagination, no
-  ETag or `If-None-Match`, and **no response compression**. `GET .../{username}` returns one user's object
-  (not an array) and 404 if there are none.
+- `GET downloads` / `GET uploads` read SQLite on **every** call with no cache and no `ORDER BY` (in practice
+  insertion order). The query visits every record of that direction ever written, removed ones included.
+  `GET .../{username}` returns one user's object (not an array) and 404 if there are none.
 - `DELETE .../{username}/{id}?remove=bool` always returns 204 for a well-formed id, even an unknown one.
   - The cancel is asynchronous.
   - `remove=true` only removes a record that's already `Completed`. On an active transfer it just cancels,
@@ -111,13 +90,10 @@ Error bodies are JSON strings. Encode the username segment with `encodeURICompon
     409 for a duplicate batch id, and 500 when not logged in to Soulseek or the peer can't be reached.
   - `options` may be omitted, but `"options": null` is a 500. `externalId` is accepted and dropped.
   - It returns once the records are inserted as `Queued, Locally`, without waiting for the peer's queue.
-  - **At most two enqueues run at once**, across the batch and the obsolete per-user POST. A third gets 429
-    straight away with nothing done. Observed: a retry's POST got 429 twice while two other enqueues held the
-    slots for about 2 s each, then succeeded on the next resend.
   - It has no limit on the number of files. Kestrel's default 30 MB body limit applies, and behind nginx's default
-    1 MB limit a batch of roughly 7–10k files fails. Duplicate `filename`s within a request are compared exactly, and
-    give a 400. The work before it returns grows roughly with the square of the file count (one DbContext tracks
-    every insert), and files then reach the peer 5 at a time (`Downloads/DownloadService.cs`, not measured).
+    1 MB limit a batch of roughly 7–10k files fails. The work before it returns grows roughly with the square of the
+    file count (one DbContext tracks every insert), and files then reach the peer 5 at a time
+    (`Downloads/DownloadService.cs`, not measured).
 - **Where a download lands.** It's written to
   `<directories.incomplete>/<username>/<remote directory without its root>/<file>`, and on completion moved to
   `<directories.downloads>/<destination>/<basename>`. The destination is worked out at completion, from the batch and
@@ -129,11 +105,8 @@ Error bodies are JSON strings. Encode the username segment with `encodeURICompon
     two albums' `CD1`s merge, with a clashing name renamed `01_<ticks>.flac` under the default `exists: rename`.
   - A batch's `options.destination` replaces the pattern. It's one literal folder relative to the downloads
     directory, with no template expansion, and `.` or `..` segments are rejected. `\` and `/` both work as
-    separators. Every file in the batch lands flat in it, so keeping a tree takes one batch per remote folder.
-- `GET downloads/batches/{id}` returns `{id, searchId?, username, direction, createdAt, options, transfers}`,
-  including removed transfers. There's no endpoint that lists batches.
-- A batch's `searchId` is only used by the `SEARCH_ID` and `SEARCH_TEXT` destination template variables
-  (`Downloads/DownloadService.cs`).
+    separators.
+- `GET downloads/batches/{id}` includes removed transfers. There's no endpoint that lists batches.
 - **There's no retry endpoint.** Retrying means enqueueing the same `username` + `filename` + `size` again.
   Stock's retry uses the obsolete `POST downloads/{username}` one file at a time, so it loses the batch and
   its destination, and runs into the 429.
@@ -143,17 +116,16 @@ Error bodies are JSON strings. Encode the username segment with `encodeURICompon
 - Auth is JWT, and there is **no refresh endpoint**. `web.authentication.jwt.key` defaults to random bytes per
   process, so **every slskd restart invalidates every token**. That's the common expiry case, not the
   7-day TTL (which also has 5 minutes of clock skew).
-- Browser logins (`POST /session`) always get the Administrator role, so there's no role-gated UI. The response is
-  `{token, tokenType, expires, issued, notBefore, name}`. API keys (`X-API-Key`) also exist but aren't for browsers.
-- `POST /session` returns 401 with an empty body for wrong credentials, and 400 with a JSON string
-  (`"Username and/or Password missing or invalid"`) for missing or blank fields. The comparison is exact
-  and case-sensitive. There's no rate limit, lockout or delay on failures (`SessionController.cs`).
+- Browser logins (`POST /session`) always get the Administrator role, so there's no role-gated UI. API keys
+  (`X-API-Key`) also exist but aren't for browsers.
+- `POST /session` returns 401 with an empty body for wrong credentials, and 400 with a JSON string for missing or blank
+  fields. The comparison is exact and case-sensitive. There's no rate limit, lockout or delay on failures
+  (`SessionController.cs`).
 - `GET /session` is `[Authorize]` (JWT or API key) and returns 200 with an empty body and no side effects,
   which makes it the cheapest session probe. There's no `DELETE /session` and no revocation: JWTs are
   stateless, so logout is client-side only.
-- 401 bodies are always empty. A bad or stale token gets `WWW-Authenticate: Bearer error="invalid_token"`.
-  A browser JWT never gets a 403 from role checks, only from explicit `Forbid()` calls (relay agent
-  mode, remote configuration or file management disabled).
+- 401 bodies are always empty. A browser JWT never gets a 403 from role checks, only from explicit `Forbid()` calls
+  (relay agent mode, remote configuration or file management disabled).
 - An instance can have no auth: `web.authentication.disabled: true`, or `--no-auth`. Then
   `GET /session/enabled` returns `false` and every request is Administrator. `POST /session` still
   validates credentials and returns a JWT that's useless. JwtBearer isn't registered in that mode, so a
@@ -168,39 +140,20 @@ Error bodies are JSON strings. Encode the username segment with `encodeURICompon
 
 ## Shutdown
 
-- Observed once: while a hub WebSocket was connected, SIGTERM made slskd log "Application is shutting
-  down" and "Client stopped" and then hang instead of exiting. `devenv.nix` gives it a 10 s shutdown grace before SIGKILL.
-- Observed later, with no Soulseek credentials configured: it exited in 0.3 s with both hubs connected.
-  What triggers the hang is unknown.
+- Observed once: while a hub WebSocket was connected, SIGTERM made slskd hang after logging "Application is shutting
+  down" and "Client stopped", instead of exiting. Later, with no Soulseek credentials configured, it exited in 0.3 s
+  with both hubs connected. What triggers the hang is unknown; `devenv.nix` gives it a 10 s grace before SIGKILL.
 
 ## Application hub
 
-- On connect the caller gets `STATE` and then `OPTIONS` (`Core/API/Hubs/ApplicationHub.cs:92`). The method
-  names are uppercase, and the JS client matches them case-insensitively.
 - `STATE` is the whole `State` record (`Core/State.cs`), pushed in full to every client on **every** update, with
   no debounce and no check that anything changed (`Common/ManagedState.cs:198`, `Application.cs:1913`). That
   includes share-scan progress in 1% steps, and `health`, which updates every 30 s, so a push arrives at least
-  every 30 s. `GET /application` returns the same object with nulls omitted.
-- Top-level keys: `version {full, current, latest, isUpdateAvailable, isCanary, isDevelopment}`,
-  `pendingReconnect`, `pendingRestart`, `server`,
-  `connectionWatchdog {isEnabled, isAttemptingConnection, isAwaitingVpn, nextAttemptAt}`, `vpn`, `relay`, `health`,
-  `user {username, privileges, statistics}`, `distributedNetwork`,
-  `shares {scanPending, scanning, ready, faulted, cancelled, scanProgress, hosts, directories, files}`, `rooms` and
-  `users`. `users` is never populated.
-- `user.username` is updated on every Soulseek client state change. It's null until the first login and again after
-  every disconnect, since Soulseek.NET clears its `Username` as it disconnects (`SoulseekClient.cs`).
-  `pendingReconnect` is set when an option that needs a reconnect changes while connected, and any disconnect clears
-  it. `pendingRestart` stays set until a restart. `version.latest` and `isUpdateAvailable` stay null on dev and
-  canary builds and with `no_version_check`.
-- `OPTIONS` is the whole options object with every secret replaced by `"*****"`. It's pushed on connect and
-  after each options change that actually differs.
-- Other shapes: `user.statistics {averageSpeed, directoryCount, fileCount, uploadCount}` (as the server reports
-  them), `health.search.incoming {latency, queueDepth, dropRate}` (a moving average in ms, the waiting incoming
-  searches, and drops so far this minute; refreshed every 30 s) and
-  `distributedNetwork {branchLevel, branchRoot, canAcceptChildren, childLimit, children[], hasParent, isBranchRoot, parent}`.
-  `vpn` is `{isReady, isConnected}` both when the VPN integration is off and when it's down, and `relay.mode` reads
-  `Controller` with relay disabled, so neither says whether its feature is on.
-- `GET /application` is about 1.2 KB on dev.
+  every 30 s.
+- `user.statistics` are as the server reports them. `health.search.incoming {latency, queueDepth, dropRate}` is a
+  moving average in ms, the waiting incoming searches, and drops so far this minute, refreshed every 30 s.
+- `vpn` is `{isReady, isConnected}` both when the VPN integration is off and when it's down, and `relay.mode` reads
+  `Controller` with relay disabled, so neither says whether its feature is on. `users` is never populated.
 
 ## Application
 
@@ -218,35 +171,27 @@ observed on throwaway instances of the dev build and the 0.25.1 and 0.26.0 relea
   - With a slow 20 MB download open it never came back (3 of 3). The new process logged "An instance of slskd is
     already running" and quit, and the old one exited when the request ended or 30 s passed. A 761 KB download
     didn't block it, and open hub connections don't either.
-  - The release binary passes its own path again as an argument, so each restart adds one more
-    (`slskd slskd slskd --app-dir …`). slskd ignores them.
   - The mutex is per Unix session (no `Global\` prefix), and the child stays in its parent's session.
-  - Under devenv 2.3's process manager, a process started with `exec` never comes back (observed). When the process
-    it started exits, the manager signals every process group in that process's Unix session and kills what's left
-    after `shutdown.grace`, which takes the re-executed child with it (`devenv-processes/src/supervisor.rs`). Restart
-    and shutdown both exit 0, so `restart.on` can't bring one back without the other. `devenv.nix` keeps its script
-    alive with `pidwait` until the session has no `dotnet` left. With that, restarts came back in about 2 s, a
-    shutdown stayed down, and `devenv down` still stopped the re-executed process.
+  - Under devenv 2.3's process manager, when the process it started exits, the manager signals every process group in
+    that process's Unix session and kills what's left after `shutdown.grace`, taking the re-executed child with it
+    (`devenv-processes/src/supervisor.rs`). Restart and shutdown both exit 0, so `restart.on` can't bring one back
+    without the other. `devenv.nix`'s script waits for slskd's copy of itself instead, and with that restarts came
+    back in about 2 s, a shutdown stayed down, and `devenv down` still stopped the re-executed process.
   - Nothing detects Docker or a supervisor. The image's entrypoint exits with slskd, which kills the child, so in
     Docker a restart relies on the container's restart policy, and under `always` or `unless-stopped` a shutdown
     comes back too (inferred).
 - Shutdown stops gracefully and calls `Environment.Exit(0)` 500 ms later regardless, so the process is gone within
   0.2–0.75 s even with requests open. It then skips the Soulseek disconnect.
-- On the next start, unfinished transfers become `Completed, Errored` and downloads are re-enqueued without their
-  batch (see [Records](#records)).
-- Hidden and unused by stock: `POST /application/gc` (a blocking full collection), `GET /application/dump` (downloads
-  `dotnet-dump` and serves a full memory dump) and `POST /application/loopback`. None has a role check.
 
 ### Version check
 
 - slskd asks `https://api.github.com/repos/slskd/slskd/releases/latest` once at startup unless `no_version_check`
   is set, and never again on its own (`Application.cs`). `GET /application/version/latest?forceCheck=true` checks
   again, ignoring `no_version_check`, and returns `state.version`. A failed check is a 500. Development and canary
-  builds never check, even when forced.
+  builds never check, even when forced, so `version.latest` and `isUpdateAvailable` stay null there and with
+  `no_version_check`.
 - A check sets `version.latest` and `isUpdateAvailable` and pushes `STATE`. When up to date, `latest` is set to
   `current`.
-- Release tags have no `v` (`0.26.0`), but release builds report a fourth part (`current: "0.26.0.0"`), so `latest`
-  is a valid tag for `releases/tag/<latest>` only when `isUpdateAvailable`. Canary builds end in `.65534`.
 
 ### Pending states
 
@@ -256,11 +201,9 @@ observed on throwaway instances of the dev build and the 0.25.1 and 0.26.0 relea
 - `pendingReconnect` is set when the Soulseek address, port, username or password changes while connected, and any
   disconnect clears it.
 - `shares.scanPending` is set when `shares.directories` or `shares.filters` change, or when a scan faults, and a
-  scan that ends any other way clears it, **a cancelled one included** (see [Scanning](#scanning)). Observed: adding a
-  directory in the YAML set it and a rescan cleared it.
-  - Changes are compared as sets, so reordering the entries or adding a duplicate doesn't set it.
-  - While a scan runs it comes from the share service's own flag, which never sees config changes. Observed: false
-    during the rescan after a config change, true during the rescan after a cancel.
+  scan that ends any other way clears it, a cancelled one included (see [Scanning](#scanning)). Changes are compared
+  as sets, so reordering the entries or adding a duplicate doesn't set it. While a scan runs it comes from the share
+  service's own flag, which never sees config changes.
 - `PUT /shares` rescans and always returns 200, even while a scan runs (observed). Its 409 for a scan in progress can't
   happen, because the exception lands in the returned task (`Shares/ShareService.cs`). `DELETE /shares` cancels (204,
   or 404 when none runs).
@@ -268,21 +211,18 @@ observed on throwaway instances of the dev build and the 0.25.1 and 0.26.0 relea
 ### Privileges
 
 - `user.privileges.privilegesRemaining` is in **seconds**, although Soulseek.NET's docs say days: it passes the
-  server's integer through unchanged, and Nicotine+ and its protocol docs treat it as seconds. `isPrivileged` is
-  `> 0`.
+  server's integer through unchanged, and Nicotine+ and its protocol docs treat it as seconds.
 - It's fetched at login, after a share scan, and otherwise at most every 4 hours, so it doesn't count down and a
   purchase only shows after the next login. The server's privilege notifications don't carry the time, and slskd
-  doesn't subscribe to them.
-- There's no endpoint to get privileges. The donation page SoulseekQt and Nicotine+ open is
-  `https://www.slsknet.org/qtlogin.php?username=<username>`, with the username percent-encoded.
+  doesn't subscribe to them. There's no endpoint to get privileges.
 
 ### Process metrics
 
 - `STATE` has no uptime, pid, OS or runtime. `GET /telemetry/metrics` has them, for any authenticated caller and
   whether or not `metrics.enabled` is set: `process_start_time_seconds`, `process_working_set_bytes`, the
   `dotnet_build_info` labels `runtime_version`, `os_version` and `process_architecture`, and free space per mount.
-  It's Prometheus text, or a JSON object keyed by metric name (`{name, help, type, samples: [{value, labels}]}`) when
-  `Accept` is exactly `application/json`. About 35 KB and 10 ms on dev.
+  As JSON it's an object keyed by metric name (`{name, help, type, samples: [{value, labels}]}`). About 35 KB and
+  10 ms on dev.
 - 0.25.1 sometimes answers it with a 500 ("An item with the same key has already been added"). Observed twice in
   about five minutes. 0.25.1 also has no metrics hub, so its negotiate is a 404.
 
@@ -291,7 +231,7 @@ observed on throwaway instances of the dev build and the 0.25.1 and 0.26.0 relea
 - `Update` goes to every client every second whether or not anything changed
   (`Telemetry/TelemetryService.cs:51`), and to the caller on connect (`Telemetry/API/MetricsHub.cs:56`):
   `{ downloads: { inProgress: {files, users, averageSpeed, totalSpeed}, queued: {files, users, bytes}, completed: {succeeded, failed, bytes} }, uploads: <same> }`.
-  Every value is a JSON number. There's nothing per-transfer.
+  There's nothing per-transfer.
 - `completed.*` are counters since the process started. Everything else is a gauge, and all of it starts at 0
   after a restart. Startup's "Application shut down" errors don't count as failed.
 - The gauges are recounted every 5 s from Soulseek.NET's in-memory transfer list (`Client.Downloads` /
@@ -320,7 +260,7 @@ observed on throwaway instances of the dev build and the 0.25.1 and 0.26.0 relea
   `averageSpeed` (see [Records](#records)), fed only at each recount and reset to 0 by one that finds none running.
   `inProgress.averageSpeed` is the same over their mean, but each running transfer also feeds it its own speed about
   once a second between recounts (`Telemetry/Metrics.cs`, `Transfers/Downloads/DownloadService.cs`,
-  `Transfers/Uploads/UploadService.cs`). Both are bytes per second. Stock's footer shows `averageSpeed`.
+  `Transfers/Uploads/UploadService.cs`). Stock's footer shows `averageSpeed`.
 - Measured with real downloads, as a share of the bytes the files actually moved:
 
   | Downloads                                  | `totalSpeed` | `averageSpeed` | The higher of the two |
@@ -340,30 +280,18 @@ observed on throwaway instances of the dev build and the 0.25.1 and 0.26.0 relea
 
 ## Logs
 
-- `/hub/logs` sends `BUFFER` to a client as it connects, then `LOG` to every client for each record. `GET /logs` returns
-  the same buffer with nulls omitted. Both are open to any authenticated caller (`Core/API/Hubs/LogsHub.cs`,
-  `Core/API/Controllers/LogsController.cs`).
-- The buffer is the last 100 records, held in memory (`Program.cs`, `LogBuffer`), so a restart empties it. It's in the
-  order the records were added, oldest first.
-- A record is `{timestamp, context, subContext, level, message}` (`Common/Logging/LogRecord.cs`, filled in by the
-  `DelegatingSink` in `Program.cs`):
-  - `timestamp` is the server's local time with its offset, with up to 7 fractional digits and trailing zeros dropped
-    (`"2026-09-25T11:52:29.833777+00:00"`).
+- The buffer is the last 100 records, held in memory (`Program.cs`, `LogBuffer`), so a restart empties it.
+- A record (`Common/Logging/LogRecord.cs`, filled in by the `DelegatingSink` in `Program.cs`):
+  - `timestamp` is the server's local time with its offset.
   - `context` is Serilog's `SourceContext`, a full type name like `slskd.Shares.SqliteShareRepository`. Soulseek.NET's
     diagnostics are logged as `slskd.Application` with the Soulseek.NET class's full name in `subContext`
     (`Application.cs`, `Client_DiagnosticGenerated`). Nothing else sets `subContext`.
-  - `level` is Serilog's level name: `Verbose`, `Debug`, `Information`, `Warning`, `Error` or `Fatal`. The minimum is
-    `Debug` with `debug` on and `Information` otherwise, so `Verbose` never arrives.
+  - The minimum level is `Debug` with `debug` on and `Information` otherwise, so `Verbose` never arrives.
   - `message` is the rendered template, which puts string values in quotes. When there's an exception, its whole
     `ToString()` is appended after `": "`, stack trace and all, over several lines.
 - Neither the buffer nor the pushes are in timestamp order: records are added and pushed from whichever thread logged
   them, and each push is fired without being awaited (`Application.cs`, `LogEmitted`). Observed: 156 of 813 pushes had
   an earlier timestamp than the push before.
-- A record logged while a client connects can reach it twice, in `BUFFER` and as a `LOG`, and the `LOG` can arrive
-  first: SignalR adds the connection to the broadcast list before it calls the hub's `OnConnectedAsync`
-  (ASP.NET Core's `HubConnectionHandler.cs`). Not observed. Every reconnect sends the whole buffer again.
-- Pushes can be frequent. Observed: 54 a second on the dev instance while logged in to Soulseek with no share scan,
-  each one a `no such table: filenames` warning with a 7-line stack trace (see [Endpoints](#endpoints-1) under Search).
 
 ## Events
 
@@ -371,12 +299,11 @@ Paths are relative to `Events/` unless they start with another directory.
 
 - `GET /events?offset=&limit=` (`API/EventsController.cs`) returns records **newest first by `timestamp`, with no
   tiebreaker** (`EventService.cs`), and the total in an `X-Total-Count` header, counted in a second query.
-  - `offset` defaults to 0 and `limit` to 100, with no maximum. A negative offset or a limit below 1 is a 400 with a
-    JSON string. A value that isn't an integer silently becomes the default, and an offset past the end is `[]`.
+  - `offset` defaults to 0 and `limit` to 100, with no maximum. A negative offset or a limit below 1 is a 400. A value
+    that isn't an integer silently becomes the default, and an offset past the end is `[]`.
   - There's no filter by type or time, no single-event GET and no way to delete one. Nothing pushes events.
-- A record is `{timestamp, type, data, id}`: a GUID, the type's name, and UTC with 7 fractional digits and the `Z`.
-  **`data` is a JSON string** of the event's own fields plus `version`, with nulls kept and non-ASCII unescaped
-  (`Types/EventRecord.cs`).
+- A record is `{timestamp, type, data, id}`. `data` is a JSON string of the event's own fields plus `version`, with
+  nulls kept and non-ASCII unescaped (`Types/EventRecord.cs`).
 - The types and what `data` holds (`Types/Events.cs`):
   - `SoulseekClientConnected`: nothing. `SoulseekClientDisconnected`: `message`, and `exception` as a whole .NET
     exception object (`message`, `stackTrace`, `innerException` and so on).
@@ -427,14 +354,12 @@ Everything is in `API/Controllers/SharesController.cs`, takes a JWT or any API k
 relay agent mode.
 
 - `GET /shares` returns `{"local": Share[], "<agent>": Share[]}`, keyed by host, with the exclusions and the longest
-  `localPath` first. A Share is `{id, alias, isExcluded, localPath, raw, remotePath, directories?, files?}`
-  (`Types/Share.cs`).
+  `localPath` first (`Types/Share.cs`).
   - `remotePath` always equals `alias`, and `id` is its SHA1 in uppercase hex, so an id belongs to an alias rather
     than a path. `GET /shares/{id}` matches it case-sensitively.
   - `raw` is the config entry, prefix included, without a trailing `/`.
-  - The counts are absent until a scan or startup computes them, and **any change to `shares.directories` rebuilds
-    every share without them**, a reorder included (observed). An exclusion counts 0 and 0, and `directories`
-    leaves out the share's own root.
+  - **Any change to `shares.directories` rebuilds every share without its counts**, a reorder included (observed). An
+    exclusion counts 0 and 0, and `directories` leaves out the share's own root.
 - `GET /shares/contents` returns everything shared as `[{name, fileCount, files}]`, one entry per directory, in the
   shape of a browse response: `name` is the remote path joined with `\` (`Music\Album`), and files have bare
   `filename`s and the same attributes, read with TagLib for audio and video only.
@@ -442,12 +367,9 @@ relay agent mode.
     2.47 MB for 24k tiny files, in 0.9 s. A FLAC costs about 300 B.
   - Directories come in no particular order, with their files sorted. A directory without files, such as one
     holding only folders, is listed with `files: []`.
-  - Before any scan has created the database it's a 500: `"SQLite Error 1: 'no such table: directories'."`
-    (observed on dev).
 - `GET /shares/{id}/contents` filters the same list with `LIKE '<remotePath>\%'`, so aliases that differ only by case,
   or where `_` matches another character, merge (from the source). It leaves out the share's root unless that holds
   files, and gives `[]` for an exclusion or an unscanned share.
-- `PUT /shares` scans and `DELETE /shares` cancels (see [Pending states](#pending-states)).
 - A file belongs to the deepest share containing it, so a nested share's contents appear only under its own alias.
   Hidden files, dot-directories, system files and symlinks aren't shared, and neither are filtered or excluded paths,
   which are counted only in the log. A share whose path doesn't exist logs a warning and counts 0 (observed).
@@ -497,18 +419,12 @@ in relay agent mode.
 
 - `GET /files/{downloads|incomplete}/directories` lists that directory, and `.../directories/{path}` a folder in it.
   `DELETE .../directories/{path}` deletes a folder with everything in it, and `DELETE .../files/{path}` a file.
-- **`{path}` is standard base64 of the UTF-8 path relative to the root**, padding included.
-  - `+` works raw or as `%2B`. **A `/` in the base64 can't be sent**: raw it splits the route, and `%2F` reaches the
-    decoder undecoded (a 500).
-  - The path is normalised first, so `./a`, `a//b` and `a/./b` mean `a` and `a/b`, and inserting them shifts the
-    encoding. Some names encode with a `/` at every shift, like `Who Are You???.flac`. Observed: it could be listed with
-    its folder but not deleted on its own.
+- **`{path}` is standard base64 of the UTF-8 path relative to the root**, padding included. `+` works raw or as `%2B`,
+  but a `/` in the base64 can't be sent: raw it splits the route, and `%2F` reaches the decoder undecoded (a 500).
 - A listing is `{name, fullName, attributes, createdAt, modifiedAt, files, directories}`. Files are
   `{name, fullName, length, attributes, createdAt, modifiedAt}`, and child directories have no `files`, `directories`
   or `length`.
   - **`fullName` is relative to the folder asked for**, and a root's own `name` is its basename.
-  - It's .NET's `FullName` with the folder cut off, so on Windows it's separated by `\` (from the source). The
-    endpoints that take a path read `\` and `/` alike on every platform, so a name containing `\` can't be reached.
   - `attributes` is a flags string (`"Hidden, Directory"`, `"Directory, ReparsePoint"`).
   - Times are UTC. On Linux `createdAt` equals `modifiedAt` (observed).
   - Entries come in filesystem order.
@@ -519,8 +435,7 @@ in relay agent mode.
   - System-attribute entries are skipped, but dotfiles are listed as `Hidden`.
   - A recursive listing follows directory symlinks, even outside the roots. A loop only stops when the OS gives up,
     at about 40 levels. Observed: 8 files became 358 KB.
-  - A symlinked file's `length` is the length of the link's target path, and a broken link lists as a file.
-  - Unreadable folders are skipped.
+  - A broken link lists as a file, and unreadable folders are skipped.
 - **Errors:**
   - A missing folder, or a file where a folder was expected, is an empty 404.
   - Anything else is a 500 with a JSON string. That includes a path outside the roots and bad base64.
@@ -535,12 +450,9 @@ in relay agent mode.
   - It can't be set through `PATCH /options`.
 - `remoteFileManagement` and `directories.{downloads,incomplete}` aren't redacted in `GET /options` or `OPTIONS`, which
   is pushed again when they change (observed).
-- A root can't be deleted (a 500). Deleting a folder removes symlinks rather than their targets, and leaves emptied
-  parents behind. Every request deletes one path.
+- Deleting a folder removes symlinks rather than their targets, and leaves emptied parents behind. Every request
+  deletes one path.
 - Deleting a missing file is a 204 when its folder exists and a 500 when it doesn't. Deleting a missing folder is a 404.
-- On Linux, deleting a file slskd is still downloading succeeds. From the source, the download keeps writing to the
-  deleted file, fails to move it at the end, and most likely ends `Completed, Succeeded` with no file anywhere
-  (`Transfers/Downloads/DownloadService.cs`).
 - Transfer records hold no local path, so deleting finished files changes nothing in the transfer lists.
 - `retention.files.{complete,incomplete}` (minutes, at least 30) deletes files by modification time every 30 minutes,
   skipping hidden ones, whatever `remote_file_management` says (`Application.cs`).
@@ -556,19 +468,15 @@ configuration and the debug view were checked on the dev build with `SLSKD_REMOT
 ### Reading
 
 - `GET /options` is the current options, redacted, with nulls omitted (3.3 KB on dev). The application hub pushes the
-  same object as `OPTIONS` (see [Application hub](#application-hub)), with nulls kept and four placeholder keys that
-  are always null: `permissions`, `global`, `groups` and `integration`. `GET /options/startup` is the object bound once
-  at startup, so it only differs after a live reload.
-- Keys are camelCase, while the file's are snake_case.
+  same object as `OPTIONS` on connect and after each change that actually differs, with nulls kept and four placeholder
+  keys that are always null: `permissions`, `global`, `groups` and `integration`. `GET /options/startup` is the object
+  bound once at startup, so it only differs after a live reload.
 - Redaction (`Common/Redactor.cs`) replaces every non-null `[Secret]` string with `"*****"`, so `*****` means set and a
   missing key means unset. Webhook headers and URLs, `logger.loki` and usernames aren't secrets.
 - The keys of `relay.agents`, `transfers.groups.user_defined`, `web.authentication.api_keys`, `integrations.webhooks`
   and `integrations.scripts` are names the user chose. They come back lowercased with `_` and `-` dropped, like every
   key slskd reads from YAML (observed: a group `My_Group` came back as `mygroup`), and JSON leaves them alone, since no
   `DictionaryKeyPolicy` is set.
-- `2147483647` (`int.MaxValue`) is the default of `transfers.upload.speed_limit`, `transfers.download.slots` and
-  `speed_limit`, and each group's `upload.slots` and `speed_limit`, where it means no limit (`Core/Options.cs`).
-  Elsewhere it's only a range maximum, so a value there means what it says.
 
 ### Remote configuration
 
@@ -580,16 +488,15 @@ configuration and the debug view were checked on the dev build with `SLSKD_REMOT
 - YAML travels as a JSON string both ways: `text/plain` is a 415, and a body that isn't a JSON string is a 400
   `"Value cannot be null. (Parameter 's')"`. `GET /options/yaml` is the file's text, unredacted, and
   `GET /options/yaml/location` its path. A missing or unreadable file is a 500 with the message.
-- `POST /options/yaml/validate` is a 200 either way: an empty body with no content type when valid, and a JSON string
-  when not. **It never gives a line or column.** A parse error is one line, such as
+- **`POST /options/yaml/validate` never gives a line or column.** A parse error is one line, such as
   `While scanning a plain scalar value, found invalid mapping.`, and rule failures are an indented tree under
   `Invalid configuration:`. slskd logs each failure as a warning that does carry YamlDotNet's line and column
   (observed).
 - **The validator and the runtime disagree** (observed). The validator is YamlDotNet with `UnderscoredNamingConvention`
-  (`Common/CommonExtensions.cs`), which puts `_` before every capital of the property's name:
-  - It wants `log_s_q_l` and `case_sensitive_reg_ex`, and rejects the documented `log_sql` and `case_sensitive_regex`,
-    as well as camelCase and hyphenated keys. The runtime lowercases keys and drops `_` and `-`, so it takes them all.
-    A file with a rejected spelling can't be saved through `PUT`, which validates too.
+  (`Common/CommonExtensions.cs`):
+  - It rejects the documented `log_sql` and `case_sensitive_regex`, as well as camelCase and hyphenated keys. The
+    runtime lowercases keys and drops `_` and `-`, so it takes them all. A file with a rejected spelling can't be saved
+    through `PUT`, which validates too.
   - It passes duplicate keys, `yes`/`no`/`on`/`off` for booleans, and a document that's empty or only comments.
 - `PUT /options/yaml` validates the text alone (env and the command line aren't merged in), copies the file to
   `<file>.bak` (replacing the last one and keeping its mode), writes the text verbatim and not atomically, and returns
@@ -606,12 +513,11 @@ configuration and the debug view were checked on the dev build with `SLSKD_REMOT
 'slskd:Debug' to type 'System.Boolean'."`), `GET` and `PUT /options/yaml` included, so the file can only be fixed
     on disk. slskd won't start with it (`Program.cs`).
   - An empty document drops every YAML setting, the Soulseek login included.
-- `GET /options/debug` is a JSON string of `IConfigurationRoot.GetDebugView()`: an indented `key=value (Provider)` line
-  per key, such as `username=… (YamlConfigurationProvider for 'slskd.yml' (Optional))`, with the keys lowercased and
-  `_` and `-` dropped, **secrets in plain text**, and the provider whose value won. 9.4 KB and 179 lines on dev.
-- Sources layer defaults < env < YAML < command line < the `PATCH /options` overlay (`Program.cs`). A YAML value the
-  command line also sets has no effect, and lists merge by index across sources, so a YAML list can't shorten one
-  from env (checked against the dev build's binder). Only the debug view shows where a value came from.
+- `GET /options/debug` is a JSON string of `IConfigurationRoot.GetDebugView()`, with the keys lowercased and `_` and
+  `-` dropped, **secrets in plain text**, and the provider whose value won. 9.4 KB and 179 lines on dev.
+- Sources layer defaults < env (`SLSKD_` prefix) < YAML < command line < the `PATCH /options` overlay (`Program.cs`).
+  A YAML value the command line also sets has no effect, and lists merge by index across sources, so a YAML list can't
+  shorten one from env (checked against the dev build's binder). Only the debug view shows where a value came from.
 - `PATCH /options` takes only `{soulseek: {listenIpAddress, listenPort}}`. It goes into an in-memory overlay that a
   restart loses and that never drops a key once set (`Core/OptionsOverlay.cs`).
 
@@ -650,12 +556,10 @@ dashboard yet.
 
 ## Soulseek server connection
 
-- `STATE.server` (application hub) and `GET /server` give
-  `{address, ipEndPoint, state ("Connected, LoggedIn"), isConnected, isConnecting, isLoggedIn, isLoggingIn, isTransitioning}`.
-  `state` is `"None"` until the first client event, `isConnected` is already true during `Connected, LoggingIn`,
-  and `GET /server` omits `address` and `ipEndPoint` while disconnected. The Soulseek username is only in
-  `STATE.user.username`.
-- `connectionWatchdog.nextAttemptAt` (UTC) is set while the watchdog is attempting or waiting to retry.
+- `STATE.server` and `GET /server` have the same shape. `state` is `"None"` until the first client event,
+  `isConnected` is already true during `Connected, LoggingIn`, and `GET /server` omits `address` and `ipEndPoint`
+  while disconnected. The Soulseek username is only in `STATE.user.username`.
+- Startup doesn't connect to Soulseek when `no_connect` is set or the credentials are missing.
 - `PUT /server` returns without waiting; progress arrives through `STATE`. If the watchdog is enabled it
   restarts the retry loop and returns 205, otherwise it starts it and returns 200 (`Core/API/Controllers/ServerController.cs:74`).
   It ignores `no_connect` and doesn't check credentials. They're read at each attempt, and a missing username
@@ -666,29 +570,20 @@ dashboard yet.
   `PUT` gets 205. From reading the code (untested), each 100 ms watchdog tick then rewrites
   `connectionWatchdog`, pushing `STATE` about 10 times a second until a `DELETE`.
 - `DELETE /server` stops the watchdog, aborts any attempt and, if connected, disconnects intentionally, so
-  there's no auto-reconnect. It always returns 204. The optional body is a JSON string used as the disconnect
-  message (stock sends `"client disconnected from web UI"`).
-- The controller only accepts `application/json`, and returns 403 in relay agent mode.
+  there's no auto-reconnect. It always returns 204.
+- The controller returns 403 in relay agent mode.
 
 ## Serving the UI (build contract)
 
-- slskd serves `web.content_path` (default `wwwroot`). **The path must be relative to the slskd binary's
-  directory** (`AppContext.BaseDirectory`); an absolute path fails validation at startup, and so does a missing
-  directory. `devenv.nix` creates `dist` and computes the relative path.
+- slskd serves `web.content_path` (default `wwwroot`), relative to the slskd binary's directory
+  (`AppContext.BaseDirectory`). An absolute path fails validation at startup, and so does a missing directory.
 - For a GET that returns 200, slskd checks the `Accept` header: split on commas, it must contain an exact
-  `text/html` token. If it does, slskd:
+  `text/html` token (`application/json, text/html`, with the space, doesn't match). If it does, slskd:
   - regex-rewrites `./static` and `/static` to `{urlBase}/static`, and `./favicon.ico` and
     `/favicon.ico` to `{urlBase}/favicon.ico`, across the **whole** HTML body, inline scripts included
   - appends `<script>window.urlBase="/slskd";window.port=5030</script>` **after `</html>`**
-- So Vite needs `base: './'` and `build.assetsDir: 'static'`. Read `window.urlBase` at runtime and only
-  from module/deferred code (never bake it in). Never use `window.port`, which is the HTTP port even
-  over HTTPS. `window.urlBase` is `"/"` at root and otherwise has no trailing slash (`"/slskd"`).
-  Nothing else in `dist` gets rewritten.
-- Browsers match the `Accept` check. `curl` defaults to `*/*` and gets the raw file, so scripted checks must
-  send `-H 'Accept: text/html'`. `application/json, text/html` (note the space) doesn't match either.
-- SPA deep links work, but **only for paths without a file extension**. If the last segment contains a
-  dot (`/browse/foo.bar`) the response is 404. Unmatched `/api/*` returns an empty 404. `index.html` is sent
-  with `Cache-Control: no-cache`.
+- So `window.urlBase` can only be read at runtime, from module or deferred code. It's `"/"` at root and otherwise
+  has no trailing slash. `window.port` is the HTTP port even over HTTPS. Nothing else in `dist` gets rewritten.
 - A dynamic `import()` becomes its own chunk in `static/`, and loads from beside the main chunk, so it follows the url
   base with nothing rewritten (observed: `/slskd/static/YamlEditor-….js`).
 - An inline classic `<script>` in `index.html` survives both: Vite 8's build only scans it for `import()`, and slskd
@@ -703,10 +598,8 @@ Paths below are relative to `Search/` unless they start with another directory. 
 
 ### Records
 
-- A search is
-  `{id, searchText, token, state, isComplete, startedAt, endedAt?, responseCount, fileCount, lockedFileCount, responses}`
-  (`Types/Search.cs`). Both dates are UTC **with** the `Z`. REST omits `endedAt` while it's null. `searchText` is
-  stored normalised, with exclusions moved to the end (`"a -b c"` becomes `"a c -b"`).
+- A search's dates are UTC **with** the `Z`. REST omits `endedAt` while it's null. `searchText` is stored normalised,
+  with exclusions moved to the end (`"a -b c"` becomes `"a c -b"`).
 - The states written are `Requested`, `Queued`, `InProgress` and
   `Completed, TimedOut|ResponseLimitReached|FileLimitReached|Cancelled|Errored` (`SN:SearchStates.cs`). A search ends:
   - when it goes idle: the timeout restarts on every accepted response, and total duration has no cap
@@ -714,15 +607,11 @@ Paths below are relative to `Search/` unless they start with another directory. 
   - at the response limit, or at the unlocked-file limit. Both are checked after a response is added, so the last
     one can overshoot. Locked files aren't capped.
   - on `PUT` (`Cancelled`), on any exception (`Errored`), and on a Soulseek disconnect (also `Errored`)
-- A response is
-  `{username, fileCount, files, lockedFileCount, lockedFiles, hasFreeUploadSlot, queueLength, uploadSpeed, token}`,
-  with nothing null. A file is
-  `{filename (full remote path), size, code, extension, bitRate?, bitDepth?, sampleRate?, length?, isVariableBitRate?, isLocked}`
-  (`Types/File.cs`).
+- In a response's files:
   - **`isLocked` is always `false`**, even in `lockedFiles`. Whether a file is locked is which list it's in.
   - The optional attributes are omitted when the peer didn't send them. `length` is seconds, `bitRate` kbps, and
-    `sampleRate` the peer's raw value (Hz in practice). `uploadSpeed` is the peer's raw number, which stock
-    shows as bytes per second.
+    `sampleRate` the peer's raw value (Hz in practice). A response's `uploadSpeed` is the peer's raw number, which
+    stock shows as bytes per second.
   - Observed across 2,280 real result files from 37 users (the dev account's stored searches):
     - 1,536 files were lossless (bit depth and sample rate), but only 112 of those had a `bitRate`.
     - 125 had no attributes at all: mostly jpg, txt and nfo, but also 31 mp3 and 2 flac from peers that send none.
@@ -740,24 +629,18 @@ Paths below are relative to `Search/` unless they start with another directory. 
   - With `filterResponses`, a response is dropped before it's counted or stored if it has fewer files than the
     minimum, is slower than the minimum speed, or has a queue at or above the maximum.
   - It returns the record at once (usually `Queued` or `InProgress`) and runs the search in the background.
-  - The errors are JSON strings: 400 for validation, including
-    `"Search query must contain at least one non-exclusion term"`; 409 when not logged in to Soulseek; and **429
-    while another POST is being handled** (`API/Controllers/SearchesController.cs`, a `SemaphoreSlim(1,1)` held for
-    the whole request). Observed: three POSTs sent at once got three 429s between them before all three were created.
+  - It's a 400 for validation, 409 when not logged in to Soulseek, and **429 while another POST is being handled**
+    (`API/Controllers/SearchesController.cs`, a `SemaphoreSlim(1,1)` held for the whole request). Observed: three
+    POSTs sent at once got three 429s between them before all three were created.
   - On a 400 or 409 the search is still stored and broadcast, as `Completed, Errored` with `endedAt = startedAt`
     and no responses (observed for 409).
 - **At most two searches run at once** (`maximumConcurrentSearches: 2`, `Program.cs`). The rest wait in `Queued`,
   where the timeout isn't running yet.
 - `GET /searches` returns every stored search with `responses: []`, with no pagination, filter or `ORDER BY`.
-- `GET /searches/{id}/responses` (or `GET /searches/{id}?includeResponses=true`) returns the responses, **but only
-  once the search has been finalised. Until then it returns `[]`.** They're held in memory while the search runs
-  and written as one JSON blob at the end, so there are no partial results, except that stopping keeps
-  what arrived. There's no pagination or compression, so a search at the limits is several MB.
-- `PUT /searches/{id}` stops the search: 200 with an empty body, or 404.
-- **`DELETE /searches/{id}` doesn't stop a running search** (`SearchService.cs`, `DeleteAsync`). It deletes the row
-  and broadcasts `DELETE`, but the search keeps running and holds a slot until it goes idle, and its finalisation
-  then fails. Stop first. Observed: a PUT, then waiting for the update that sets `endedAt`, then a DELETE logs no
-  error, and the search is gone. There's no bulk delete.
+- Responses are held in memory while the search runs and written as one JSON blob at the end, so there are no partial
+  results, except that stopping keeps what arrived. Until then `GET /searches/{id}/responses` returns `[]`.
+- **`DELETE /searches/{id}` doesn't stop a running search** (`SearchService.cs`, `DeleteAsync`). Observed: a PUT, then
+  waiting for the update that sets `endedAt`, then a DELETE logs no error, and the search is gone.
 - Searches persist across restarts in SQLite. Any that were running become `Completed, TimedOut` with zero
   counts, with no broadcast. `retention.search` (YAML only, minutes, minimum 5, off by default) prunes them every
   5 minutes by `endedAt`, broadcasting a `DELETE` for each. With it off, the list grows forever.
@@ -766,45 +649,34 @@ Paths below are relative to `Search/` unless they start with another directory. 
 
 ### Search hub
 
-- On connect the caller gets `LIST`: every stored search, with `responses: []`. `CREATE`, `UPDATE` and `DELETE`
-  carry the whole record without responses, keep nulls, and go to every client (`API/Hubs/SearchHub.cs`).
 - A search sends `CREATE` as `Requested`, then an `UPDATE` on every state change and one as the POST returns.
   While responses arrive, the counts go out at most every 250 ms, and a pending one can be dropped at the end.
   The final `UPDATE` comes after the responses are saved (`SearchService.cs`, `StartAsync`).
-- **The `Completed` state-change `UPDATE` arrives before the responses are saved, with `endedAt: null`**, so
-  fetching then can return `[]`. `endedAt` is set only by finalisation, so "`isComplete` and `endedAt` set" means
-  the responses are there, on every path (normal, stopped, errored at start, restart cleanup). The state-change
-  broadcasts aren't awaited, so treat `Completed` as sticky rather than relying on order.
+- `endedAt` is set only by finalisation, so "`isComplete` and `endedAt` set" means the responses are there, on every
+  path (normal, stopped, errored at start, restart cleanup). The `Completed` state change arrives before that, with
+  `endedAt: null`.
 
 ## Users
 
 Paths are relative to `Users/`, and Soulseek.NET 10.0.2's source is `SN:`. `info` and `directory` ask the peer, `status`
-and `endpoint` ask the server, and all of them are Soulseek actions. Not being logged in to Soulseek gives a 500 with the
-message as a JSON string. A blacklisted user gets an empty 404 from all of them, `status` included, before anything is
-asked. The blacklist check is by name only.
+and `endpoint` ask the server, and all of them are Soulseek actions. Not being logged in to Soulseek gives a 500. A
+blacklisted user gets an empty 404 from all of them, `status` included, before anything is asked. The blacklist check
+is by name only.
 
 - `POST /users/{u}/directory {directory}` asks the peer for one folder. It waits up to 5 s, and that includes the
-  endpoint lookup and connecting (a 500 when it expires). An offline user gets a 404 with a JSON string. It returns
-  `[{name, fileCount, files: [{filename, size, code, extension, bitRate?, length?, ..., attributeCount, attributes}]}]`,
-  usually with one entry. The file names are bare, so the full path is `directory + '\' + filename`. There's no locked
-  section, and slskd peers send exactly one directory with no subfolders (`Application.cs`, `Shares/ShareService.cs`),
-  so it can't rebuild the tree beneath a folder.
-- `GET /users/{u}/info` returns `{description, hasFreeUploadSlot, hasPicture, picture?, queueLength, uploadSlots}`, and
-  nothing caches it.
-  - **One 5 s wait covers the endpoint lookup, connecting and the reply**: slskd never sets Soulseek.NET's 5 s message
-    timeout, and the wait starts before the lookup (`SN:SoulseekClient.cs`, `SN:Common/Waiter.cs`). Expiring is a 500,
-    `"The wait timed out after 5000 milliseconds"`.
-  - A peer neither side can connect to is a 500, `"Failed to retrieve information for user X: Failed to establish a
-direct or indirect message connection to X (ip:port)"`. An offline user is a 404 with a JSON string (observed:
-    `"User X appears to be offline"`).
-  - `picture` is the raw bytes as base64, with no type and no size limit, and is left out when there's none. Observed:
-    our own username answers, with an 800×800 JPEG that Chromium draws from `data:image;base64,…`.
-- `GET /users/{u}/endpoint` returns `{addressFamily, address, port}` (observed `"InterNetwork"`, always IPv4). A
-  successful lookup is cached for 60 s and shared with browsing and transfers (`Common/UserEndPointCache.cs`). An
-  offline user is a 404 with a JSON string.
-- `GET /users/{u}/status` asks the server on every call, and returns `{isPrivileged, presence}` with `presence`
-  `Online`, `Away` or `Offline`. An offline user is a 200 `Offline` rather than a 404, and so is a made-up name
-  (observed), so the server can't tell them apart.
+  endpoint lookup and connecting. It returns a browse response's directory list, usually with one entry and without
+  `lockedDirectories`. The file names are bare, so the full path is `directory + '\' + filename`. slskd peers send
+  exactly one directory with no subfolders (`Application.cs`, `Shares/ShareService.cs`), so it can't rebuild the tree
+  beneath a folder.
+- `GET /users/{u}/info`: nothing caches it, and **one 5 s wait covers the endpoint lookup, connecting and the reply**:
+  slskd never sets Soulseek.NET's 5 s message timeout, and the wait starts before the lookup (`SN:SoulseekClient.cs`,
+  `SN:Common/Waiter.cs`). `picture` is the raw bytes as base64, with no type and no size limit, and is left out when
+  there's none. Observed: our own username answers, with an 800×800 JPEG that Chromium draws from
+  `data:image;base64,…`.
+- `GET /users/{u}/endpoint` is always IPv4 in practice. A successful lookup is cached for 60 s and shared with browsing
+  and transfers (`Common/UserEndPointCache.cs`).
+- `GET /users/{u}/status` asks the server on every call. An offline user is a 200 `Offline` rather than a 404, and so
+  is a made-up name (observed), so the server can't tell them apart.
 - Nothing else about other users is exposed. `UserService` has statistics, groups, watching and gifting privileges, but
   no route calls them, and `STATE.users` is never populated. The server's pushed status changes aren't exposed either
   (`Application.cs` leaves the handler a stub), so a user's online state can't be shown without a Soulseek action.
@@ -816,25 +688,17 @@ observations come from browsing one real peer: 168,159 files in 21,852 directori
 
 ### Records
 
-- `GET /users/{u}/browse` returns Soulseek.NET's `BrowseResponse` as is:
-  `{directories, directoryCount, lockedDirectories, lockedDirectoryCount}` (`API/Controllers/UsersController.cs`,
-  `SN:BrowseResponse.cs`). Its `ProducesResponseType` is wrong.
-  - A directory is `{name, fileCount, files}`. A file is
-    `{filename, size, code, extension, bitRate?, bitDepth?, sampleRate?, length?, isVariableBitRate?, attributeCount, attributes: [{type, value}]}`,
-    the same attributes as a search file but with no `isLocked`. A locked file is one inside `lockedDirectories`.
-  - The list is flat and in the peer's order, and Soulseek.NET adds nothing, so the tree is built client-side.
-  - slskd peers (`Shares/ShareService.cs`) send `name` as the full path joined with `\`, a bare `filename`, an entry
-    for every intermediate folder, an arbitrary order, and never any locked directories. Other clients can differ,
-    which can't be checked from source.
+- `GET /users/{u}/browse` returns Soulseek.NET's `BrowseResponse` as is (`API/Controllers/UsersController.cs`,
+  `SN:BrowseResponse.cs`). Its `ProducesResponseType` is wrong. A locked file is one inside `lockedDirectories`.
+- slskd peers (`Shares/ShareService.cs`) send `name` as the full path joined with `\`, a bare `filename`, an entry
+  for every intermediate folder, an arbitrary order, and never any locked directories. Other clients can differ,
+  which can't be checked from source.
 - Observed:
   - `extension` was `""` on every file, so file types come from `filename`. `code` was always 1.
-  - Directories, and the files within 2,232 of them, arrived unsorted.
   - The 9 roots were plain names (`tidal rips`, `CD Rips`), not drive letters or `@@` aliases.
   - One directory name ended in `\`, and its parent without the trailing `\` was missing.
-  - 2,813 directories have a path segment starting with a space. Their parents exist, so it's real nesting and
-    names mustn't be trimmed.
-  - 43 pairs of directories differ only by case, and one pair only by Unicode normalisation. Key nodes by exact path,
-    and give a collator sort a tie-break.
+  - 2,813 directories have a path segment starting with a space, and their parents exist.
+  - 43 pairs of directories differ only by case, and one pair only by Unicode normalisation.
   - 41% of files had no attributes (mostly lrc and jpg). Every flac had them.
   - The biggest directory held 572 files, one held 1,489 subfolders, and the median held 3 files.
 
@@ -843,31 +707,23 @@ observations come from browsing one real peer: 168,159 files in 21,852 directori
 - It's always a fresh request for the whole share. Nothing is cached or persisted server-side, no hub pushes anything
   about it, and there's no concurrency limit. The protocol can't list folders lazily.
 - Errors:
-  - A blacklisted user gets an empty 404 before any network action.
-  - An offline user gets a 404 with the JSON string `"User X appears to be offline"`. For 60 s after a user goes
-    offline, the cached endpoint gives a 500 connect failure instead (`Common/UserEndPointCache.cs`).
-  - Not being logged in to Soulseek gives a 500.
+  - An offline user gets a 404 with a JSON string. For 60 s after a user goes offline, the cached endpoint gives a 500
+    connect failure instead (`Common/UserEndPointCache.cs`).
   - **A peer that doesn't start replying gives a 500, `"The wait timed out after 60000 milliseconds"`** (observed).
     The 60 s `BrowseOptions.ResponseTimeout` covers the lookup, connecting and the peer composing its reply
     (`SN:SoulseekClient.cs`). Once data flows there's no overall cap: only 15 s without data fails it.
   - An slskd peer answers a blacklisted requester with an empty response, which looks the same as sharing nothing
     (`Application.cs`).
-- **Aborting the request doesn't cancel the browse**: it's started without a cancellation token, and there's no cancel
-  endpoint. The whole share is still transferred.
-- **Two browses of the same user can cross results.** Soulseek.NET queues the waits per username, first in first
-  out, and a failure faults the head of the queue (`SN:Common/Waiter.cs`). They also share one status entry.
-- `GET /users/{u}/browse/status` returns Soulseek.NET's
-  `{username, bytesTransferred, bytesRemaining, percentComplete, size}`, keyed case-sensitively by username
-  (`BrowseTracker.cs`).
+- Aborting the request doesn't cancel the browse, and there's no cancel endpoint. Two browses of the same user can
+  cross results: Soulseek.NET queues the waits per username, first in first out, and a failure faults the head of the
+  queue (`SN:Common/Waiter.cs`).
+- `GET /users/{u}/browse/status` is keyed case-sensitively by username (`BrowseTracker.cs`).
   - The bytes count the **zlib-compressed wire payload**. Observed: 3.0 MB on the wire became 38.9 MB of JSON.
   - It's an empty 404 until the reply starts arriving: 2.5 s in the successful browse, and the whole 60 s for the peer
-    that never replied. It's a 404 again 5 s after success. **After a failure the entry is never removed**, so a later
-    browse of that user shows the stale status until its own first update.
+    that never replied. It's a 404 again 5 s after success, but **after a failure the entry is never removed**.
   - Progress events are raised on thread-pool tasks, so the percent can go backwards.
 - The response has no compression and no `Content-Length` (it's chunked). The JSON escapes every non-ASCII character
   as `\uXXXX`, so the text is pure ASCII. An audio file costs about 240 bytes plus its name.
-- Observed timeline: a 404 for 2.5 s, 100% at 9.5 s, the headers within 0.4 s of that, and the 38.9 MB body 169 ms
-  later over localhost.
 - Measured in headless Chromium 153 on that share: `JSON.parse` takes 146 ms, and the parsed data takes 37 MiB of
   heap (the text takes as much again while it's kept). Building the tree with recursive counts and sizes and a
   collator sort takes 23 ms.
@@ -882,17 +738,13 @@ observations come from one throwaway room created on the dev account.
 ### Endpoints
 
 Everything is under `/rooms` (`API/Controllers/RoomsController.cs`), returns 403 in relay agent mode, and takes its
-body as a bare JSON string. The room name is a path segment, so encode it with `encodeURIComponent` (`%2F` works).
-404s are empty, and every other failure is a 500 carrying the message as a JSON string. There's no concurrency limit
-and no 429.
+body as a bare JSON string. 404s are empty, and every other failure is a 500 carrying the message as a JSON string.
+There's no concurrency limit and no 429.
 
-- `GET available` asks the Soulseek server every time, with no cache, and gives up after 5 s. It returns
-  `[{name, userCount, isPrivate, isOwned, isModerated}]`, where `isModerated` means we're an operator. Observed: about
-  700 rooms and 64 KB in 0.5–1 s, sorted case-sensitively by name (so every uppercase name before every lowercase
-  one), with 0 to 1,328 users, and 433 rooms with 2 users or fewer.
-- `GET joined` returns the tracked names as a bare `string[]`. `GET joined/{room}` returns
-  `{name, isPrivate, operatorCount?, operators?, owner?, users, messages}`, and `GET joined/{room}/messages` and
-  `.../users` return just the lists. They only read local state, and an untracked room is a 404.
+- `GET available` asks the Soulseek server every time, with no cache, and gives up after 5 s. `isModerated` means
+  we're an operator. Observed: about 700 rooms and 64 KB in 0.5–1 s, sorted case-sensitively by name (so every
+  uppercase name before every lowercase one), with 0 to 1,328 users, and 433 rooms with 2 users or fewer.
+- `GET joined`, `GET joined/{room}` and its `messages` and `users` only read local state, and an untracked room is a 404.
 - `POST joined` with the name is a Soulseek action that waits up to 5 s for the server.
   - It returns 201 with the room, whose `messages` is empty and whose `users` come from the server's reply, including
     ourselves with `self`. Observed: about 1.5 s. A room that's already tracked gets a 200 with an empty body.
@@ -912,17 +764,9 @@ and no 429.
 
 ### Records
 
-- A message is `{timestamp, username, message, roomName, self?}`, oldest first, with **no id**. `self` is `true` or
-  omitted, from an exact comparison with our username.
-- `timestamp` is when slskd handled the message (`DateTime.UtcNow`, with the `Z`), because the server sends none.
-  Soulseek.NET raises each message on its own task, so messages arriving close together may be stored out of order
-  (inferred).
-- **Our own messages aren't stored as they're sent.** They arrive when the server echoes them back: observed after
-  1–1.5 s, with `self: true`, in the order sent.
-- A user is
-  `{username, status ("Online"|"Away"|"Offline"), countryCode, averageSpeed, fileCount, directoryCount, uploadCount, slotsFree, self?}`.
-  **The values are a snapshot** from the join reply or from that user's join notification, and nothing updates them.
-  Another user joining or leaving only adds or removes them. Nothing is recorded as a message.
+- A message's `timestamp` is when slskd handled it (`DateTime.UtcNow`), because the server sends none. Soulseek.NET
+  raises each message on its own task, so messages arriving close together may be stored out of order (inferred).
+- Our own messages arrive about 1–1.5 s after sending, with `self: true`, in the order sent.
 
 ### Lifetime
 
@@ -930,35 +774,30 @@ and no 429.
   (`Program.cs:772`). A restart loses them, and only the `rooms` option (`--rooms`, `SLSKD_ROOMS`) is joined again.
   `MessagingDbContext.RoomMessages` exists but is never used.
 - Every received message not from a blacklisted user is also written to `events.db` as a `RoomMessageReceived` event,
-  which is never pruned. `GET /events` can't filter by type.
+  which is never pruned.
 - A Soulseek disconnect clears nothing: the rooms, messages and users stay, and the GETs keep working. On every login
   slskd joins the `rooms` option and then rejoins every tracked room (`RoomService.cs`), and failures are only logged.
   - The rejoin doesn't refresh the users, so users who left meanwhile stay listed and newcomers are missing.
   - A rejoin that fails leaves a room that can't be left until a restart (inferred).
 - The blacklist only drops incoming messages; blacklisted users are still listed.
-- The only push is `STATE.rooms` on the application hub: the joined names, updated on the server's join and leave
-  notifications and not on disconnect. Observed: it still listed a room a few seconds after its DELETE returned, while
-  `GET joined` was right at once.
+- The only push is `STATE.rooms`: the joined names, updated on the server's join and leave notifications and not on
+  disconnect. Observed: it still listed a room a few seconds after its DELETE returned, while `GET joined` was right
+  at once.
 
 ## Private messages
 
 Paths are relative to `Messaging/` unless they start with `SN:`. Everything is under `/conversations`
 (`API/Controllers/ConversationsController.cs`), returns 403 in relay agent mode, and takes its body as a bare JSON
-string. The username is a path segment.
+string.
 
 ### Records
 
-- A conversation is `{username, isActive, unAcknowledgedMessageCount, hasUnAcknowledgedMessages, messages?}`, and a
-  message is `{timestamp, id, username, direction ("In"|"Out"), message, isAcknowledged, wasReplayed}`. `username` is
-  always the other party.
 - Everything is kept in SQLite (`messaging.db`) with no retention, cap or delete. **Every endpoint returns at most the
   newest 100 messages**, oldest first, and there's no pagination, so older history can't be reached
   (`ConversationService.cs`).
 - Incoming timestamps are the server's, in whole seconds, while sent ones are slskd's clock to 100 ns. Messages sort by
   timestamp alone, so a quick reply can sort above the message it answers, and messages that waited on the server
   while slskd was offline land by their original time.
-- A sent message is stored after it's written to the server, with `id: 0`, `direction: "Out"` and
-  `isAcknowledged: true`. So a key needs more than the id: `direction`, `id` and `timestamp` together work.
 - Usernames compare case-sensitively. `.` and `..` can't be reached through any endpoint.
 - Messaging our own username works: the server echoes it back within a second as an unread `In` message, next to the
   `Out` copy. Observed: the echo's whole-second timestamp sorted it above the message it echoed.
@@ -968,9 +807,7 @@ string. The username is a path segment.
 - `GET /conversations` lists the active conversations, sorted case-sensitively by username, with no last-message time
   and no preview. `includeInactive` and `unAcknowledgedOnly` filter it. It loads every unread message in the database
   to count them, so it's cheap only while few are unread.
-- `GET /conversations/{u}` (with messages unless `includeMessages=false`) and `GET /conversations/{u}/messages` only
-  read local state, include closed conversations, and are an empty 404 when there's none. The unread count from
-  `GET /conversations/{u}` only covers its 100 messages, so it can disagree with the list.
+- The unread count from `GET /conversations/{u}` only covers its 100 messages, so it can disagree with the list.
 - `POST /conversations/{u}` sends.
   - It returns an empty 201 once the message is stored, so the next GET has it.
   - **It returns an empty 200 when the user is blacklisted, having sent and stored nothing.**
@@ -985,9 +822,8 @@ string. The username is a path segment.
 ### Acknowledging
 
 - slskd turns off Soulseek.NET's automatic acknowledgement, so a message stays unread until a UI acknowledges it.
-  **Each acknowledgement sends MessageAcked to the server**, one per message. The server re-delivers a message at
-  every login until it's acknowledged. The sender gets no read receipt.
-- Acknowledging needs a Soulseek login: a PUT or DELETE with anything unread is a 500 while logged out.
+  **Each acknowledgement sends MessageAcked to the server**, one per message, and needs a Soulseek login (a 500
+  otherwise).
 - Acknowledging all also covers messages that arrived after the UI's last fetch.
 - **Acknowledging a sent message by id fails**: they all have id 0, so with two or more of them the lookup throws a
   500 (`"Sequence contains more than one element"`).
@@ -995,12 +831,6 @@ string. The username is a path segment.
   `wasReplayed`, instead of being duplicated. It raises `PrivateMessageReceived` again, so the event log and webhooks
   get a duplicate at each login.
 - Messages from blacklisted users are dropped before they're stored, with no event.
-
-### Lifetime
-
-- Closing only sets `isActive: false`. The history is kept, and an incoming message or a send reopens it. No endpoint
-  opens a conversation without sending.
-- Nothing is pushed, and `STATE` has nothing about conversations.
 
 ## Stock UI
 
@@ -1131,15 +961,6 @@ Stock's result filter (`lib/searches.js:40-190`). We replaced it with a Filters 
 - `minfif:` counts the whole response, not a folder. When it rejects a response, it leaves the counts alone, so
   the user still shows as an empty card.
 
-## Config
-
-- Sources layer defaults < env vars (`SLSKD_` prefix) < YAML < CLI (`Program.cs:1466`), so an env var can't
-  override a value the YAML sets.
-- Names used here: `--url-base`/`SLSKD_URL_BASE` (default `/`), `--slsk-username`/`SLSKD_SLSK_USERNAME`,
-  `--slsk-password`/`SLSKD_SLSK_PASSWORD`, `--no-connect`/`SLSKD_NO_CONNECT` and `-X`/`--no-auth`. A bool
-  flag given without a value means true.
-- Startup doesn't connect to Soulseek when `no_connect` is set or the credentials are missing.
-
 ## OpenAPI
 
 - Swagger is off unless `--swagger` (or `feature.swagger`) is set, and then it's at `/swagger/v0/swagger.json`.
@@ -1153,9 +974,6 @@ Read from the `@microsoft/signalr` 10.0.11 package source (paths are under its `
 
 - `withAutomaticReconnect()` retries after 0, 2, 10 and 30 s, then gives up and fires `onclose(undefined)`.
   A failed initial `start()` is never retried (`DefaultReconnectPolicy.ts`, `HubConnection.ts`).
-- A 401 on negotiate is just another failed attempt. It's re-wrapped as a non-exported
-  `FailedToNegotiateWithServerError` with no `statusCode`, so only the message (`Status code '401'`)
-  shows it. The reconnect loop carries on under the retry policy (`HttpConnection.ts`).
 - A custom `IRetryPolicy` is called once when the connection drops and after every failed attempt.
   `retryReason` is the most recent failure. Returning `null` stops and fires `onclose`.
 - `onreconnecting` fires as soon as the WebSocket closes, which a dying server does.
@@ -1165,10 +983,6 @@ Read from the `@microsoft/signalr` 10.0.11 package source (paths are under its `
   the `access_token` query param. An empty string sends no token.
 - `stop()` during a pending `start()` rejects it with an `AbortError` and doesn't fire `onclose`.
   During a reconnect it fires `onclose(undefined)`.
-- If the WebSocket fails, the client falls back to SSE and then long polling, negotiating afresh each
-  time. Observed against slskd: it stays on WebSockets across restarts.
-- Without `configureLogging`, the connection logs to the console at `Information` (`Utils.ts`, `createLogger`), so every
-  drop and failed attempt logs errors and warnings.
 
 ## TanStack Router
 
@@ -1198,14 +1012,8 @@ in headless Chromium).
     values on load. The middleware has to be written inline in `createRoute` for its type to be inferred.
   - The validator also runs on its own output, so a transform would be applied twice; keep outputs valid
     inputs (sort values stay strings like `size.desc`).
-- `head` + `<HeadContent />` sets `document.title` in a client-only SPA. The title goes in
-  `meta: [{ title }]`, and the deepest match wins.
-- A redirect thrown from `beforeLoad` replaces the history entry.
 - `useMatchRoute()` defaults to `fuzzy: false`. `<Link>` `activeOptions` default to a segment-prefix match
   with `includeSearch: true`.
-- Unmatched paths render `defaultNotFoundComponent` or the nearest route's `notFoundComponent`
-  (`notFoundMode: 'fuzzy'`); leaf routes can't handle not-found. Without either you get `<p>Not Found</p>`.
-- Preloading and scroll restoration are off by default, but `window` scrolls to the top on navigation.
 - `lazyRouteComponent(importer, name)` gives a component with a `preload`, which the router awaits as it loads the
   match, so the page being left stays up until the chunk is in (`lazyRouteComponent.tsx`, router-core's
   `load-client.ts`). An import that fails as a missing module, as after a newer build replaced it, reloads the page
@@ -1216,44 +1024,29 @@ in headless Chromium).
 Checked against the `@radix-ui/themes` 3.3.0 package source.
 
 - `appearance` is `'inherit' | 'light' | 'dark'`. There's no system mode, and no Radix CSS uses
-  `prefers-color-scheme`. `inherit` with no `.dark` ancestor is light.
-- An explicit appearance puts `light`/`dark` on the `Theme` element and sets `color-scheme` on `:root` through
-  `:has([data-is-root-theme='true'])`, so only once React has rendered. Portalled content (menus, tooltips,
-  popovers, dialogs) is wrapped in a nested `Theme` and inherits the appearance.
-  - That rule is `:root:where(:has(...))`, so it outranks `<meta name="color-scheme">`, which only applies while the
-    root's `color-scheme` is `normal`. Observed: with the meta rewritten to `light`, picking dark made the root dark.
-    An inline style on `<html>` would outrank the rule instead.
-  - The root `Theme` keeps `appearance` in state and copies a changed prop over in a `useEffect`, so the first render
-    uses the prop as given and a change lands one render later (`components/theme.js`).
+  `prefers-color-scheme`.
+- An explicit appearance sets `color-scheme` on `:root` through `:root:where(:has([data-is-root-theme='true']))`, so
+  only once React has rendered. That outranks `<meta name="color-scheme">`, while an inline style on `<html>` would
+  outrank the rule. Portalled content (menus, tooltips, popovers, dialogs) is wrapped in a nested `Theme` and inherits
+  the appearance.
+- The root `Theme` keeps `appearance` in state and copies a changed prop over in a `useEffect`, so the first render
+  uses the prop as given and a change lands one render later (`components/theme.js`).
 - `TabNav.Link asChild active` is the documented way to render router links. `active` sets `data-active` and
   `aria-current="page"`. The child's children are wrapped in inner spans and **the label renders twice** (once
   hidden, to reserve its bold width), so keep stateful components and `id`s out of it. A `Badge` inside works
   but needs its own margin.
-- The root `Theme` provides a `Tooltip.Provider` with a 200 ms delay.
 - `DropdownMenu.Trigger` and `Dialog.Trigger` always render with `asChild`, so their child must be one element that
   takes a ref.
 - `SegmentedControl.Item` always passes `disabled: false`, so an item can't be disabled, and its label renders twice
-  like `TabNav.Link`'s. **A `Tooltip` around an item breaks the selection**: the trigger's own `data-state` replaces
-  the item's `on`, so no item looks selected (observed). The tooltip has to go inside.
+  like `TabNav.Link`'s.
 - A `DropdownMenu.CheckboxItem` or `RadioItem` closes the menu when picked unless its `onSelect` calls
   `preventDefault()`. A radio item still changes the value then (`@radix-ui/react-menu` 2.1.24 runs its own handler
   with `checkForDefaultPrevented: false`).
-- The breakpoints are min-width queries: xs 520, sm 768, md 1024, lg 1280 and xl 1640 px (`styles/breakpoints.css`).
-  Responsive props take an object keyed by them, mobile first.
 - **`Popover.Content` has a default `maxWidth` of 480 px** (`popover.props.tsx`), and nothing caps a popover to the
   screen, while menus and selects are capped to the available height. The primitive sets
   `--radix-popover-content-available-width` and `-height` on the content element (observed: 340 px on a 360 px screen,
   with the 10 px collision padding).
-- Its own hover styles are inside `@media (hover: hover)`, so a tap doesn't leave one stuck.
-- The `TabNav` list scrolls sideways with its scrollbar hidden (`_internal/base-tab-list.css`), and nothing scrolls the
-  active tab into view.
 - `DropdownMenu.Item` takes `asChild`, but `DropdownMenu.RadioItem` doesn't.
-- `Button` and `IconButton` default `disabled` to `loading` (`_internal/base-button.tsx`), so a focused button that
-  starts loading loses focus to `<body>` (observed) unless `disabled={false}` is passed.
-- Text fields of size 1, 2 and 3 are 24, 32 and 40 px high with 12, 14 and 16 px text. Menu and select items are 24 px
-  at size 1 and 32 px at size 2, through `--base-menu-item-height` and `--select-item-height`.
-- **Tooltips never open from touch** (`@radix-ui/react-tooltip` 1.2.16, `TooltipTrigger`): a touch pointer's move is
-  ignored, focus that follows a pointer press doesn't open it, and a click closes it.
 - next-themes 0.4.6, which the Radix docs recommend, is mostly unmaintained. Its anti-flash script does nothing
   when rendered client-side only (React 19 doesn't run rendered `<script>`s) and logs a warning in dev.
 
@@ -1271,26 +1064,17 @@ and its bundled docs (`skills/`).
   `row.original`, not `row`. Measured (Node, 20k rows, one row changed): about 9 ms with no sorting, 25 ms
   sorting numbers, 41–91 ms sorting strings with the built-in `text`/`alphanumeric` functions.
 - One table takes one `data` array; two arrays mean two tables (or a concatenation that rebuilds on either).
-- `getSubRows` gives parent rows with their own `original`; sorting sorts each level by the column's accessor.
-- **The expanded row model returns its input unexpanded while the `expanded` state is empty**, and
-  `getIsRowExpanded` isn't one of its memo inputs. "Expanded by default" therefore needs every id spelled out
-  in the state (observed: groups showed as expanded with no children). Expansion auto-resets whenever the core
-  model changes unless `autoResetExpanded: false`.
+- Expansion auto-resets whenever the core model changes unless `autoResetExpanded: false`.
 - `row.getToggleSelectedHandler(opts)(event)` reads `event.target.checked` and, for Shift, `event.shiftKey`
   (`isRowRangeSelectionEvent`). A Shift event selects the inclusive range from the table's last handled row in
   display order, and `selectChildren` (default true) includes collapsed children. `toggleAllRowsSelected` only
   adds or deletes the table's own row ids and leaves any other ids in the state alone.
-  `getIsSomeRowsSelected()` means "at least one", including when all are. It counts the ids in the state, so it
-  stays true after the selected rows leave `data` (observed after deleting them), while `getSelectedRowModel()`
-  only returns rows still in the model.
 - `useTable` returns a new table object whenever its options object changes, which in practice is every render.
 
 ## TanStack Virtual
 
 Checked against `@tanstack/react-virtual` 3.14.13 / `virtual-core` 3.17.11.
 
-- With fixed row heights, give exact sizes in `estimateSize` and don't use `measureElement`. Measurements are
-  recomputed when `count` or `getItemKey`'s identity changes, not when `estimateSize` changes.
 - Observed in dev under StrictMode: a `scrollToIndex` in a layout effect on mount, guarded by a ref so it runs only
   once, left the list at the top. Keyed on what it reveals, so StrictMode's second pass runs it again, it scrolls.
 - `rangeExtractor` can force extra indexes into the rendered range, which is how a sticky header is kept
@@ -1321,9 +1105,6 @@ share of 200k files in 15k directories (54 MB of JSON), with `idb` 8.0.3. "Block
   data all at once, least recently used first, so it takes stock's data with ours. `navigator.storage.persist()` is
   decided by engagement in Chrome (it returned `false` headless), prompts in Firefox, and is decided automatically
   in Safari.
-- An upgrade waits until every connection on the older version closes, firing `blocked` meanwhile, so a tab whose build
-  has no `versionchange` handler holds it up for as long as it stays open (observed). `idb`'s `terminated` covers a
-  connection the browser closes on its own.
 - `idb` 8.0.3 (May 2025) is 1.4 KB, with a typed `DBSchema` and manual upgrades. `idb-keyval` allows only one store
   per database. Dexie 4.4.6 is 32.6 KB.
 
@@ -1356,32 +1137,17 @@ Checked against `yaml` 2.9.1.
 - `parseDocument` collects every error in `document.errors` without throwing. Each has a `code` and `pos: [start, end]`
   offsets. `prettyErrors: false` keeps the message to one line, and a `LineCounter` gives 1-based lines and columns.
   A repeated key is a `DUPLICATE_KEY` error by default.
-- `visit` walks nodes in document order and says whether a scalar is a pair's `'key'` or `'value'`. A parsed scalar's
-  `range` is `[start, valueEnd, nodeEnd]`, and its `type` is `'PLAIN'` when it's unquoted.
-- With `version: '1.1'`, stringify quotes strings that YAML 1.1 would read as something else, such as `"on"` and
-  timestamps. `lineWidth: 0` stops long strings from folding. A comment set on a node's `comment` is written after its
-  value on the same line.
+- A parsed scalar's `range` is `[start, valueEnd, nodeEnd]`, and its `type` is `'PLAIN'` when it's unquoted. A comment
+  set on a node's `comment` is written after its value on the same line.
 - Stringify and parse together come to about 94 kB minified and 34 kB gzipped.
 
 ## CodeMirror
 
 Checked against `@codemirror/view` 6.43.13, `lang-yaml` 6.1.3, `lint` 6.9.7 and `search` 6.7.2.
 
-- **Only the lines near the viewport are in the DOM**, so the browser's own find can't reach the rest. Observed: 54
-  lines of a 335-line file were rendered, and `window.find` missed the last one. `@codemirror/search` searches the
-  document.
 - CodeMirror leaves Tab to the browser unless it's bound. With `indentWithTab`, Escape then Tab still moves focus out
   (the Tab example in its docs).
-- `lang-yaml` tags keys `definition(propertyName)`, quoted strings `string` and every unquoted value `content`, so
-  numbers and booleans can't be coloured apart from plain strings.
-- `setDiagnostics` sets lint results from outside the editor, with no `linter` source.
 - `EditorView.theme` takes CSS variables, so the editor can use Radix's tokens. Its `dark` option only adds
   `EditorView.darkTheme.of(true)`, which picks the base themes' `&dark` rules over `&light`. That facet in a
   `Compartment` switches them in an open editor (observed).
 - The editor, the YAML mode, lint and search come to about 123 kB gzipped.
-
-## filesize
-
-Checked against `filesize` 11.0.24. `{ base: 2, standard: 'iec', round: 1 }` gives `"3.2 MiB"` and rolls over at
-unit boundaries (`1048575` → `"1 MiB"`). `output: 'exponent'` returns the unit exponent, and `exponent` forces
-one, which is how `"3.2 / 10.5 MiB"` is built.
