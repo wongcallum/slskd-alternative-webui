@@ -1,5 +1,7 @@
 import { readFile } from 'node:fs/promises'
 
+import { effectiveYaml, misspelt } from '../../src/system/options/effective'
+import type { Settings } from '../../src/system/options/options'
 import { contextFor, expect, jsonString, test } from '../fixtures'
 import { openHub } from '../hub'
 import { configYaml, logIn, sleep, start } from '../slskd'
@@ -19,6 +21,27 @@ test('validating answers 200 either way, with a message only when the file is in
   const rejected = await api.post('options/yaml/validate', jsonString(invalid))
   expect(rejected.status()).toBe(200)
   expect(typeof (await rejected.json())).toBe('string')
+})
+
+test('the effective options, with the keys named as the Options page names them, are a file the validator accepts', async ({
+  api,
+}) => {
+  // Redacted secrets would fail the JWT key's minimum length of 32.
+  const redacted = JSON.stringify(await (await api.get('options')).json())
+  const settings = JSON.parse(redacted.replaceAll('"*****"', JSON.stringify('x'.repeat(32)))) as Settings
+  const response = await api.post('options/yaml/validate', jsonString(effectiveYaml(settings)))
+  expect(await response.text()).toBe('')
+})
+
+test('the validator names a documented spelling of a flag it rejects, and takes the one it derives', async ({
+  api,
+}) => {
+  for (const [documented, derived] of misspelt) {
+    const rejected = await api.post('options/yaml/validate', jsonString(`flags:\n  ${documented}: true\n`))
+    expect(await rejected.json()).toContain(`'${documented}'`)
+    const accepted = await api.post('options/yaml/validate', jsonString(`flags:\n  ${derived}: true\n`))
+    expect(await accepted.text()).toBe('')
+  }
 })
 
 test('saving writes the file and asks for a restart, and an invalid file is a 400 with the message', async ({
