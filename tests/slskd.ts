@@ -44,13 +44,25 @@ function binary() {
   return dll
 }
 
+// A port the OS hands out can be handed to another worker before this one's slskd binds it, and that worker's
+// instance then answers for this one. So each worker takes ports from its own block, below the ephemeral range.
+const portBlock = 500
+const firstPort = 10_000 + Number(process.env.TEST_PARALLEL_INDEX ?? 0) * portBlock
+let portOffset = 0
+
+const canListen = (port: number) =>
+  new Promise<boolean>((resolve) => {
+    const server = createServer()
+    server.once('error', () => resolve(false))
+    server.listen(port, () => server.close(() => resolve(true)))
+  })
+
 async function freePort() {
-  const server = createServer()
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
-  const address = server.address()
-  await new Promise((resolve) => server.close(resolve))
-  if (address === null || typeof address === 'string') throw new Error('No port')
-  return address.port
+  for (let tries = 0; tries < portBlock; tries++) {
+    const port = firstPort + (portOffset++ % portBlock)
+    if (await canListen(port)) return port
+  }
+  throw new Error(`No free port from ${firstPort}`)
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
