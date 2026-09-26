@@ -3,8 +3,11 @@
 - Tests run offline against real slskd instances the harness starts. What needs a Soulseek login runs against Soulfind,
   a local Soulseek server, with slskd instances as the peers. `tests/contract` checks the slskd behaviour the UI relies
   on, and `tests/ui` checks the pages in a browser. Don't mock slskd, and don't write unit or component tests.
-- When the code comes to rely on a new fact about slskd, add a contract test for it if it can be checked offline, which
-  includes anything slskd does when logged in to Soulfind.
+- Add a contract test only where the app's code branches or waits on a slskd behaviour (a state that ends a poll,
+  a status it retries on, a field it keys by) and getting it wrong would break a feature's main path, and only if it can
+  be checked offline, which includes anything slskd does when logged in to Soulfind. Values that are only displayed,
+  copy that quotes slskd, rare paths and facts that explain what the app avoids stay in docs/facts.md without a test.
+  `tests/ui` has one test per feature's main path. Prefer tightening an existing test to adding one.
 - By default, write no comments. Comments are written when there is behaviour that would surprise a competent reader of the code.
 - Read the docs instead of trusting your training knowledge.
 - Throwaway scripts, screenshots and dumps go in `/tmp`.
