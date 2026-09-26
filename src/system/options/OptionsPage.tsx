@@ -23,7 +23,7 @@ import {
   sourcesLoading,
   validate,
 } from './configFile'
-import { effectiveYaml } from './effective'
+import { effectiveYaml, misspelt } from './effective'
 import { type Options, options, optionsPollInterval, startupOptions, useLiveOptions } from './options'
 import { type OptionsSearch, type OptionView, optionViews } from './params'
 
@@ -294,12 +294,6 @@ function ConflictCallout({ gate, saving }: { gate?: string; saving: boolean }) {
     </Box>
   )
 }
-
-// slskd's validator wants these two flags spelled as it derives them from their property names.
-const misspelt = [
-  ['log_sql', 'log_s_q_l'],
-  ['case_sensitive_regex', 'case_sensitive_reg_ex'],
-] as const
 
 function FileStatus({ file, check, slskd }: { file: ConfigFile; check?: Check; slskd?: SlskdCheck }) {
   const lines: ReactNode[] = []
