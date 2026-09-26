@@ -1,6 +1,9 @@
 import * as v from 'valibot'
 
 import type { RawShare as RawBrowse } from '../../src/browse/browse'
+import type { RawConversation, RawPrivateMessage } from '../../src/chat/conversations'
+import type { RawAvailableRoom } from '../../src/chat/JoinRoomDialog'
+import type { RawRoomMessage, RawRoomUser } from '../../src/chat/rooms'
 import type { RawDirectory } from '../../src/lib/files'
 import type { RawResponse } from '../../src/search/results/results'
 import type { RawSearch } from '../../src/search/searches'
@@ -282,3 +285,48 @@ export const userStatus = shape<RawStatus>(
 )
 
 export const endpoint = shape<RawEndpoint>(v.object({ address: v.pipe(v.string(), v.ipv4()), port: count }))
+
+export const conversations = shape<RawConversation[]>(
+  v.array(v.object({ username: v.string(), unAcknowledgedMessageCount: count })),
+)
+
+const privateMessage = v.object({
+  timestamp: utc,
+  id: v.pipe(v.number(), v.integer()),
+  username: v.string(),
+  direction: v.picklist(['In', 'Out']),
+  message: v.string(),
+  isAcknowledged: v.boolean(),
+})
+
+export const privateMessages = shape<RawPrivateMessage[]>(v.array(privateMessage))
+
+// The app doesn't read it, but it tells a message the server delivered again at login.
+export const replayedMessages = v.array(v.object({ ...privateMessage.entries, wasReplayed: v.boolean() }))
+
+export const roomMessages = shape<RawRoomMessage[]>(
+  v.array(v.object({ timestamp: utc, username: v.string(), message: v.string(), self: v.optional(v.boolean()) })),
+)
+
+export const roomUsers = shape<RawRoomUser[]>(
+  v.array(
+    v.object({
+      username: v.string(),
+      countryCode: v.nullish(v.string()),
+      fileCount: count,
+      self: v.optional(v.boolean()),
+    }),
+  ),
+)
+
+export const availableRooms = shape<RawAvailableRoom[]>(
+  v.array(
+    v.object({
+      name: v.string(),
+      userCount: count,
+      isPrivate: v.boolean(),
+      isOwned: v.boolean(),
+      isModerated: v.boolean(),
+    }),
+  ),
+)

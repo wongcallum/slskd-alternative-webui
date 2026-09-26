@@ -2,10 +2,9 @@ import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 
-import { type APIRequestContext, request } from '@playwright/test'
+import type { APIRequestContext } from '@playwright/test'
 
-import { expect, test } from '../fixtures'
-import { type Instance, logIn } from '../slskd'
+import { contextFor, expect, ownName, test } from '../fixtures'
 import { loggedIn, type Peer, startLoggedIn, uploadsEnded } from '../soulseek'
 import * as schemas from './schemas'
 
@@ -19,11 +18,6 @@ const intro = 'Music\\Artist - Album\\01 Intro.flac'
 const outro = 'Music\\Artist - Album\\02 Outro.flac'
 const encore = 'Music\\Artist - Album\\CD2\\01 Encore.flac'
 const missing = { filename: 'Music\\Nowhere\\missing.flac', size: 123 }
-
-async function contextFor(instance: Instance) {
-  const token = await logIn(instance)
-  return request.newContext({ baseURL: `${instance.api}/`, extraHTTPHeaders: { Authorization: `Bearer ${token}` } })
-}
 
 async function enqueue(api: APIRequestContext, peer: Peer, files: File[], extra: object = {}) {
   const response = await api.post('transfers/downloads/batches', { data: { username: peer.username, files, ...extra } })
@@ -84,7 +78,7 @@ test('downloads are listed by user and remote folder, with states named by their
 })
 
 test('the peer lists them among its uploads, under our username', async ({ api, peers: { fast } }) => {
-  const me = schemas.parse(schemas.state, await (await api.get('application')).json()).user.username!
+  const me = await ownName(api)
   const { ids } = await enqueue(api, fast, [file(fast, outro)])
   await finished(api, fast, ids)
   const peer = await contextFor(fast.instance)
@@ -193,8 +187,7 @@ test('enqueueing a file again skips it while it runs, and retries it under a new
   await expect.poll(() => stateOf(api, slow, first!), { timeout: 30_000 }).toBe('InProgress')
   await api.delete(transferPath(slow, first!))
   await expect.poll(() => stateOf(api, slow, first!)).toBe('Completed, Cancelled')
-  const me = schemas.parse(schemas.state, await (await api.get('application')).json()).user.username!
-  await uploadsEnded(slow, me)
+  await uploadsEnded(slow, await ownName(api))
   const retried = await enqueue(api, slow, [big])
   expect(retried.status).toBe(201)
   const ids = (await listed(api, 'download', slow.username)).map((transfer) => transfer.id)

@@ -6,9 +6,9 @@ import { byUsername } from '../lib/text'
 import { application } from '../system/application'
 import { lastOpen, type Message, reuseMessages } from './messages'
 
-type RawConversation = { username: string; unAcknowledgedMessageCount: number }
+export type RawConversation = { username: string; unAcknowledgedMessageCount: number }
 
-type RawPrivateMessage = {
+export type RawPrivateMessage = {
   timestamp: string
   id: number
   username: string

@@ -855,7 +855,8 @@ string.
 - The unread count from `GET /conversations/{u}` only covers its 100 messages, so it can disagree with the list.
 - `POST /conversations/{u}` sends.
   - It returns an empty 201 once the message is stored, so the next GET has it.
-  - **It returns an empty 200 when the user is blacklisted, having sent and stored nothing.**
+  - **It returns an empty 200 when the user is blacklisted, having sent and stored nothing and started no
+    conversation.** The check comes first, so this holds without a Soulseek login too.
   - An empty body is a 400, but whitespace passes. Not being logged in is a 500.
   - Nothing comes back from the server, so sending to an offline or nonexistent user also gets a 201. There's no
     delivery or online status.
@@ -881,7 +882,8 @@ string.
   500 (`"Sequence contains more than one element"`).
 - A re-delivered message matches its stored copy on `(username, id, timestamp)` and is set unread again, with
   `wasReplayed`, instead of being duplicated. It raises `PrivateMessageReceived` again, so the event log and webhooks
-  get a duplicate at each login.
+  get a duplicate at each login. Observed on the test network: an unacknowledged message came back as soon as slskd
+  logged in, and an acknowledged one didn't.
 - Messages from blacklisted users are dropped before they're stored, with no event.
 
 ## Stock UI
