@@ -186,14 +186,31 @@ observed on throwaway instances of the dev build and the 0.25.1 and 0.26.0 relea
 - `PUT /application` restarts and `DELETE /application` shuts down. Both need a JWT (API keys can't call them),
   return 204 at once, and aren't gated on any option or on relay mode (`ApplicationController.cs`).
 - **Restart re-executes slskd itself** (`Process.Start` with the same command line, then a graceful stop), and
-  **fails for good while slskd is still answering a request.** The new process checks the single-instance mutex
-  first thing, and the old one holds it until its graceful stop ends, which waits up to 30 s for open requests
-  (`Program.cs`). Observed:
+  **fails for good whenever the old process is slower to let go than the new one is to start.** The new process
+  checks the single-instance mutex first thing and quits if it's held, logging "An instance of slskd is already
+  running". The old one holds it until its graceful stop ends, which waits up to 30 s for open requests
+  (`Program.cs`). Nothing is left running once the old one exits. Observed:
   - Idle, it came back every time (about 20 restarts), answering `/health` again in about 2 s. The new process won
     the race by only 35–80 ms.
-  - With a slow 20 MB download open it never came back (3 of 3). The new process logged "An instance of slskd is
-    already running" and quit, and the old one exited when the request ended or 30 s passed. A 761 KB download
-    didn't block it, and open hub connections don't either.
+  - With a slow 20 MB download open it never came back (3 of 3), and the old process exited when the request ended
+    or 30 s passed. A 761 KB download didn't block it.
+  - With hub connections open on 2 cores, it sometimes didn't come back: 5 of 35 restarts of the dev build and 4 of 25
+    of the 0.26.0 release binary, and the UI test's restart in CI. The PUT itself stalls:
+    `ApplicationController.cs` starts the new process and then calls `StopApplication()`, which runs the
+    `ApplicationStopping` handlers on the request thread, and ASP.NET Core's SignalR handler disposes every hub
+    connection and waits up to 5 s for them in `Task.WaitAll` (`HttpConnectionManager.CloseConnections`). In 7 of the
+    9 failures the PUT took 0.7–1.8 s to answer rather than 30–80 ms, and requests that arrived meanwhile were held
+    as long. The other 2 were 0.26.0, whose new process quit 20–35 ms after starting, just before the old one exited.
+  - With the dev build, none failed on 2 cores without hub connections (0 of 20) or with the thread pool's minimum
+    raised to 20 through `DOTNET_ThreadPool_ForceMinWorkerThreads` (0 of 20), nor on 4 cores with hub connections
+    (0 of 10) or with 8 busy processes and none (0 of 15).
+  - Restarting 0.26.0 again as soon as it answered, logging in and opening four hub connections each time, it failed
+    within 2 to 4 restarts on 2 cores (4 runs) and within 6 and 9 on 4 cores (2 runs).
+  - A hub client that reconnects at once can reach the old process after SignalR has closed its connections. SignalR
+    closes them only as the application stops, so the new one stays open, and the old process's graceful stop waits
+    for it until the 30 s timeout. Observed in the UI test on 2 cores: the page's metrics hub reconnected 150 ms after
+    the PUT and stayed connected for 27.6 s, while the new process had already quit. Stock's hubs retry after 0, 100,
+    250 and 500 ms (`web/src/lib/hubFactory.js`), and ours at once and then after 1 s.
   - The mutex is per Unix session (no `Global\` prefix), and the child stays in its parent's session.
   - Under devenv 2.3's process manager, when the process it started exits, the manager signals every process group in
     that process's Unix session and kills what's left after `shutdown.grace`, taking the re-executed child with it
