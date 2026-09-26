@@ -7,7 +7,7 @@ import { followHub, searchHub, useLiveResource, type Via } from '../lib/hubs'
 import { createAtom, createResource, shallowEqual, waitFor } from '../lib/store'
 import { sessionSignal } from '../session/session'
 
-type RawSearch = {
+export type RawSearch = {
   id: string
   searchText: string
   state: string

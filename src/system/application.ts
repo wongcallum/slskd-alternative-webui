@@ -3,7 +3,7 @@ import { applicationHub, followHub, useLiveResource, type Via } from '../lib/hub
 import { createAtom, createResource, sameItems } from '../lib/store'
 
 // GET /application omits nulls, while the hub keeps them.
-type RawState = {
+export type RawState = {
   version: {
     current: string
     latest?: string | null

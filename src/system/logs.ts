@@ -4,7 +4,7 @@ import { createResource } from '../lib/store'
 import { queryMatcher } from '../lib/text'
 
 // GET /logs omits a null subContext, while the hub keeps it.
-type RawLog = { timestamp: string; context: string; subContext?: string | null; level: Level; message: string }
+export type RawLog = { timestamp: string; context: string; subContext?: string | null; level: Level; message: string }
 
 const levels = ['Verbose', 'Debug', 'Information', 'Warning', 'Error', 'Fatal'] as const
 

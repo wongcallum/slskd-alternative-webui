@@ -3,7 +3,7 @@ import { applicationHub, followHub, useLiveResource, type Via } from '../../lib/
 import { createResource, load, sameItems, useResource } from '../../lib/store'
 
 // Secrets arrive redacted. Only what's read here is typed, and the rest is shown as it is.
-type RawOptions = {
+export type RawOptions = {
   remoteConfiguration: boolean
   remoteFileManagement: boolean
   directories: { downloads: string; incomplete: string }

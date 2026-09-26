@@ -164,7 +164,7 @@ onAnnounce('user', (username) => {
   void loadUserList()
 })
 
-type RawDirection = {
+export type RawDirection = {
   summary: Partial<Record<string, { totalBytes: number }>>
   statistics: { total: number; successful: number; cancelled: number }
   exceptions: { exception: string; count: number }[]

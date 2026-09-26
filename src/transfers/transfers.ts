@@ -15,7 +15,7 @@ export const perDirection = <T>(create: (direction: Direction) => T): Record<Dir
 
 export type Section = 'active' | 'finished'
 
-type RawTransfer = {
+export type RawTransfer = {
   id: string
   batchId?: string
   filename: string
@@ -32,7 +32,7 @@ type RawTransfer = {
   attempts: number
 }
 
-type RawUser = { username: string; directories: { directory: string; files: RawTransfer[] }[] }
+export type RawUser = { username: string; directories: { directory: string; files: RawTransfer[] }[] }
 
 export type Transfer = RawTransfer & { kind: 'file'; username: string; directory: string; name: string; search: string }
 

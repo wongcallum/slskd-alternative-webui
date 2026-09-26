@@ -4,7 +4,7 @@ import { type Actions, begin, idle, type Operation, summarise } from '../lib/act
 import { api, describeError, resendOn429 } from '../lib/api'
 import { type Atom, createAtom } from '../lib/store'
 
-type EnqueueResponse = { failures: { filename: string; message: string }[] }
+export type EnqueueResponse = { failures: { filename: string; message: string }[] }
 
 // slskd runs at most two enqueues at once.
 const enqueue = (body: object, signal: AbortSignal) =>
