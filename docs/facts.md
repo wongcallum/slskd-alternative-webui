@@ -89,6 +89,15 @@ Everything is under `/transfers`, and returns 403 in relay agent mode.
     (observed both ways). Removing it for certain takes a second DELETE once it's `Completed, Cancelled`.
   - A stuck download with nothing to cancel is set to `Completed, Cancelled` in the same call; uploads have no
     such fallback.
+- **Cancelling a running upload to an slskd peer usually puts it back in the peer's queue.** A cancelled upload ends
+  as `Completed, Cancelled`, and Soulseek.NET 10.0.2 then sends the downloader `UploadDenied` with the reason
+  `Cancelled` (`SoulseekClient.cs`), but closes a running upload's transfer connection first. Observed on the test
+  network:
+  - A queued upload's download ends as `Completed, Rejected` with the exception `Cancelled`, and isn't tried again.
+  - A running upload's download usually finds the connection closed first, and fails as `Completed, Errored`, with
+    the exception `Transfer failed: Read error: Remote connection closed`. It's tried again within seconds under the
+    same id, and the new request supersedes the cancelled upload. In 2 of 16 cancels on 2 cores, `UploadDenied` got
+    there first, and the download ended like a queued one.
 - `DELETE downloads/all/completed` (and `uploads/...`) removes every `Completed` record, succeeded and failed
   alike. There's no succeeded-only or failed-only variant and no bulk cancel.
 - **`GET downloads/{username}/{id}/position` is a Soulseek action**: it asks the peer. It returns a bare
