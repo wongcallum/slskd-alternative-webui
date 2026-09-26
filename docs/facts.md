@@ -132,6 +132,11 @@ Everything is under `/transfers`, and returns 403 in relay agent mode.
     without an `@@abcde`, drive or UNC root), `SOURCE_DIRECTORY`, `BATCH_ID`, `BATCH_EXTERNAL_ID`, `SEARCH_ID` and
     `SEARCH_TEXT` (`Core/Options.cs`). So `Album\CD1\01.flac` and `Album\CD2\01.flac` land in `CD1/` and `CD2/`, and
     two albums' `CD1`s merge, with a clashing name renamed `01_<ticks>.flac` under the default `exists: rename`.
+  - `SEARCH_ID` and `SEARCH_TEXT` come from the search named by the batch's `searchId`, looked up at completion. The
+    text is the stored one (see [Search](#search)), with anything a file name can't hold replaced by `_`. A batch
+    without a search, or whose search has been deleted by then, gets `unknown_search_id` and `unknown_search_text`
+    (from the source). Observed on the test network: `${SEARCH_TEXT}/${SEARCH_ID}` put a file in
+    `album intro/<id>/`.
   - A batch's `options.destination` replaces the pattern. It's one literal folder relative to the downloads
     directory, with no template expansion, and `.` or `..` segments are rejected. `\` and `/` both work as
     separators.
