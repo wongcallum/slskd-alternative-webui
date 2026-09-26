@@ -708,11 +708,17 @@ is by name only.
   endpoint lookup and connecting. It returns a browse response's directory list, usually with one entry and without
   `lockedDirectories`. The file names are bare.
   - **slskd peers send more than the folder**: one directory named as asked, holding every file whose path starts
-    with the folder's, which is every file beneath it at any depth and every file in a sibling folder whose name
-    starts with it (`Music\Album 2` for `Music\Album`). `Shares/SqliteShareRepository.cs` (`ListFiles`) matches
-    `LIKE directory || '%'` with no separator, and strips each name. So `directory + '\' + filename` is only right
-    for the folder's own files, and nothing tells them apart (observed on the test network). Other clients can
-    differ.
+    with the folder's. That's every file beneath it at any depth, in a sibling folder whose name starts with it
+    (`Music\Album 2` for `Music\Album`), and in a file whose name does (`Music\AlbumX.flac`).
+    `Shares/SqliteShareRepository.cs` (`ListFiles`) matches `LIKE directory || '%'` with no separator and no
+    `ESCAPE`, so `_` and `%` in the name are wildcards and ASCII case is ignored, and it strips each name to the
+    file's. So `directory + '\' + filename` is only right for the folder's own files, and nothing tells them apart.
+    Subfolders and siblings were observed on the test network, and the rest seen by running `ListFiles`. It's the
+    same in 0.26.0 and at master `e3d377d`. slskd#1189 (closed as a duplicate) and #1311 (open, to send subfolders
+    as entries of their own) cover subfolders but not the rest.
+  - Nicotine+, SoulseekQt, aioslsk and Seeker send only the folder's own files, and Soulseek NS its subfolders as
+    entries of their own. That's from their source or their maintainers, not checked on a network. Nothing in the
+    protocol says which client a peer runs.
 - `GET /users/{u}/info`: nothing caches it, and **one 5 s wait covers the endpoint lookup, connecting and the reply**:
   slskd never sets Soulseek.NET's 5 s message timeout, and the wait starts before the lookup (`SN:SoulseekClient.cs`,
   `SN:Common/Waiter.cs`). `picture` is the raw bytes as base64, with no type and no size limit, and is left out when
