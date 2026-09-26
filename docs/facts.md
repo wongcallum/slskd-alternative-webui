@@ -224,8 +224,9 @@ observed on throwaway instances of the dev build and the 0.25.1 and 0.26.0 relea
   as sets, so reordering the entries or adding a duplicate doesn't set it. While a scan runs it comes from the share
   service's own flag, which never sees config changes.
 - `PUT /shares` rescans and always returns 200, even while a scan runs (observed). Its 409 for a scan in progress can't
-  happen, because the exception lands in the returned task (`Shares/ShareService.cs`). `DELETE /shares` cancels (204,
-  or 404 when none runs).
+  happen, because the exception lands in the returned task (`Shares/ShareService.cs`). So a `PUT` while a scan runs is
+  dropped with only a logged warning, and that includes the moment after a scan sets `ready` and before it lets go
+  (observed in CI). `DELETE /shares` cancels (204, or 404 when none runs).
 
 ### Privileges
 

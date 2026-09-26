@@ -5,7 +5,7 @@ import * as v from 'valibot'
 import type { RawState } from '../../src/system/application'
 import { expect, test } from '../fixtures'
 import { openHub } from '../hub'
-import { logIn, start } from '../slskd'
+import { logIn, sleep, start } from '../slskd'
 import * as schemas from './schemas'
 
 test('before the first scan, the contents are a 500 about a missing table', async () => {
@@ -31,6 +31,8 @@ test('each scan turns ready off and on again, and then the counts and contents a
   try {
     const pushed = () => hub.received<RawState>('STATE').map((state) => state.shares)
     for (let scan = 0; scan < 2; scan++) {
+      // A scan lets go a moment after ready turns true, and a rescan in between is dropped.
+      if (scan > 0) await sleep(500)
       const from = pushed().length
       expect((await api.put('shares')).status()).toBe(200)
       await expect
