@@ -1,9 +1,13 @@
+import { randomUUID } from 'node:crypto'
+
 import type { APIRequestContext } from '@playwright/test'
 import * as v from 'valibot'
 
-import { expect, test } from '../fixtures'
+import { contextFor, expect, test } from '../fixtures'
 import { openHub } from '../hub'
+import { toneAttributes } from '../media'
 import { sleep } from '../slskd'
+import { startLoggedIn } from '../soulseek'
 import * as schemas from './schemas'
 
 test('the search hub sends the list as it connects', async ({ slskd, api, token }) => {
@@ -82,7 +86,7 @@ test.describe('logged in to Soulseek', () => {
       expect(responses).toEqual([
         expect.objectContaining({
           username: fast.username,
-          files: [{ filename: intro, size: fast.files.get(intro)!.length }],
+          files: [{ filename: intro, size: fast.files.get(intro)!.length, ...toneAttributes.flac }],
           lockedFiles: [],
         }),
       ])
@@ -133,5 +137,23 @@ test.describe('logged in to Soulseek', () => {
     await sleep(1000)
     expect(await stateOf(api, next)).toBe('Queued')
     await expect.poll(() => stateOf(api, next), { timeout: 15_000 }).not.toBe('Queued')
+  })
+
+  test('a search cut off by a restart is timed out, with endedAt set', async ({ network }) => {
+    test.setTimeout(90_000)
+    const instance = await startLoggedIn(await network(), {}, `restart.${randomUUID().slice(0, 8)} test`)
+    try {
+      let api = await contextFor(instance)
+      const id = await post(api, 'album intro', 60_000)
+      await expect.poll(() => stateOf(api, id)).toBe('InProgress')
+      await api.dispose()
+      await instance.relaunch()
+      api = await contextFor(instance)
+      const search = schemas.parse(schemas.search, await (await api.get(`searches/${id}`)).json())
+      expect(search).toMatchObject({ state: 'Completed, TimedOut', isComplete: true, endedAt: expect.any(String) })
+      await api.dispose()
+    } finally {
+      await instance.stop()
+    }
   })
 })

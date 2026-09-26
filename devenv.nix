@@ -39,6 +39,7 @@ in
     jq
     curl
     chromium
+    ffmpeg-headless
   ];
 
   env = {
@@ -47,6 +48,8 @@ in
     CHROMIUM = pkgs.lib.getExe pkgs.chromium;
     SLSKD_SRC = "${inputs.slskd}";
     SOULFIND_BIN = pkgs.lib.getExe soulfind;
+    # For the time zone the tests run slskd in, on hosts without /usr/share/zoneinfo.
+    TZDIR = "${pkgs.tzdata}/share/zoneinfo";
     # makeFontsConf only includes /etc/fonts/conf.d, which a non-NixOS host may lack, leaving no family aliases.
     FONTCONFIG_FILE = pkgs.writeText "fonts.conf" ''
       <?xml version="1.0"?>

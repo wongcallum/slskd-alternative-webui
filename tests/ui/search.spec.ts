@@ -28,6 +28,7 @@ test('a search shows the files peers share once stopped, and downloads one', asy
   await page.goto('searches')
   await logInPage(page)
   await searchAlbumIntro(page, fast)
+  await expect(page.getByText('16/44.1 kHz').first()).toBeVisible()
   await page.getByRole('button', { name: 'Download folder' }).click()
   await expect(page.getByText('Enqueued 1 download')).toBeVisible()
   await expect

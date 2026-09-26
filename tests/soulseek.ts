@@ -8,6 +8,7 @@ import path from 'node:path'
 
 import type { RawState } from '../src/system/application'
 import type { RawTransfer, RawUser } from '../src/transfers/transfers'
+import { type Media, media } from './media'
 import { type Config, freePort, type Instance, logIn, sleep, spawnGroup, start, stopGroup } from './slskd'
 
 export type Peer = {
@@ -15,25 +16,34 @@ export type Peer = {
   username: string
   // By the name peers see, such as `Music\Artist - Album\01 Intro.flac`.
   files: Map<string, Buffer>
+  picture?: Buffer
   token: string
 }
 
 export type Network = {
   // The environment for an instance that logs in to this network as `username`.
   login: (username: string) => Record<string, string>
+  // Where peers started for one test keep their files.
+  root: string
   fast: Peer
   // One upload slot at 20 KiB/s, so its 2 MB files stay in progress or queued for as long as a test needs.
   slow: Peer
   stop: () => Promise<void>
 }
 
-const fastFiles = {
-  'Music/Artist - Album/01 Intro.flac': 50_000,
+// Each file's content, or a size to fill with random bytes.
+export type Files = Record<string, Buffer | number>
+
+export const slowPeerEnv = { SLSKD_UPLOAD_SLOTS: '1', SLSKD_UPLOAD_SPEED_LIMIT: '20' }
+
+const fastFiles = ({ flac, mp3 }: Media): Files => ({
+  'Music/Artist - Album/01 Intro.flac': flac,
   'Music/Artist - Album/02 Outro.flac': 60_000,
   'Music/Artist - Album/CD2/01 Encore.flac': 70_000,
   'Music/Artist - Album/CD2/Scans/cover.jpg': 10_000,
   'Music/Artist - Album 2/01 Other.flac': 30_000,
-}
+  'Music/Artist - Album 2/02 Other.mp3': mp3,
+})
 
 const slowFiles = {
   'Slow/Big 1.flac': 2_000_000,
@@ -85,38 +95,44 @@ export async function waitForState(instance: Instance, done: (state: RawState) =
 
 export const loggedIn = (instance: Instance) => waitForState(instance, (state) => state.server.isLoggedIn)
 
+const scanned = (instance: Instance, files: Map<string, Buffer>) =>
+  waitForState(instance, (state) => state.server.isLoggedIn && state.shares.files === files.size)
+
 async function startPeer(
   root: string,
   login: Network['login'],
   username: string,
-  sizes: Record<string, number>,
-  env: Record<string, string> = {},
+  contents: Files,
+  { env = {}, picture }: { env?: Record<string, string>; picture?: Buffer } = {},
 ): Promise<Peer> {
   const files = new Map<string, Buffer>()
-  for (const [name, size] of Object.entries(sizes)) {
+  for (const [name, content] of Object.entries(contents)) {
     const file = path.join(root, name)
-    const content = randomBytes(size)
+    const bytes = typeof content === 'number' ? randomBytes(content) : content
     await mkdir(path.dirname(file), { recursive: true })
-    await writeFile(file, content)
-    files.set(name.replaceAll('/', '\\'), content)
+    await writeFile(file, bytes)
+    files.set(name.replaceAll('/', '\\'), bytes)
   }
-  const shared = [...new Set(Object.keys(sizes).map((name) => name.split('/')[0]!))]
+  const shared = [...new Set(Object.keys(contents).map((name) => name.split('/')[0]!))]
+  const pictureFile = path.join(root, 'picture')
+  if (picture !== undefined) await writeFile(pictureFile, picture)
   const instance = await start(
     {},
     {
       ...login(username),
       SLSKD_SHARED_DIR: shared.map((folder) => path.join(root, folder)).join(';'),
       SLSKD_NO_SHARE_SCAN: 'false',
+      ...(picture === undefined ? {} : { SLSKD_SLSK_PICTURE: pictureFile }),
       ...env,
     },
   )
   try {
-    await waitForState(instance, (state) => state.server.isLoggedIn && state.shares.files === files.size)
+    await scanned(instance, files)
   } catch (error) {
     await instance.stop()
     throw error
   }
-  return { instance, username, files, token: await logIn(instance) }
+  return { instance, username, files, picture, token: await logIn(instance) }
 }
 
 export async function startNetwork(): Promise<Network> {
@@ -152,12 +168,10 @@ export async function startNetwork(): Promise<Network> {
     for (const deadline = Date.now() + 10_000; !(await listening(port)); await sleep(50)) {
       if (Date.now() > deadline) throw new Error(`Soulfind didn't come up:\n${readFileSync(log, 'utf8')}`)
     }
+    const made = await media()
     const peers = await Promise.allSettled([
-      startPeer(path.join(root, 'fast'), login, 'fast.peer one', fastFiles),
-      startPeer(path.join(root, 'slow'), login, 'slow.peer one', slowFiles, {
-        SLSKD_UPLOAD_SLOTS: '1',
-        SLSKD_UPLOAD_SPEED_LIMIT: '20',
-      }),
+      startPeer(path.join(root, 'fast'), login, 'fast.peer one', fastFiles(made), { picture: made.png }),
+      startPeer(path.join(root, 'slow'), login, 'slow.peer one', slowFiles, { env: slowPeerEnv }),
     ])
     const [fast, slow] = peers
     if (fast.status === 'rejected' || slow.status === 'rejected') {
@@ -166,6 +180,7 @@ export async function startNetwork(): Promise<Network> {
     }
     return {
       login,
+      root,
       fast: fast.value,
       slow: slow.value,
       stop: async () => {
@@ -179,10 +194,10 @@ export async function startNetwork(): Promise<Network> {
   }
 }
 
-async function reachesPeers(network: Network, instance: Instance) {
+async function reaches(instance: Instance, usernames: string[]) {
   const token = await logIn(instance)
-  for (const peer of [network.fast, network.slow]) {
-    const response = await fetch(`${instance.api}/users/${encodeURIComponent(peer.username)}/info`, {
+  for (const username of usernames) {
+    const response = await fetch(`${instance.api}/users/${encodeURIComponent(username)}/info`, {
       headers: { Authorization: `Bearer ${token}` },
     })
     if (!response.ok) return false
@@ -194,11 +209,16 @@ async function reachesPeers(network: Network, instance: Instance) {
 // 10.0.2 can drop the direct one from its cache without reading from it, and whatever the other side sends on it is
 // lost until it times out. So an instance opens its connections to the peers once and checks them, starting again if
 // one fails.
-export async function startLoggedIn(network: Network, overrides: Partial<Config>, username: string) {
-  const instance = await start(overrides, network.login(username))
+export async function startLoggedIn(
+  network: Network,
+  overrides: Partial<Config>,
+  username: string,
+  env: Record<string, string> = {},
+) {
+  const instance = await start(overrides, { ...network.login(username), ...env })
   try {
     await loggedIn(instance)
-    for (let attempt = 1; !(await reachesPeers(network, instance)); attempt++) {
+    for (let attempt = 1; !(await reaches(instance, [network.fast.username, network.slow.username])); attempt++) {
       if (attempt === 3) throw new Error(`${username} couldn't reach the peers`)
       await instance.relaunch()
       await loggedIn(instance)
@@ -208,6 +228,29 @@ export async function startLoggedIn(network: Network, overrides: Partial<Config>
     throw error
   }
   return instance
+}
+
+// A peer for one test, which can stop or break it. It's checked from `from` the way startLoggedIn checks the peers,
+// starting the peer again if that fails, which closes the connection `from` lost.
+export async function startOwnPeer(
+  network: Network,
+  from: Instance,
+  username: string,
+  files: Files,
+  env: Record<string, string> = {},
+): Promise<Peer> {
+  const peer = await startPeer(path.join(network.root, username), network.login, username, files, { env })
+  try {
+    for (let attempt = 1; !(await reaches(from, [username])); attempt++) {
+      if (attempt === 3) throw new Error(`${username} couldn't be reached`)
+      await peer.instance.relaunch()
+      await scanned(peer.instance, peer.files)
+    }
+  } catch (error) {
+    await peer.instance.stop()
+    throw error
+  }
+  return { ...peer, token: await logIn(peer.instance) }
 }
 
 const endedAWhileAgo = ({ state, endedAt }: RawTransfer) =>

@@ -2,6 +2,7 @@ import path from 'node:path'
 
 import { expect, test } from '../fixtures'
 import { openHub } from '../hub'
+import { timeZone } from '../slskd'
 import * as schemas from './schemas'
 
 test('the state comes over REST, and from the application hub as it connects', async ({ slskd, api, token }) => {
@@ -52,7 +53,10 @@ test('the metrics hub sends transfer counts as it connects', async ({ slskd, tok
 })
 
 test('logs come over REST, and from the logs hub as a buffer and then one at a time', async ({ slskd, api, token }) => {
-  expect(schemas.parse(schemas.logs, await (await api.get('logs')).json()).length).toBeGreaterThan(0)
+  const logs = schemas.parse(schemas.logs, await (await api.get('logs')).json())
+  expect(logs.length).toBeGreaterThan(0)
+  // They're in slskd's local time, which shows the harness put slskd in its zone.
+  expect(logs.every((log) => log.timestamp.endsWith(timeZone.offset))).toBe(true)
   const hub = await openHub(slskd, 'logs', token, ['BUFFER', 'LOG'])
   try {
     await expect.poll(() => hub.received('BUFFER').length).toBe(1)
