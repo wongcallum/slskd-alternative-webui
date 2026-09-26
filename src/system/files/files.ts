@@ -1,5 +1,7 @@
+import { isHTTPError, type RetryOptions } from 'ky'
+
 import { type Actions, actOnEach, begin, idle, summarise } from '../../lib/actions'
-import { api } from '../../lib/api'
+import { api, readsOptions } from '../../lib/api'
 import { createAtom, createResource, load, type Resource, type Sink } from '../../lib/store'
 import { buildTree, type InputDirectory, type Item, type Tree } from '../../lib/tree'
 import { options } from '../options/options'
@@ -81,12 +83,25 @@ const build = (listings: readonly RawListing[], removed: ReadonlySet<string>, fe
   }),
 })
 
+// Another client reading the options can still trip a listing, which then fails on the file it came across.
+const retryTripped: RetryOptions = {
+  limit: 2,
+  shouldRetry: ({ error }) => isHTTPError(error) && String(error.data).startsWith('Could not find file'),
+}
+
 async function fetchFiles(signal: AbortSignal) {
   const listings = await Promise.all(
     roots.map(({ id }) =>
-      api
-        .get(`files/${id}/directories`, { searchParams: { recursive: true }, signal, timeout: false })
-        .json<RawListing>(),
+      readsOptions(() =>
+        api
+          .get(`files/${id}/directories`, {
+            searchParams: { recursive: true },
+            signal,
+            timeout: false,
+            retry: retryTripped,
+          })
+          .json<RawListing>(),
+      ),
     ),
   )
   return build(listings, new Set(), Date.now())
@@ -226,9 +241,8 @@ export async function deleteItems(items: readonly Item[]) {
     async (target, signal) => {
       const encoded = encodePath(target.relative)
       if (encoded === undefined) throw new Error("slskd can't address this name")
-      await api.delete(`files/${target.root}/${target.kind === 'folder' ? 'directories' : 'files'}/${encoded}`, {
-        signal,
-      })
+      const path = `files/${target.root}/${target.kind === 'folder' ? 'directories' : 'files'}/${encoded}`
+      await readsOptions(() => api.delete(path, { signal }))
       deleted.push(target)
       drop(target.id)
     },

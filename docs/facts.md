@@ -441,6 +441,12 @@ in relay agent mode.
   - Anything else is a 500 with a JSON string. That includes a path outside the roots and bad base64.
   - The check is on the resolved path, so either root's endpoint reaches the other through `..` (observed).
   - A trailing `/` in a configured directory makes everything below that root a 500.
+  - **A listing fails when another request reads the options at the same time.** Reading them validates them, which
+    checks that the downloads and incomplete directories are writable by writing and deleting a file with a GUID for a
+    name in each (`Program.cs`, `Common/Validation/DirectoryExistsAttributes.cs`). A recursive listing that comes
+    across one is a 500, `"Could not find file '<directory>/<guid>'."`. Observed: 4–7 of 300 pairs of listings sent
+    together failed, and 7 of 300 listings sent with two `GET /options`. With `GET /shares`, `/application`,
+    `/transfers/downloads` or `/conversations`, none did.
 
 ### Deleting
 
