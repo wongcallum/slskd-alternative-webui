@@ -212,6 +212,39 @@ test("an enqueue for a user who isn't online is a 404", async ({ api }) => {
   expect(response.status()).toBe(404)
 })
 
+test('an enqueue is refused with a 429 while two others are being handled', async ({ api, peers: { fast } }) => {
+  const tag = randomUUID()
+  const post = (name: string, count: number) =>
+    api.post('transfers/downloads/batches', {
+      data: {
+        username: fast.username,
+        files: Array.from({ length: count }, (_, n) => ({
+          filename: `Music\\Nowhere\\${tag} ${name} ${n}.flac`,
+          size: 1,
+        })),
+      },
+    })
+  // While a batch inserts its records, it holds a lock on its user that another batch for that user waits on.
+  const big = post('big', 300)
+  await expect
+    .poll(async () => (await (await api.get('transfers/downloads')).text()).includes(tag), { intervals: [50] })
+    .toBe(true)
+  const small = await Promise.all([post('a', 1), post('b', 1)])
+  expect(small.map((response) => response.status()).sort((a, b) => a - b)).toEqual([201, 429])
+  expect((await big).status()).toBe(201)
+  // The peer rejects every file. Clearing them keeps the list short for the tests after.
+  await expect
+    .poll(
+      async () =>
+        (await listed(api, 'download', fast.username)).filter(
+          (transfer) => transfer.filename.includes(tag) && !transfer.state.startsWith('Completed'),
+        ).length,
+      { timeout: 30_000 },
+    )
+    .toBe(0)
+  await api.delete('transfers/downloads/all/completed')
+})
+
 test('cancelling a running download finishes it as cancelled, and removing it then drops it', async ({
   api,
   peers: { slow },
