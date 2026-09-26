@@ -1,109 +1,267 @@
 import { randomUUID } from 'node:crypto'
+import { readFile } from 'node:fs/promises'
+import path from 'node:path'
 
-import type { APIRequestContext } from '@playwright/test'
+import { type APIRequestContext, request } from '@playwright/test'
 
 import { expect, test } from '../fixtures'
-import { seedBatch, seedTransfers, states } from '../seed'
+import { type Instance, logIn } from '../slskd'
+import { loggedIn, type Peer, startLoggedIn, uploadsEnded } from '../soulseek'
 import * as schemas from './schemas'
 
-// A dot and a space, which the app sends URL-encoded in the path.
-const newUser = () => `user.${randomUUID().slice(0, 8)} test`
+test.use({ config: { soulseek: true } })
+
+type File = { filename: string; size: number }
+
+const file = (peer: Peer, filename: string): File => ({ filename, size: peer.files.get(filename)!.length })
+
+const intro = 'Music\\Artist - Album\\01 Intro.flac'
+const outro = 'Music\\Artist - Album\\02 Outro.flac'
+const encore = 'Music\\Artist - Album\\CD2\\01 Encore.flac'
+const missing = { filename: 'Music\\Nowhere\\missing.flac', size: 123 }
+
+async function contextFor(instance: Instance) {
+  const token = await logIn(instance)
+  return request.newContext({ baseURL: `${instance.api}/`, extraHTTPHeaders: { Authorization: `Bearer ${token}` } })
+}
+
+async function enqueue(api: APIRequestContext, peer: Peer, files: File[], extra: object = {}) {
+  const response = await api.post('transfers/downloads/batches', { data: { username: peer.username, files, ...extra } })
+  const body = schemas.parse(schemas.enqueued, await response.json())
+  return { status: response.status(), ...body, ids: body.batch.transfers.map((transfer) => transfer.id) }
+}
 
 async function listed(api: APIRequestContext, direction: 'download' | 'upload', username: string) {
   const users = schemas.parse(schemas.transferUsers, await (await api.get(`transfers/${direction}s`)).json())
-  return users.find((user) => user.username === username)
+  return users.find((user) => user.username === username)?.directories.flatMap((directory) => directory.files) ?? []
 }
 
-const filesOf = (user: Awaited<ReturnType<typeof listed>>) =>
-  user?.directories.flatMap((directory) => directory.files) ?? []
+const stateOf = async (api: APIRequestContext, peer: Peer, id: string) =>
+  (await listed(api, 'download', peer.username)).find((transfer) => transfer.id === id)?.state
 
-test('the lists group transfers by user and remote folder, with states named by their flags', async ({
-  slskd,
+async function finished(api: APIRequestContext, peer: Peer, ids: string[]) {
+  const ours = async () =>
+    (await listed(api, 'download', peer.username)).filter((transfer) => ids.includes(transfer.id))
+  await expect
+    .poll(async () => (await ours()).filter((transfer) => transfer.state.startsWith('Completed')).length, {
+      timeout: 30_000,
+    })
+    .toBe(ids.length)
+  return ours()
+}
+
+const transferPath = (peer: Peer, id: string) => `transfers/downloads/${encodeURIComponent(peer.username)}/${id}`
+
+const albumFile = (folder: string, name: string) =>
+  ['Music\\Artist - Album', ...folder.split('/').filter(Boolean), name].join('\\')
+
+test('downloads are listed by user and remote folder, with states named by their flags', async ({
   api,
+  peers: { fast },
 }) => {
-  const username = newUser()
-  const batchId = seedBatch(slskd, { username })
-  const ids = seedTransfers(
-    slskd,
-    states.map((state, index) => ({
-      username,
-      filename: `Music\\${index % 2 === 0 ? 'Album' : 'Album\\CD2'}\\${index}.flac`,
-      state,
-      batchId,
-      exception: state === 'Completed, Errored' ? 'It failed' : undefined,
-    })),
+  const { status, batch, ids } = await enqueue(api, fast, [file(fast, intro), file(fast, encore), missing])
+  expect(status).toBe(201)
+  const done = await finished(api, fast, ids)
+  expect(done.every((transfer) => transfer.batchId === batch.id)).toBe(true)
+  const users = schemas.parse(schemas.transferUsers, await (await api.get('transfers/downloads')).json())
+  const folders = users
+    .find((user) => user.username === fast.username)
+    ?.directories.map((directory) => ({
+      directory: directory.directory,
+      files: directory.files.filter((transfer) => ids.includes(transfer.id)).map(({ state }) => state),
+    }))
+    .filter((directory) => directory.files.length > 0)
+  expect(folders).toEqual(
+    expect.arrayContaining([
+      { directory: 'Music\\Artist - Album', files: ['Completed, Succeeded'] },
+      { directory: 'Music\\Artist - Album\\CD2', files: ['Completed, Succeeded'] },
+      { directory: 'Music\\Nowhere', files: ['Completed, Rejected'] },
+    ]),
   )
-  const user = await listed(api, 'download', username)
-  expect(user?.directories.map((directory) => directory.directory).sort()).toEqual([
-    'Music\\Album',
-    'Music\\Album\\CD2',
-  ])
-  const files = filesOf(user)
-  expect(files.map((file) => file.id).sort()).toEqual([...ids].sort())
-  for (const [index, id] of ids.entries()) {
-    expect(files.find((file) => file.id === id)).toMatchObject({ state: states[index], batchId: batchId.toLowerCase() })
-  }
-  expect(files.find((file) => file.state === 'Completed, Errored')?.exception).toBe('It failed')
+  expect(done.find((transfer) => transfer.filename === missing.filename)?.exception).toBe(
+    'Transfer rejected: File not shared.',
+  )
 })
 
-test('uploads list the same way', async ({ slskd, api }) => {
-  const username = newUser()
-  const [id] = seedTransfers(slskd, [
-    { direction: 'Upload', username, filename: 'Shared\\song.flac', state: 'Completed, Succeeded' },
-  ])
-  expect(filesOf(await listed(api, 'upload', username))).toMatchObject([{ id, state: 'Completed, Succeeded' }])
+test('the peer lists them among its uploads, under our username', async ({ api, peers: { fast } }) => {
+  const me = schemas.parse(schemas.state, await (await api.get('application')).json()).user.username!
+  const { ids } = await enqueue(api, fast, [file(fast, outro)])
+  await finished(api, fast, ids)
+  const peer = await contextFor(fast.instance)
+  await expect
+    .poll(async () => (await listed(peer, 'upload', me)).map(({ filename, state }) => ({ filename, state })))
+    .toContainEqual({ filename: outro, state: 'Completed, Succeeded' })
+  await peer.dispose()
 })
 
-test("a batch keeps its search and destination, and one that's gone is a 404", async ({ slskd, api }) => {
+test("a batch keeps its search and destination, and one that's gone is a 404", async ({ api, peers: { fast } }) => {
   const searchId = randomUUID()
-  const batchId = seedBatch(slskd, { username: newUser(), searchId, destination: 'Some Album' })
-  const batch = schemas.parse(schemas.batch, await (await api.get(`transfers/downloads/batches/${batchId}`)).json())
-  expect(batch).toMatchObject({ searchId, options: { destination: 'Some Album' } })
+  const { batch } = await enqueue(api, fast, [file(fast, intro)], { searchId, options: { destination: 'Some Album' } })
+  const got = schemas.parse(schemas.batch, await (await api.get(`transfers/downloads/batches/${batch.id}`)).json())
+  expect(got).toMatchObject({ searchId, options: { destination: 'Some Album' } })
   expect((await api.get(`transfers/downloads/batches/${randomUUID()}`)).status()).toBe(404)
 })
 
-test("removing a finished transfer drops it, and cancelling one that isn't running finishes it", async ({
-  slskd,
+test('a folder enqueued as one batch per remote folder, each with its destination, keeps its subfolders', async ({
   api,
+  slskd,
+  peers: { fast },
 }) => {
-  const username = newUser()
-  const [finished, waiting] = seedTransfers(slskd, [
-    { username, filename: 'A\\1.flac', state: 'Completed, Errored' },
-    { username, filename: 'A\\2.flac', state: 'Queued, Locally' },
-  ])
-  const path = `transfers/downloads/${encodeURIComponent(username)}`
-  expect((await api.delete(`${path}/${finished}`, { params: { remove: true } })).status()).toBe(204)
-  expect((await api.delete(`${path}/${waiting}`, { params: { remove: false } })).status()).toBe(204)
-  await expect
-    .poll(async () => filesOf(await listed(api, 'download', username)).map(({ id, state }) => ({ id, state })))
-    .toEqual([{ id: waiting, state: 'Completed, Cancelled' }])
+  const root = `Album ${randomUUID().slice(0, 8)}`
+  const folders: Record<string, string[]> = {
+    '': ['01 Intro.flac', '02 Outro.flac'],
+    CD2: ['01 Encore.flac'],
+    'CD2/Scans': ['cover.jpg'],
+  }
+  const ids: string[] = []
+  for (const [folder, names] of Object.entries(folders)) {
+    const destination = [root, folder].filter(Boolean).join('/')
+    const result = await enqueue(
+      api,
+      fast,
+      names.map((name) => file(fast, albumFile(folder, name))),
+      { options: { destination } },
+    )
+    ids.push(...result.ids)
+  }
+  const done = await finished(api, fast, ids)
+  expect(done.map((transfer) => transfer.state)).toEqual(ids.map(() => 'Completed, Succeeded'))
+  for (const [folder, names] of Object.entries(folders)) {
+    for (const name of names) {
+      expect(await readFile(path.join(slskd.downloads, root, folder, name))).toEqual(
+        fast.files.get(albumFile(folder, name)),
+      )
+    }
+  }
 })
 
-test('clearing finished transfers removes every finished one, and leaves the rest', async ({ slskd, api }) => {
-  const username = newUser()
-  seedTransfers(
-    slskd,
-    states.map((state, index) => ({ username, filename: `A\\${index}.flac`, state })),
+test("an enqueue for a user who isn't online is a 404", async ({ api }) => {
+  const response = await api.post('transfers/downloads/batches', {
+    data: { username: 'nobody.here', files: [missing] },
+  })
+  expect(response.status()).toBe(404)
+})
+
+test('cancelling a running download finishes it as cancelled, and removing it then drops it', async ({
+  api,
+  peers: { slow },
+}) => {
+  const {
+    ids: [id],
+  } = await enqueue(api, slow, [file(slow, 'Slow\\Big 1.flac')])
+  await expect.poll(() => stateOf(api, slow, id!), { timeout: 30_000 }).toBe('InProgress')
+  expect((await api.delete(transferPath(slow, id!), { params: { remove: false } })).status()).toBe(204)
+  await expect.poll(() => stateOf(api, slow, id!)).toBe('Completed, Cancelled')
+  expect((await api.delete(transferPath(slow, id!), { params: { remove: true } })).status()).toBe(204)
+  await expect.poll(() => stateOf(api, slow, id!)).toBeUndefined()
+})
+
+test("a queued download's place in the peer's queue can be asked for, and is kept on the record", async ({
+  api,
+  peers: { slow },
+}) => {
+  const { ids } = await enqueue(
+    api,
+    slow,
+    ['Slow\\Big 2.flac', 'Slow\\Big 3.flac'].map((name) => file(slow, name)),
   )
-  expect((await api.delete('transfers/downloads/all/completed')).status()).toBe(204)
-  const left = filesOf(await listed(api, 'download', username)).map((file) => file.state)
-  expect(left.sort()).toEqual(states.filter((state) => !state.startsWith('Completed')).sort())
+  const ours = async () =>
+    (await listed(api, 'download', slow.username)).filter((transfer) => ids.includes(transfer.id))
+  await expect
+    .poll(async () => (await ours()).map((transfer) => transfer.state).sort(), { timeout: 30_000 })
+    .toEqual(['InProgress', 'Queued, Remotely'])
+  const queued = (await ours()).find((transfer) => transfer.state === 'Queued, Remotely')!.id
+  const response = await api.get(`${transferPath(slow, queued)}/position`)
+  expect(response.status()).toBe(200)
+  const position = (await response.json()) as number
+  expect(Number.isInteger(position) && position >= 0).toBe(true)
+  expect((await ours()).find((transfer) => transfer.id === queued)?.placeInQueue).toBe(position)
 })
 
-test("a user's history counts their finished transfers", async ({ slskd, api }) => {
-  const username = newUser()
-  seedTransfers(slskd, [
-    { username, filename: 'A\\1.flac', size: 1000, state: 'Completed, Succeeded' },
-    { username, filename: 'A\\2.flac', size: 2000, state: 'Completed, Succeeded' },
-    { username, filename: 'A\\3.flac', state: 'Completed, Cancelled' },
-    { username, filename: 'A\\4.flac', state: 'Completed, Errored', exception: 'It failed' },
-    { username, filename: 'A\\5.flac', state: 'Completed, TimedOut' },
-    { username, filename: 'A\\6.flac', state: 'Queued, Locally' },
-  ])
-  const response = await api.get(`telemetry/reports/transfers/users/${encodeURIComponent(username)}`)
-  const history = schemas.parse(schemas.userHistory, await response.json())
-  expect(history.Download.statistics).toMatchObject({ total: 5, successful: 2, cancelled: 1 })
-  expect(history.Download.summary.Succeeded?.totalBytes).toBe(3000)
-  expect(history.Download.exceptions.map((each) => each.exception)).toContain('It failed')
-  expect(history.Upload.statistics.total).toBe(0)
+test('enqueueing a file again skips it while it runs, and retries it under a new id once it has finished', async ({
+  api,
+  peers: { slow },
+}) => {
+  const big = file(slow, 'Slow\\Big 1.flac')
+  const {
+    ids: [first],
+  } = await enqueue(api, slow, [big])
+  const skipped = await enqueue(api, slow, [big])
+  expect(skipped.status).toBe(200)
+  expect(skipped.failures).toEqual([{ filename: big.filename, message: 'Skipped: Already in progress' }])
+  // Cancelled before it's running, a download can end as errored instead.
+  await expect.poll(() => stateOf(api, slow, first!), { timeout: 30_000 }).toBe('InProgress')
+  await api.delete(transferPath(slow, first!))
+  await expect.poll(() => stateOf(api, slow, first!)).toBe('Completed, Cancelled')
+  const me = schemas.parse(schemas.state, await (await api.get('application')).json()).user.username!
+  await uploadsEnded(slow, me)
+  const retried = await enqueue(api, slow, [big])
+  expect(retried.status).toBe(201)
+  const ids = (await listed(api, 'download', slow.username)).map((transfer) => transfer.id)
+  expect(ids).toContain(retried.ids[0])
+  expect(ids).not.toContain(first)
+})
+
+test('clearing finished downloads removes every finished one, and leaves the rest', async ({
+  api,
+  peers: { fast, slow },
+}) => {
+  const done = await enqueue(api, fast, [file(fast, intro), missing])
+  await finished(api, fast, done.ids)
+  const running = await enqueue(api, slow, [file(slow, 'Slow\\Big 2.flac')])
+  expect((await api.delete('transfers/downloads/all/completed')).status()).toBe(204)
+  const left = [...(await listed(api, 'download', fast.username)), ...(await listed(api, 'download', slow.username))]
+  const ids = left.map((transfer) => transfer.id)
+  for (const id of done.ids) expect(ids).not.toContain(id)
+  expect(ids).toContain(running.ids[0])
+})
+
+test("a user's history counts their finished downloads", async ({ api, peers: { fast } }) => {
+  const history = async () =>
+    schemas.parse(
+      schemas.userHistory,
+      await (await api.get(`telemetry/reports/transfers/users/${encodeURIComponent(fast.username)}`)).json(),
+    ).Download
+  const before = await history()
+  const { ids } = await enqueue(api, fast, [file(fast, intro), file(fast, outro), missing])
+  await finished(api, fast, ids)
+  const after = await history()
+  expect(after.statistics.total - before.statistics.total).toBe(3)
+  expect(after.statistics.successful - before.statistics.successful).toBe(2)
+  expect((after.summary.Succeeded?.totalBytes ?? 0) - (before.summary.Succeeded?.totalBytes ?? 0)).toBe(
+    file(fast, intro).size + file(fast, outro).size,
+  )
+  expect(after.exceptions.map((each) => each.exception)).toContain('File not shared.')
+})
+
+test('downloads left unfinished when slskd dies are enqueued again at the next login, under new ids and without their batch', async ({
+  network,
+}) => {
+  test.setTimeout(90_000)
+  const started = await network()
+  const { slow } = started
+  const instance = await startLoggedIn(started, {}, `crash.${randomUUID().slice(0, 8)} test`)
+  try {
+    let api = await contextFor(instance)
+    const {
+      ids: [id],
+    } = await enqueue(api, slow, [file(slow, 'Slow\\Big 3.flac')], { options: { destination: 'Lost' } })
+    await expect.poll(() => stateOf(api, slow, id!), { timeout: 30_000 }).toMatch(/Remotely|InProgress/)
+    await api.dispose()
+    await instance.relaunch()
+    await loggedIn(instance)
+    api = await contextFor(instance)
+    await expect
+      .poll(async () =>
+        (await listed(api, 'download', slow.username)).map(({ id: current, batchId, state }) => ({
+          id: current,
+          batchId,
+          finished: state.startsWith('Completed'),
+        })),
+      )
+      .toEqual([{ id: expect.not.stringMatching(id!), batchId: undefined, finished: false }])
+    await api.dispose()
+  } finally {
+    await instance.stop()
+  }
 })

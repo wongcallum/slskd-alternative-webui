@@ -21,11 +21,11 @@ type UserInfo = {
 
 export type UserRecord = { username: string; status?: UserStatus; info?: UserInfo }
 
-type RawStatus = { presence: Presence; isPrivileged: boolean }
+export type RawStatus = { presence: Presence; isPrivileged: boolean }
 
-type RawEndpoint = { address: string; port: number }
+export type RawEndpoint = { address: string; port: number }
 
-type RawInfo = {
+export type RawInfo = {
   description: string
   hasFreeUploadSlot: boolean
   picture?: string

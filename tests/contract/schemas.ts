@@ -1,6 +1,8 @@
 import * as v from 'valibot'
 
+import type { RawShare as RawBrowse } from '../../src/browse/browse'
 import type { RawDirectory } from '../../src/lib/files'
+import type { RawResponse } from '../../src/search/results/results'
 import type { RawSearch } from '../../src/search/searches'
 import type { RawState } from '../../src/system/application'
 import type { RawEvent } from '../../src/system/events'
@@ -10,10 +12,10 @@ import type { RawOptions } from '../../src/system/options/options'
 import type { Metrics } from '../../src/system/process'
 import type { RawShare } from '../../src/system/shares/shares'
 import type { BatchInfo } from '../../src/transfers/actions'
+import type { EnqueueResponse } from '../../src/transfers/enqueue'
 import type { RawMetrics } from '../../src/transfers/metrics'
 import type { RawUser } from '../../src/transfers/transfers'
-import type { RawDirection } from '../../src/users/users'
-import { states } from '../seed'
+import type { RawDirection, RawEndpoint, RawInfo, RawStatus } from '../../src/users/users'
 
 // Each schema must produce the type the app reads that payload as, so a payload that passes is one the app can read.
 const shape = <T>(schema: v.GenericSchema<unknown, T>) => schema
@@ -30,6 +32,21 @@ const utc = v.pipe(v.string(), v.regex(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z
 const withOffset = v.pipe(v.string(), v.regex(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?(Z|[+-]\d\d:\d\d)$/))
 
 const count = v.pipe(v.number(), v.integer(), v.minValue(0))
+
+// Soulseek.NET's TransferStates, which slskd stores as a number and serialises by their flags.
+export const states = [
+  'Requested',
+  'Queued, Locally',
+  'Queued, Remotely',
+  'Initializing',
+  'InProgress',
+  'Completed, Succeeded',
+  'Completed, Cancelled',
+  'Completed, TimedOut',
+  'Completed, Errored',
+  'Completed, Rejected',
+  'Completed, Aborted',
+] as const
 
 export const state = shape<RawState>(
   v.object({
@@ -218,3 +235,50 @@ const history = v.object({
 export const userHistory = shape<{ Download: RawDirection; Upload: RawDirection }>(
   v.object({ Download: history, Upload: history }),
 )
+
+export const enqueued = shape<
+  EnqueueResponse & { batch: { id: string; transfers: { id: string; filename: string }[] } }
+>(
+  v.object({
+    batch: v.object({
+      id: v.pipe(v.string(), v.uuid()),
+      transfers: v.array(v.object({ id: v.pipe(v.string(), v.uuid()), filename: v.string() })),
+    }),
+    failures: v.array(v.object({ filename: v.string(), message: v.string() })),
+  }),
+)
+
+export const responses = shape<RawResponse[]>(
+  v.array(
+    v.object({
+      username: v.string(),
+      files: v.array(file),
+      lockedFiles: v.array(file),
+      hasFreeUploadSlot: v.boolean(),
+      queueLength: count,
+      uploadSpeed: count,
+    }),
+  ),
+)
+
+const directory = v.object({ name: v.string(), files: v.array(file) })
+
+export const share = shape<RawBrowse>(
+  v.object({ directories: v.array(directory), lockedDirectories: v.array(directory) }),
+)
+
+export const userInfo = shape<RawInfo>(
+  v.object({
+    description: v.string(),
+    hasFreeUploadSlot: v.boolean(),
+    picture: v.optional(v.string()),
+    queueLength: count,
+    uploadSlots: count,
+  }),
+)
+
+export const userStatus = shape<RawStatus>(
+  v.object({ presence: v.picklist(['Online', 'Away', 'Offline']), isPrivileged: v.boolean() }),
+)
+
+export const endpoint = shape<RawEndpoint>(v.object({ address: v.pipe(v.string(), v.ipv4()), port: count }))

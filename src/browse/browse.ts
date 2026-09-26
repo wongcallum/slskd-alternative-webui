@@ -20,7 +20,7 @@ export type ShareRecord = {
 }
 
 // Parsing, building and the first render are separate tasks, so the page can paint between them.
-type RawShare = { directories: InputDirectory[]; lockedDirectories: InputDirectory[] }
+export type RawShare = { directories: InputDirectory[]; lockedDirectories: InputDirectory[] }
 
 async function parseShare(username: string, blob: Blob) {
   const raw = JSON.parse(await blob.text()) as RawShare
