@@ -8,6 +8,20 @@
 let
   state = "${config.devenv.state}/slskd";
   dll = "${state}/artifacts/bin/slskd/debug/slskd.dll";
+  soulfind = pkgs.buildDubPackage {
+    pname = "soulfind";
+    version = inputs.soulfind.shortRev;
+    src = inputs.soulfind;
+    dubLock.dependencies = { };
+    dubBuildFlags = [ ":server" ];
+    buildInputs = [ pkgs.sqlite ];
+    installPhase = ''
+      runHook preInstall
+      install -Dm755 bin/soulfind -t $out/bin
+      runHook postInstall
+    '';
+    meta.mainProgram = "soulfind";
+  };
 in
 {
   packages = with pkgs; [
@@ -24,6 +38,7 @@ in
     DOTNET_NOLOGO = "1";
     CHROMIUM = pkgs.lib.getExe pkgs.chromium;
     SLSKD_SRC = "${inputs.slskd}";
+    SOULFIND_BIN = pkgs.lib.getExe soulfind;
     # makeFontsConf only includes /etc/fonts/conf.d, which a non-NixOS host may lack, leaving no family aliases.
     FONTCONFIG_FILE = pkgs.writeText "fonts.conf" ''
       <?xml version="1.0"?>
