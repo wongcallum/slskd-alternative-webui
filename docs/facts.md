@@ -810,6 +810,8 @@ There's no concurrency limit and no 429.
 - A message's `timestamp` is when slskd handled it (`DateTime.UtcNow`), because the server sends none. Soulseek.NET
   raises each message on its own task, so messages arriving close together may be stored out of order (inferred).
 - Our own messages arrive about 1–1.5 s after sending, with `self: true`, in the order sent.
+- A user's `countryCode` is an empty string when the server gives no country (observed on the test network, where
+  Soulfind gives none).
 
 ### Lifetime
 

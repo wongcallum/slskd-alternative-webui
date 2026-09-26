@@ -129,7 +129,8 @@ export const roomMessages = messageResources.get
 function toUser(raw: RawRoomUser): RoomUser {
   return {
     username: raw.username,
-    country: raw.countryCode ?? undefined,
+    // Empty when the server doesn't know it.
+    country: raw.countryCode || undefined,
     files: raw.fileCount,
     self: raw.self === true,
   }
