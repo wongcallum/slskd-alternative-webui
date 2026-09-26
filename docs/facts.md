@@ -873,8 +873,8 @@ string.
   `DELETE /conversations/{u}` are then 500s that mark nothing read, since `AcknowledgeAsync` saves only after
   acknowledging every unread message (`ConversationService.cs`). The messages it got to first have still had
   MessageAcked sent. Every later `PUT` or `DELETE` of the conversation fails the same way, and `DELETE` leaves it open.
-  Observed for `DELETE` on the test network, where Soulfind picks ids at random. The real server's ids count up across
-  the network, from about 1,005,000 to 1,041,000 over ten hours on 2026-09-25, far below 2^31.
+  Observed for both against an unpatched Soulfind, which picks ids at random. The real server's ids count up across the
+  network, from about 1,005,000 to 1,041,000 over ten hours on 2026-09-25, far below 2^31.
 - **Acknowledging a sent message by id fails**: they all have id 0, so with two or more of them the lookup throws a
   500 (`"Sequence contains more than one element"`).
 - A re-delivered message matches its stored copy on `(username, id, timestamp)` and is set unread again, with
