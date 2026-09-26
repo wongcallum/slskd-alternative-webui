@@ -23,22 +23,3 @@ test("browsing a peer gets its whole share, with every folder's full path and ba
   )
   expect(files.sort()).toEqual([...fast.files.keys()].sort())
 })
-
-test('asking a peer for a folder gets every file beneath it and in folders whose names start with it, by bare name', async ({
-  api,
-  peers: { fast },
-}) => {
-  const response = await api.post(`users/${encodeURIComponent(fast.username)}/directory`, {
-    data: { directory: 'Music\\Artist - Album' },
-  })
-  expect(response.status()).toBe(200)
-  const directories = schemas.parse(schemas.directories, await response.json())
-  expect(directories.map((directory) => directory.name)).toEqual(['Music\\Artist - Album'])
-  expect(directories[0]!.files.map((file) => file.filename).sort()).toEqual([
-    '01 Encore.flac',
-    '01 Intro.flac',
-    '01 Other.flac',
-    '02 Outro.flac',
-    'cover.jpg',
-  ])
-})

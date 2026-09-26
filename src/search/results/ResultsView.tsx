@@ -59,6 +59,14 @@ export function ResultsView({ searchId, results, folders, params, onSearchChange
     [results, folders, locked],
   )
   const shown = useMemo(() => countFiles(groups), [groups])
+  const lockedCount = useMemo(
+    () =>
+      [...folders.values()].reduce(
+        (count, fetch) => count + (fetch.files?.filter((file) => file.locked).length ?? 0),
+        results.locked,
+      ),
+    [results, folders],
+  )
 
   const expansion = useAtom(expansions).get(searchId) ?? collapsed
   const expanded = useMemo(() => expandedState(expansion, groups), [groups, expansion])
@@ -68,7 +76,8 @@ export function ResultsView({ searchId, results, folders, params, onSearchChange
     features: groupFeatures,
     columns,
     data: groups,
-    getRowId: (item) => item.id,
+    // A file can be in two folders, when one's fetched with its subfolders.
+    getRowId: (item, _index, parent) => (parent === undefined ? item.id : parent.id + item.id),
     getSubRows: (item) => (item.kind === 'group' ? item.files : undefined),
     autoResetExpanded: false,
     enableMultiSort: false,
@@ -85,9 +94,9 @@ export function ResultsView({ searchId, results, folders, params, onSearchChange
   const soulseekGate = useSoulseekGate()
   const downloads = useAtom(downloadsOf(searchId))
   const sm = useFrom('sm')
-  const lockedField = results.locked > 0 && (
+  const lockedField = lockedCount > 0 && (
     <CheckboxField checked={locked} onChange={(checked) => onSearchChange({ locked: checked ? 'show' : 'hide' })}>
-      Locked ({results.locked.toLocaleString()})
+      Locked ({lockedCount.toLocaleString()})
     </CheckboxField>
   )
 
