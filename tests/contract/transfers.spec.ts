@@ -4,7 +4,8 @@ import path from 'node:path'
 
 import type { APIRequestContext } from '@playwright/test'
 
-import { contextFor, expect, ownName, test } from '../fixtures'
+import { contextFor, expect, jsonString, ownName, test } from '../fixtures'
+import { configYaml } from '../slskd'
 import { loggedIn, type Peer, slowPeerEnv, startLoggedIn, startOwnPeer, uploadsEnded } from '../soulseek'
 import * as schemas from './schemas'
 
@@ -134,6 +135,38 @@ test("a batch keeps its search and destination, and one that's gone is a 404", a
   const got = schemas.parse(schemas.batch, await (await api.get(`transfers/downloads/batches/${batch.id}`)).json())
   expect(got).toMatchObject({ searchId, options: { destination: 'Some Album' } })
   expect((await api.get(`transfers/downloads/batches/${randomUUID()}`)).status()).toBe(404)
+})
+
+test("a batch's search fills in SEARCH_TEXT and SEARCH_ID in the destination pattern", async ({ network }) => {
+  test.setTimeout(90_000)
+  const started = await network()
+  const { fast } = started
+  const instance = await startLoggedIn(started, {}, `pattern.${randomUUID().slice(0, 8)} test`, {
+    SLSKD_NO_CONFIG_WATCH: 'false',
+  })
+  const api = await contextFor(instance)
+  try {
+    const pattern = '${SEARCH_TEXT}/${SEARCH_ID}'
+    const yaml = `${configYaml}transfers:\n  download:\n    destination:\n      subdirectory: '${pattern}'\n`
+    expect((await api.put('options/yaml', jsonString(yaml))).status()).toBe(200)
+    type Destination = { transfers: { download: { destination: { subdirectory: string } } } }
+    await expect
+      .poll(
+        async () =>
+          ((await (await api.get('options')).json()) as Destination).transfers.download.destination.subdirectory,
+      )
+      .toBe(pattern)
+    const search = await api.post('searches', { data: { searchText: 'album intro', searchTimeout: 1000 } })
+    const searchId = schemas.parse(schemas.search, await search.json()).id
+    const { ids } = await enqueue(api, fast, [file(fast, intro)], { searchId })
+    expect((await finished(api, fast, ids)).map((transfer) => transfer.state)).toEqual(['Completed, Succeeded'])
+    expect(await readFile(path.join(instance.downloads, 'album intro', searchId, '01 Intro.flac'))).toEqual(
+      fast.files.get(intro),
+    )
+  } finally {
+    await api.dispose()
+    await instance.stop()
+  }
 })
 
 test('a folder enqueued as one batch per remote folder, each with its destination, keeps its subfolders', async ({
