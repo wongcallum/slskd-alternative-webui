@@ -37,7 +37,8 @@
       "inputs": {
         "devenv": "devenv",
         "nixpkgs": "nixpkgs",
-        "slskd": "slskd"
+        "slskd": "slskd",
+        "soulfind": "soulfind"
       }
     },
     "slskd": {
@@ -54,6 +55,23 @@
         "owner": "slskd",
         "repo": "slskd",
         "rev": "e3d377d4f2b31eaea0fe70bfa17e326ad4bf74e4",
+        "type": "github"
+      }
+    },
+    "soulfind": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1789987086,
+        "narHash": "sha256-DiwLUkDOGlKc57AVehbOAVpPx1QTnW4gH+V1mhjO16g=",
+        "owner": "soulfind-dev",
+        "repo": "soulfind",
+        "rev": "5b7dea22006a0bc1b7f5ad0769448de951bd275c",
+        "type": "github"
+      },
+      "original": {
+        "owner": "soulfind-dev",
+        "repo": "soulfind",
+        "rev": "5b7dea22006a0bc1b7f5ad0769448de951bd275c",
         "type": "github"
       }
     }

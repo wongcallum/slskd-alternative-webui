@@ -4,3 +4,6 @@ inputs:
   slskd:
     url: github:slskd/slskd/e3d377d4f2b31eaea0fe70bfa17e326ad4bf74e4
     flake: false
+  soulfind:
+    url: github:soulfind-dev/soulfind/5b7dea22006a0bc1b7f5ad0769448de951bd275c
+    flake: false
