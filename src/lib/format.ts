@@ -16,7 +16,7 @@ export function formatProgress(transferred: number, total: number) {
   return `${value} / ${formatBytes(total)}`
 }
 
-// requestedAt and enqueuedAt are UTC but slskd serialises them without the Z.
+// slskd's times are UTC, and it serialises some of them, such as requestedAt and enqueuedAt, without the Z.
 export const toTime = (timestamp: string) => Date.parse(timestamp.endsWith('Z') ? timestamp : `${timestamp}Z`)
 
 const absolute = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'medium' })

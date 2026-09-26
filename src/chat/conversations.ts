@@ -1,6 +1,7 @@
 import { isHTTPError } from 'ky'
 
 import { api } from '../lib/api'
+import { toTime } from '../lib/format'
 import { createResource, createResourceMap, poll, type Resource } from '../lib/store'
 import { byUsername } from '../lib/text'
 import { application } from '../system/application'
@@ -59,7 +60,7 @@ function toMessage(raw: RawPrivateMessage): Message {
   return {
     // Every sent message has id 0.
     key: `${raw.direction} ${raw.id} ${raw.timestamp}`,
-    time: Date.parse(raw.timestamp),
+    time: toTime(raw.timestamp),
     // A sent message's username is the other party's.
     username: self ? '' : raw.username,
     text: raw.message,
