@@ -113,6 +113,20 @@ test.describe('logged in to Soulseek', () => {
     expect(statuses.filter((status) => status !== 429).length).toBeGreaterThan(0)
   })
 
+  test("a search without a word of two characters or more that isn't an exclusion is refused, and stored as errored", async ({
+    api,
+  }) => {
+    for (const searchText of ['-ab', 'a -bc', 'a  b', '- x']) {
+      const id = randomUUID()
+      expect((await api.post('searches', { data: { id, searchText } })).status(), searchText).toBe(400)
+      expect(await stateOf(api, id)).toBe('Completed, Errored')
+    }
+    for (const searchText of ['ab -c', '-a b cd']) {
+      const id = await post(api, searchText, 1000)
+      await api.put(`searches/${id}`)
+    }
+  })
+
   test('at most two searches run at once, and stopping one starts the next', async ({ api }) => {
     const ids: string[] = []
     try {
