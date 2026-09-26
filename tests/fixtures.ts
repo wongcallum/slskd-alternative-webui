@@ -1,4 +1,4 @@
-import { type APIRequestContext, test as base, expect, type Page } from '@playwright/test'
+import { type APIRequestContext, test as base, expect, type Page, request } from '@playwright/test'
 
 import type { RawState } from '../src/system/application'
 import type { RawTransfer, RawUser } from '../src/transfers/transfers'
@@ -88,7 +88,7 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
       await use({ fast, slow })
       let failure: unknown
       try {
-        const me = ((await (await api.get('application')).json()) as RawState).user.username!
+        const me = await ownName(api)
         const unfinished = async () =>
           ((await (await api.get('transfers/downloads')).json()) as RawUser[]).flatMap(({ username, directories }) =>
             directories
@@ -143,6 +143,15 @@ export const jsonString = (text: string) => ({
   data: JSON.stringify(text),
   headers: { 'Content-Type': 'application/json' },
 })
+
+export const ownName = async (api: APIRequestContext) =>
+  ((await (await api.get('application')).json()) as RawState).user.username!
+
+// A request context for an instance other than the test's own, such as a peer.
+export async function contextFor(instance: Instance) {
+  const token = await logIn(instance)
+  return request.newContext({ baseURL: `${instance.api}/`, extraHTTPHeaders: { Authorization: `Bearer ${token}` } })
+}
 
 export async function logInPage(page: Page) {
   await page.getByLabel('Username').fill(credentials.username)

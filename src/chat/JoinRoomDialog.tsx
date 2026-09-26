@@ -10,7 +10,13 @@ import { Fetching } from '../ui/status'
 import { ColumnHeader, GridRow, HeaderRow, RowButton, VirtualTable } from '../ui/table'
 import { joinRoom, useJoinedRooms } from './rooms'
 
-type RawAvailableRoom = { name: string; userCount: number; isPrivate: boolean; isOwned: boolean; isModerated: boolean }
+export type RawAvailableRoom = {
+  name: string
+  userCount: number
+  isPrivate: boolean
+  isOwned: boolean
+  isModerated: boolean
+}
 
 type Listing =
   | { status: 'loading' }

@@ -8,9 +8,9 @@ import { byUsername, compareExactly } from '../lib/text'
 import { application, ownUsername } from '../system/application'
 import { lastOpen, mentionMatcher, type Message, reuseMessages } from './messages'
 
-type RawRoomMessage = { timestamp: string; username: string; message: string; self?: boolean }
+export type RawRoomMessage = { timestamp: string; username: string; message: string; self?: boolean }
 
-type RawRoomUser = { username: string; countryCode?: string | null; fileCount: number; self?: boolean }
+export type RawRoomUser = { username: string; countryCode?: string | null; fileCount: number; self?: boolean }
 
 export type RoomUser = { username: string; country?: string; files: number; self: boolean }
 
