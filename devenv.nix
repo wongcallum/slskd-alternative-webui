@@ -15,6 +15,14 @@ let
     dubLock.dependencies = { };
     dubBuildFlags = [ ":server" ];
     buildInputs = [ pkgs.sqlite ];
+    # TODO: drop once every slskd the tests run against has a Soulseek.NET that acknowledges private message IDs of
+    # 2^31 and up. Soulfind picks IDs at random, so half of them are too big, while the real server's count up from far
+    # below 2^31, as they do here.
+    postPatch = ''
+      substituteInPlace src/server/server.d --replace-fail \
+        'while (id == 0 || id in pms) id = unpredictableSeed;' \
+        'static uint last_id; id = ++last_id;'
+    '';
     installPhase = ''
       runHook preInstall
       install -Dm755 bin/soulfind -t $out/bin
