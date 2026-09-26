@@ -15,46 +15,31 @@ jobs:
       fail-fast: false
       matrix:
         slskd: ${{ github.event_name == 'schedule' && fromJSON('["release", "master"]') || fromJSON('["pinned", "release"]') }}
-    env:
-      CHROMIUM: /usr/bin/google-chrome
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-        with:
-          version: 12
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - uses: cachix/install-nix-action@v31
+      - run: nix profile add nixpkgs#devenv
 
-      - name: Build slskd from source
-        if: matrix.slskd != 'release'
-        run: |
-          if [ '${{ matrix.slskd }}' = pinned ]; then
-            rev=$(sed -n 's|.*github:slskd/slskd/\([0-9a-f]*\).*|\1|p' devenv.yaml)
-          else
-            rev=master
-          fi
-          git init -q "$RUNNER_TEMP/slskd"
-          git -C "$RUNNER_TEMP/slskd" fetch -q --depth 1 https://github.com/slskd/slskd "$rev"
-          git -C "$RUNNER_TEMP/slskd" checkout -q FETCH_HEAD
-          git -C "$RUNNER_TEMP/slskd" log -1 --format='slskd %H %cd'
-          dotnet build "$RUNNER_TEMP/slskd/src/slskd/slskd.csproj" --artifacts-path "$RUNNER_TEMP/slskd-build"
-          echo "SLSKD_BIN=$RUNNER_TEMP/slskd-build/bin/slskd/debug/slskd.dll" >> "$GITHUB_ENV"
-
-      - name: Download the latest slskd release
-        if: matrix.slskd == 'release'
+      - name: Pick the slskd source
+        if: matrix.slskd != 'pinned'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release download --repo slskd/slskd --pattern '*-linux-x64.zip' --dir "$RUNNER_TEMP"
-          unzip -q "$RUNNER_TEMP"/*-linux-x64.zip -d "$RUNNER_TEMP/slskd-release"
-          chmod +x "$RUNNER_TEMP/slskd-release/slskd"
-          ls "$RUNNER_TEMP"/*-linux-x64.zip
-          echo "SLSKD_BIN=$RUNNER_TEMP/slskd-release/slskd" >> "$GITHUB_ENV"
+          if [ '${{ matrix.slskd }}' = release ]; then
+            ref=$(gh release view --repo slskd/slskd --json tagName --jq .tagName)
+          else
+            ref=master
+          fi
+          echo "SLSKD_INPUT=github:slskd/slskd/$ref" >> "$GITHUB_ENV"
 
-      - run: pnpm test
+      - name: Build slskd
+        run: |
+          devenv ${SLSKD_INPUT:+--override-input slskd "$SLSKD_INPUT"} tasks run slskd:build
+          jq -r '.nodes.slskd.locked | "slskd \(.rev)"' devenv.lock
+
+      - run: >
+          devenv ${SLSKD_INPUT:+--override-input slskd "$SLSKD_INPUT"} shell --
+          bash -e -c 'pnpm install --frozen-lockfile && pnpm test'
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
