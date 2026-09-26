@@ -3,7 +3,7 @@ import { createResource, poll } from '../lib/store'
 
 type Metric = { samples: { value: number; labels?: Record<string, string> }[] }
 
-type Metrics = Partial<Record<string, Metric>>
+export type Metrics = Partial<Record<string, Metric>>
 
 type ProcessInfo = { startedAt?: number; runtime?: string; os?: string; architecture?: string; memory?: number }
 

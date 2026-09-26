@@ -3,7 +3,7 @@ import { createAtom, createResource, type Measure, poll, type Sink } from '../li
 import { queryMatcher } from '../lib/text'
 import { sessionSignal } from '../session/session'
 
-type RawEvent = { timestamp: string; type: string; data: string; id: string }
+export type RawEvent = { timestamp: string; type: string; data: string; id: string }
 
 // data is JSON inside the JSON, and only what the summaries read is typed.
 type RawMessage = { username?: string; message?: string; roomName?: string; wasReplayed?: boolean }

@@ -7,7 +7,7 @@ type RawDirection = {
   queued: { files: number }
 }
 
-type RawMetrics = { downloads: RawDirection; uploads: RawDirection }
+export type RawMetrics = { downloads: RawDirection; uploads: RawDirection }
 
 type Metrics = { running: number; queued: number; speed: number }
 

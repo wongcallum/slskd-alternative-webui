@@ -7,7 +7,7 @@ import { fetchShares, type Share } from '../shares/shares'
 
 type RawEntry = { name: string; fullName: string; attributes: string; modifiedAt: string; length?: number }
 
-type RawListing = RawEntry & { files: RawEntry[]; directories: RawEntry[] }
+export type RawListing = RawEntry & { files: RawEntry[]; directories: RawEntry[] }
 
 const roots = [
   { id: 'downloads', name: 'Downloads' },

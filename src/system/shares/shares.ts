@@ -8,7 +8,7 @@ import { type Application, application } from '../application'
 import { options } from '../options/options'
 
 // GET /shares omits the counts until a scan has made them.
-type RawShare = {
+export type RawShare = {
   id: string
   alias: string
   isExcluded: boolean

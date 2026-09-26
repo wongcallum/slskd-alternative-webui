@@ -9,7 +9,8 @@
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
     "lint": "oxlint",
-    "lint:fix": "oxlint --fix"
+    "lint:fix": "oxlint --fix",
+    "test": "pnpm build && playwright test"
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.1",
@@ -38,6 +39,7 @@
     "yaml": "^2.9.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/node": "^24.13.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

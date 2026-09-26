@@ -26,3 +26,6 @@ dist-ssr
 .devenv*
 .direnv
 /slskd
+
+/test-results
+/playwright-report
