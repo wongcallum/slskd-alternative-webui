@@ -221,8 +221,12 @@ observed on throwaway instances of the dev build and the 0.25.1 and 0.26.0 relea
   - The release binary passes its own path again as an argument, so each restart adds one more
     (`slskd slskd slskd --app-dir …`). slskd ignores them.
   - The mutex is per Unix session (no `Global\` prefix), and the child stays in its parent's session.
-  - Under devenv 2.3's process manager it never comes back (observed): the manager watches the process's Unix session
-    and ends it when the process it started exits, which takes the re-executed child with it.
+  - Under devenv 2.3's process manager, a process started with `exec` never comes back (observed). When the process
+    it started exits, the manager signals every process group in that process's Unix session and kills what's left
+    after `shutdown.grace`, which takes the re-executed child with it (`devenv-processes/src/supervisor.rs`). Restart
+    and shutdown both exit 0, so `restart.on` can't bring one back without the other. `devenv.nix` keeps its script
+    alive with `pidwait` until the session has no `dotnet` left. With that, restarts came back in about 2 s, a
+    shutdown stayed down, and `devenv down` still stopped the re-executed process.
   - Nothing detects Docker or a supervisor. The image's entrypoint exits with slskd, which kills the child, so in
     Docker a restart relies on the container's restart policy, and under `always` or `unless-stopped` a shutdown
     comes back too (inferred).
