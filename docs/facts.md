@@ -714,7 +714,12 @@ Paths below are relative to `Search/` unless they start with another directory. 
     (`API/Controllers/SearchesController.cs`, a `SemaphoreSlim(1,1)` held for the whole request). Observed: three
     POSTs sent at once got three 429s between them before all three were created.
   - On a 400 or 409 the search is still stored and broadcast, as `Completed, Errored` with `endedAt = startedAt`
-    and no responses (observed for 409).
+    and no responses (observed), except blank text, a 400 before anything is stored.
+- **A search needs a term of two characters or more.** The text is split on single spaces. A word of two characters
+  or more starting with `-` is an exclusion, and every other word is a term (`SN:SearchQuery.cs`), but terms of one
+  character are dropped, empty ones from a double space included (`RemoveSingleCharacterSearchTerms`, which slskd
+  leaves on). Without a term left it's a 400 (`SN:SoulseekClient.cs`, `SearchAsync`). That comes before the 409 when
+  the text had no term at all (`-ab`), and after it when every term was one character (`a -bc`, `- x`). Observed.
 - **At most two searches run at once** (`maximumConcurrentSearches: 2`, `Program.cs`). The rest wait in `Queued`,
   where the timeout isn't running yet.
 - `GET /searches` returns every stored search with `responses: []`, with no pagination, filter or `ORDER BY`.
