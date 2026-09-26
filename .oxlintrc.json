@@ -1,8 +1,15 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["eslint", "typescript", "unicorn", "oxc", "react", "jsx-a11y"],
-  "categories": { "correctness": "error", "suspicious": "error", "perf": "error" },
-  "options": { "typeAware": true, "reportUnusedDisableDirectives": "error" },
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "error"
+  },
+  "options": {
+    "typeAware": true,
+    "reportUnusedDisableDirectives": "error"
+  },
   "rules": {
     "react/rules-of-hooks": "error",
     "typescript/no-deprecated": "error",
@@ -15,5 +22,13 @@
     "jsx-a11y/no-autofocus": "off",
     "jsx-a11y/click-events-have-key-events": "off",
     "jsx-a11y/no-static-element-interactions": "off"
-  }
+  },
+  "overrides": [
+    {
+      "files": ["tests/**"],
+      "rules": {
+        "react/rules-of-hooks": "off"
+      }
+    }
+  ]
 }

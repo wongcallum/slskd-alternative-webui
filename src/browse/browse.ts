@@ -20,7 +20,7 @@ export type ShareRecord = {
 }
 
 // Parsing, building and the first render are separate tasks, so the page can paint between them.
-type RawShare = { directories: InputDirectory[]; lockedDirectories: InputDirectory[] }
+export type RawShare = { directories: InputDirectory[]; lockedDirectories: InputDirectory[] }
 
 async function parseShare(username: string, blob: Blob) {
   const raw = JSON.parse(await blob.text()) as RawShare
@@ -36,11 +36,9 @@ const { list: shareList, load: loadShareList, useList } = createRecordList('shar
 
 export const useShareList = useList
 
-export type Loaded =
-  | { status: 'loading' }
-  | { status: 'missing' }
-  | { status: 'failed'; error: unknown }
-  | { status: 'ready'; share: Tree; fetchedAt: number; notCached?: string }
+export type Ready = { status: 'ready'; share: Tree; fetchedAt: number; notCached?: string }
+
+export type Loaded = { status: 'loading' } | { status: 'missing' } | { status: 'failed'; error: unknown } | Ready
 
 export const loadedShares = createAtom<ReadonlyMap<string, Loaded>>(new Map())
 
@@ -64,27 +62,28 @@ function setLoaded(username: string, loaded: Loaded | undefined) {
   })
 }
 
-// A browse or a newer read that lands first wins.
+// A browse or a newer read that lands first wins, and then this one returns undefined.
 async function readShare(username: string) {
   const signal = sessionSignal()
   const loading: Loaded = { status: 'loading' }
   setLoaded(username, loading)
   const current = () => !signal.aborted && loadedShares.get().get(username) === loading
+  const settle = (loaded: Loaded) => {
+    if (!current()) return undefined
+    setLoaded(username, loaded)
+    return loaded
+  }
   try {
     const transaction = (await db()).transaction(['shares', 'trees'])
     const [record, blob] = await Promise.all([
       transaction.objectStore('shares').get(username),
       transaction.objectStore('trees').get(username),
     ])
-    if (!current()) return
-    if (record === undefined || blob === undefined) {
-      setLoaded(username, { status: 'missing' })
-      return
-    }
-    const share = await parseShare(username, blob)
-    if (current()) setLoaded(username, { status: 'ready', share, fetchedAt: record.fetchedAt })
+    if (record === undefined || blob === undefined) return settle({ status: 'missing' })
+    if (!current()) return undefined
+    return settle({ status: 'ready', share: await parseShare(username, blob), fetchedAt: record.fetchedAt })
   } catch (error) {
-    if (current()) setLoaded(username, { status: 'failed', error })
+    return settle({ status: 'failed', error })
   }
 }
 
@@ -103,6 +102,16 @@ export function viewShare(username: string) {
 }
 
 export const reloadShare = (username: string) => void readShare(username)
+
+// The share in memory, or else the cached one. Undefined when neither is there.
+export async function cachedShare(username: string) {
+  const loaded = loadedShares.get().get(username)
+  const read = loaded?.status === 'ready' ? loaded : await readShare(username)
+  if (read?.status === 'failed') throw read.error
+  if (read?.status !== 'ready') return undefined
+  void touch(username)
+  return read
+}
 
 async function touch(username: string) {
   try {
@@ -184,29 +193,43 @@ export const failures = createAtom<ReadonlyMap<string, Failure>>(new Map())
 
 export const dismissFailure = (username: string) => failures.set((current) => without(current, username))
 
-type Status = { bytesTransferred: number; size: number; percentComplete: number }
+export type RawProgress = { bytesTransferred: number; size: number; percentComplete: number }
 
 const statusPollInterval = 500
 
 async function readStatus(username: string, signal: AbortSignal) {
   try {
-    return await api.get(`users/${encodeURIComponent(username)}/browse/status`, { signal }).json<Status>()
+    return await api.get(`users/${encodeURIComponent(username)}/browse/status`, { signal }).json<RawProgress>()
   } catch (error) {
     if (isHTTPError(error) && error.response.status === 404) return undefined
     throw error
   }
 }
 
-const sameStatus = (a: Status | undefined, b: Status | undefined) =>
+const sameStatus = (a: RawProgress | undefined, b: RawProgress | undefined) =>
   a !== undefined &&
   b !== undefined &&
   a.bytesTransferred === b.bytesTransferred &&
   a.size === b.size &&
   a.percentComplete === b.percentComplete
 
-// slskd can't cancel a browse, and two of the same user at once can cross their results.
-export async function browse(username: string) {
-  if (browses.get().has(username)) return
+const running = new Map<string, Promise<Ready | Failure | undefined>>()
+
+// slskd can't cancel a browse, and two of the same user at once can cross their results, so asking while one runs
+// joins it. The outcome is undefined once the session has ended.
+export function browse(username: string) {
+  let outcome = running.get(username)
+  if (outcome === undefined || !browses.get().has(username)) {
+    const started = fetchShare(username)
+    void started.finally(() => {
+      if (running.get(username) === started) running.delete(username)
+    })
+    running.set(username, (outcome = started))
+  }
+  return outcome
+}
+
+async function fetchShare(username: string): Promise<Ready | Failure | undefined> {
   const signal = sessionSignal()
   const startedAt = Date.now()
   const set = (phase: Phase) => {
@@ -245,7 +268,7 @@ export async function browse(username: string) {
     const blob = await response.blob()
     set({ phase: 'processing' })
     const share = await parseShare(username, blob)
-    if (signal.aborted) return
+    if (signal.aborted) return undefined
     const now = Date.now()
     const record: ShareRecord = {
       username,
@@ -263,15 +286,18 @@ export async function browse(username: string) {
     } catch (error) {
       notCached = describeError(error)
     }
-    if (signal.aborted) return
-    setLoaded(username, { status: 'ready', share, fetchedAt: now, notCached })
+    if (signal.aborted) return undefined
+    const ready: Ready = { status: 'ready', share, fetchedAt: now, notCached }
+    setLoaded(username, ready)
     shareDownloadsOf(username).set((state) => ({ ...state, marks: new Map() }))
     void loadShareList()
     if (notCached === undefined) announce(username)
+    return ready
   } catch (error) {
-    if (!signal.aborted) {
-      failures.set((current) => new Map(current).set(username, { error: describePeerError(error), at: Date.now() }))
-    }
+    if (signal.aborted) return undefined
+    const failure: Failure = { error: describePeerError(error), at: Date.now() }
+    failures.set((current) => new Map(current).set(username, failure))
+    return failure
   } finally {
     arrived = true
     if (!signal.aborted) browses.set((current) => without(current, username))

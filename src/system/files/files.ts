@@ -1,5 +1,8 @@
+import { isHTTPError, type RetryOptions } from 'ky'
+
 import { type Actions, actOnEach, begin, idle, summarise } from '../../lib/actions'
-import { api } from '../../lib/api'
+import { api, readsOptions } from '../../lib/api'
+import { toTime } from '../../lib/format'
 import { createAtom, createResource, load, type Resource, type Sink } from '../../lib/store'
 import { buildTree, type InputDirectory, type Item, type Tree } from '../../lib/tree'
 import { options } from '../options/options'
@@ -7,7 +10,7 @@ import { fetchShares, type Share } from '../shares/shares'
 
 type RawEntry = { name: string; fullName: string; attributes: string; modifiedAt: string; length?: number }
 
-type RawListing = RawEntry & { files: RawEntry[]; directories: RawEntry[] }
+export type RawListing = RawEntry & { files: RawEntry[]; directories: RawEntry[] }
 
 const roots = [
   { id: 'downloads', name: 'Downloads' },
@@ -41,7 +44,7 @@ function toDirectories(listings: readonly RawListing[], removed: ReadonlySet<str
       const directory = {
         name: path,
         files: [],
-        modifiedAt: Date.parse(entry.modifiedAt),
+        modifiedAt: toTime(entry.modifiedAt),
         hidden: has(entry, 'Hidden'),
       }
       byPath.set(path, directory)
@@ -60,7 +63,7 @@ function toDirectories(listings: readonly RawListing[], removed: ReadonlySet<str
       byPath.get(path.slice(0, path.lastIndexOf('/')))?.files.push({
         filename: entry.name,
         size: link ? 0 : (entry.length ?? 0),
-        modifiedAt: Date.parse(entry.modifiedAt),
+        modifiedAt: toTime(entry.modifiedAt),
         hidden: has(entry, 'Hidden'),
         link,
       })
@@ -81,12 +84,25 @@ const build = (listings: readonly RawListing[], removed: ReadonlySet<string>, fe
   }),
 })
 
+// Another client reading the options can still trip a listing, which then fails on the file it came across.
+const retryTripped: RetryOptions = {
+  limit: 2,
+  shouldRetry: ({ error }) => isHTTPError(error) && String(error.data).startsWith('Could not find file'),
+}
+
 async function fetchFiles(signal: AbortSignal) {
   const listings = await Promise.all(
     roots.map(({ id }) =>
-      api
-        .get(`files/${id}/directories`, { searchParams: { recursive: true }, signal, timeout: false })
-        .json<RawListing>(),
+      readsOptions(() =>
+        api
+          .get(`files/${id}/directories`, {
+            searchParams: { recursive: true },
+            signal,
+            timeout: false,
+            retry: retryTripped,
+          })
+          .json<RawListing>(),
+      ),
     ),
   )
   return build(listings, new Set(), Date.now())
@@ -226,9 +242,8 @@ export async function deleteItems(items: readonly Item[]) {
     async (target, signal) => {
       const encoded = encodePath(target.relative)
       if (encoded === undefined) throw new Error("slskd can't address this name")
-      await api.delete(`files/${target.root}/${target.kind === 'folder' ? 'directories' : 'files'}/${encoded}`, {
-        signal,
-      })
+      const path = `files/${target.root}/${target.kind === 'folder' ? 'directories' : 'files'}/${encoded}`
+      await readsOptions(() => api.delete(path, { signal }))
       deleted.push(target)
       drop(target.id)
     },

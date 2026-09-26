@@ -8,6 +8,28 @@
 let
   state = "${config.devenv.state}/slskd";
   dll = "${state}/artifacts/bin/slskd/debug/slskd.dll";
+  soulfind = pkgs.buildDubPackage {
+    pname = "soulfind";
+    version = inputs.soulfind.shortRev;
+    src = inputs.soulfind;
+    dubLock.dependencies = { };
+    dubBuildFlags = [ ":server" ];
+    buildInputs = [ pkgs.sqlite ];
+    # TODO: drop once every slskd the tests run against has a Soulseek.NET that acknowledges private message IDs of
+    # 2^31 and up. Soulfind picks IDs at random, so half of them are too big, while the real server's count up from far
+    # below 2^31, as they do here.
+    postPatch = ''
+      substituteInPlace src/server/server.d --replace-fail \
+        'while (id == 0 || id in pms) id = unpredictableSeed;' \
+        'static uint last_id; id = ++last_id;'
+    '';
+    installPhase = ''
+      runHook preInstall
+      install -Dm755 bin/soulfind -t $out/bin
+      runHook postInstall
+    '';
+    meta.mainProgram = "soulfind";
+  };
 in
 {
   packages = with pkgs; [
@@ -17,6 +39,7 @@ in
     jq
     curl
     chromium
+    ffmpeg-headless
   ];
 
   env = {
@@ -24,6 +47,9 @@ in
     DOTNET_NOLOGO = "1";
     CHROMIUM = pkgs.lib.getExe pkgs.chromium;
     SLSKD_SRC = "${inputs.slskd}";
+    SOULFIND_BIN = pkgs.lib.getExe soulfind;
+    # For the time zone the tests run slskd in, on hosts without /usr/share/zoneinfo.
+    TZDIR = "${pkgs.tzdata}/share/zoneinfo";
     # makeFontsConf only includes /etc/fonts/conf.d, which a non-NixOS host may lack, leaving no family aliases.
     FONTCONFIG_FILE = pkgs.writeText "fonts.conf" ''
       <?xml version="1.0"?>

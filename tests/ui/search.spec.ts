@@ -1,0 +1,95 @@
+import { readFile, rm } from 'node:fs/promises'
+import path from 'node:path'
+
+import type { Page } from '@playwright/test'
+
+import { expect, logInPage, test } from '../fixtures'
+import { sleep } from '../slskd'
+import type { Peer } from '../soulseek'
+
+test.use({ config: { soulseek: true } })
+
+// Only the fast peer's `Music\Artist - Album\01 Intro.flac` matches.
+// Enter does nothing until the app knows slskd is logged in to Soulseek, just after logging in for one, while a click
+// waits for the button.
+async function search(page: Page, text: string) {
+  await page.getByPlaceholder('Search Soulseek').fill(text)
+  await page.getByRole('button', { name: 'Search', exact: true }).click()
+}
+
+async function searchAlbumIntro(page: Page, fast: Peer) {
+  await search(page, 'album intro')
+  await expect(page.getByText('1 response, 1 file')).toBeVisible()
+  await page.getByRole('button', { name: 'Stop' }).click()
+  await expect(page.getByRole('button', { name: fast.username, exact: true })).toBeVisible()
+}
+
+test('a search shows the files peers share once stopped, and downloads one', async ({
+  page,
+  slskd,
+  peers: { fast },
+}) => {
+  const file = path.join(slskd.downloads, 'Artist - Album', '01 Intro.flac')
+  await rm(file, { force: true })
+  await page.goto('searches')
+  await logInPage(page)
+  await searchAlbumIntro(page, fast)
+  await expect(page.getByText('16/44.1 kHz').first()).toBeVisible()
+  await page.getByRole('button', { name: 'Download folder' }).click()
+  await expect(page.getByText('Enqueued 1 download')).toBeVisible()
+  await expect
+    .poll(() => readFile(file).catch(() => undefined))
+    .toEqual(fast.files.get('Music\\Artist - Album\\01 Intro.flac'))
+})
+
+test.describe(() => {
+  // Getting the full folder browses the peer, whose status is polled, and is a 404 until the peer starts replying.
+  test.use({ failedRequests: true })
+
+  const album = ['01 Intro.flac', '02 Outro.flac', 'CD2\\01 Encore.flac', 'CD2\\Scans\\cover.jpg']
+
+  async function expectFullFolder(page: Page) {
+    await page.getByRole('button', { name: 'Expand all' }).click()
+    for (const name of album) await expect(page.getByText(name, { exact: true })).toBeVisible()
+    await expect(page.getByText('01 Other.flac')).toHaveCount(0)
+  }
+
+  // slskd peers answer a request for one folder with every file whose path starts with it, by bare name, which would
+  // list `CD2\01 Encore.flac` and `Artist - Album 2\01 Other.flac` as if they were in the folder.
+  test("a folder's full contents come from the peer's share with its subfolders, which its download keeps", async ({
+    page,
+    slskd,
+    peers: { fast },
+  }) => {
+    const downloaded = path.join(slskd.downloads, 'Artist - Album')
+    await rm(downloaded, { recursive: true, force: true })
+    await page.goto('searches')
+    await logInPage(page)
+    await searchAlbumIntro(page, fast)
+    await page.getByRole('button', { name: `Get the full folder (browses ${fast.username}'s whole share)` }).click()
+    await expectFullFolder(page)
+    await page.getByRole('button', { name: 'Download folder' }).click()
+    await expect(page.getByText('Enqueued 4 downloads')).toBeVisible()
+    for (const name of album) {
+      await expect
+        .poll(() => readFile(path.join(downloaded, ...name.split('\\'))).catch(() => undefined))
+        .toEqual(fast.files.get(`Music\\Artist - Album\\${name}`))
+    }
+  })
+})
+
+// slskd pushes a search's counts as responses arrive, which on one host is often before the POST that created it
+// returns. Holding the POST back makes that certain.
+test("a new search's counts aren't overwritten by its POST when a peer answers first", async ({ page }) => {
+  await page.goto('searches')
+  await logInPage(page)
+  await page.route('**/api/v0/searches', async (route) => {
+    if (route.request().method() !== 'POST') return route.continue()
+    const response = await route.fetch()
+    await sleep(1000)
+    return route.fulfill({ response })
+  })
+  await search(page, 'album intro')
+  await expect(page.getByText('1 response, 1 file')).toBeVisible()
+  await page.getByRole('button', { name: 'Stop' }).click()
+})

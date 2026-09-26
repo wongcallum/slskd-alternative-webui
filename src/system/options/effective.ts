@@ -16,6 +16,12 @@ const userNamed = new Set([
 // logSQL is log_s_q_l.
 const toFileKey = (key: string) => key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)
 
+// Documented spellings the validator rejects, and the ones it wants.
+export const misspelt = [
+  ['log_sql', 'log_s_q_l'],
+  ['case_sensitive_regex', 'case_sensitive_reg_ex'],
+] as const
+
 function toFileKeys(value: unknown, path: string): unknown {
   if (Array.isArray(value)) return value.map((item) => toFileKeys(item, path))
   if (typeof value !== 'object' || value === null) return value

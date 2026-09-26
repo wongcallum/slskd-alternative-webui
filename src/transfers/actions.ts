@@ -57,7 +57,7 @@ export async function clearFinished(direction: Direction) {
   operation.finish(outcome)
 }
 
-type BatchInfo = { searchId?: string; options?: { destination?: string } }
+export type BatchInfo = { searchId?: string; options?: { destination?: string } }
 
 // Retrying re-enqueues through a new batch per user and old batch, carrying over the old batch's search and
 // destination, which stock's retry drops.

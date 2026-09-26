@@ -2,11 +2,14 @@ import { CardStackPlusIcon, DownloadIcon, LockClosedIcon } from '@radix-ui/react
 import { Badge, Flex, IconButton, Spinner, Text } from '@radix-ui/themes'
 import { memo } from 'react'
 
+import type { Browse } from '../../browse/browse'
+import { describeBrowse } from '../../browse/BrowseStatus'
 import { BrowseUserButton } from '../../browse/BrowseUserButton'
-import { formatBytes, formatDuration, formatSpeed, formatTime, plural } from '../../lib/format'
+import { nameOf } from '../../lib/files'
+import { formatBytes, formatDuration, formatSpeed, formatTime, plural, useAgo } from '../../lib/format'
 import type { Mark } from '../../transfers/enqueue'
 import { MarkBadge } from '../../transfers/MarkBadge'
-import { type Detail, DetailList, DetailsButton, fileDetails, GatedIconButton } from '../../ui/controls'
+import { type Detail, DetailList, DetailsButton, fileDetails, GatedIconButton, Tip } from '../../ui/controls'
 import {
   ActionsCell,
   Cell,
@@ -33,6 +36,7 @@ function Placeholder() {
 
 type FileRowProps = {
   searchId: string
+  rowId: string
   file: ResultFile
   layout: Layout
   selected: boolean
@@ -44,6 +48,7 @@ type FileRowProps = {
 
 export const FileRow = memo(function FileRow({
   searchId,
+  rowId,
   file,
   layout,
   selected,
@@ -68,7 +73,7 @@ export const FileRow = memo(function FileRow({
       label={`Select ${file.name}`}
       selected={selected}
       disabled={file.locked}
-      onToggle={(shiftKey) => onSelect(file.id, shiftKey)}
+      onToggle={(shiftKey) => onSelect(rowId, shiftKey)}
     />
   )
   const name = (
@@ -91,7 +96,7 @@ export const FileRow = memo(function FileRow({
       <DetailList rows={details} />
     </DetailsButton>
   )
-  const onClick = (event: { shiftKey: boolean }) => !file.locked && onSelect(file.id, event.shiftKey)
+  const onClick = (event: { shiftKey: boolean }) => !file.locked && onSelect(rowId, event.shiftKey)
   if (layout === 'stacked') {
     return (
       <StackedRow
@@ -142,6 +147,8 @@ type GroupRowProps = {
   selected: boolean
   partial: boolean
   fetch?: FolderFetch
+  cached: boolean
+  browsing?: Browse
   gate?: string
   folderGate?: string
   onSelect: (id: string, shiftKey: boolean) => void
@@ -156,6 +163,8 @@ export const GroupRow = memo(function GroupRow({
   selected,
   partial,
   fetch,
+  cached,
+  browsing,
   gate,
   folderGate,
   onSelect,
@@ -166,6 +175,19 @@ export const GroupRow = memo(function GroupRow({
   const extra = group.files.length - group.matched
   const hidden = group.total - group.files.length
   const fetched = fetch?.files !== undefined
+  const age = useAgo(fetch?.fetchedAt ?? 0)
+  const error = fetch?.missing
+    ? `“${nameOf(group.directory)}” isn't in ${group.username}'s share as of ${age}`
+    : fetch?.error
+  const browses = !cached || fetched || error !== undefined
+  let fetchLabel =
+    error === undefined
+      ? fetched
+        ? 'Get the full folder again'
+        : 'Get the full folder'
+      : `Couldn't get the full folder: ${error}. Try again`
+  if (browses) fetchLabel += ` (browses ${group.username}'s whole share)`
+  const progress = browsing === undefined ? 'Reading the cached share…' : describeBrowse(browsing)
   const details: Detail[] = [
     ['Folder', group.directory],
     ['User', group.username],
@@ -176,10 +198,12 @@ export const GroupRow = memo(function GroupRow({
   ]
   if (fetched) details.push(['Fetched files', `${extra.toLocaleString()} more`])
   if (hidden > 0) details.push(['Filtered out', plural(hidden, 'file')])
-  if (fetch?.at !== undefined) {
-    details.push([fetch.error === undefined ? 'Folder fetched' : 'Folder fetch failed', formatTime(fetch.at)])
+  if (fetch?.pending) details.push(['Getting the full folder', progress])
+  if (fetch?.fetchedAt !== undefined) details.push(['Share fetched', formatTime(fetch.fetchedAt)])
+  if (error !== undefined && fetch?.failedAt !== undefined) {
+    details.push(['Folder fetch failed', formatTime(fetch.failedAt)])
   }
-  if (fetch?.error !== undefined) details.push(['Error', fetch.error])
+  if (error !== undefined) details.push(['Error', error])
   const shown = `${group.files.length.toLocaleString()} of ${group.total.toLocaleString()}`
   const plus = fetched && extra > 0 ? ` + ${extra.toLocaleString()}` : ''
   const length = group.length > 0 && formatDuration(group.length)
@@ -200,19 +224,15 @@ export const GroupRow = memo(function GroupRow({
         </GatedIconButton>
       )}
       {fetch?.pending ? (
-        <Spinner size="1" />
+        <Tip content={progress}>
+          <Spinner size="1" />
+        </Tip>
       ) : (
         <GatedIconButton
-          label={
-            fetch?.error !== undefined
-              ? `Couldn't get the full folder: ${fetch.error}. Try again`
-              : fetched
-                ? 'Get the full folder again'
-                : 'Get the full folder'
-          }
-          color={fetch?.error === undefined ? undefined : 'red'}
-          gate={folderGate}
-          onClick={() => void fetchFolder(searchId, group)}
+          label={fetchLabel}
+          color={error === undefined ? undefined : 'red'}
+          gate={browses ? folderGate : undefined}
+          onClick={() => void fetchFolder(searchId, group, browses)}
         >
           <CardStackPlusIcon />
         </GatedIconButton>

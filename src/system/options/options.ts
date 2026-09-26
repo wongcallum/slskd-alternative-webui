@@ -1,9 +1,9 @@
-import { api } from '../../lib/api'
+import { api, readsOptions } from '../../lib/api'
 import { applicationHub, followHub, useLiveResource, type Via } from '../../lib/hubs'
 import { createResource, load, sameItems, useResource } from '../../lib/store'
 
 // Secrets arrive redacted. Only what's read here is typed, and the rest is shown as it is.
-type RawOptions = {
+export type RawOptions = {
   remoteConfiguration: boolean
   remoteFileManagement: boolean
   directories: { downloads: string; incomplete: string }
@@ -61,7 +61,7 @@ function fromOptions(via: Via, raw: RawOptions): Options {
 }
 
 const fetchOptions = async (via: Via, signal: AbortSignal) =>
-  fromOptions(via, await api.get('options', { signal }).json<RawOptions>())
+  fromOptions(via, await readsOptions(() => api.get('options', { signal }).json<RawOptions>()))
 
 export const options = createResource<Options>((sink) => {
   const offOptions = applicationHub.on<RawOptions>('OPTIONS', (raw) => sink.set(fromOptions('hub', raw)))

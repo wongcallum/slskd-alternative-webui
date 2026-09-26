@@ -3,7 +3,8 @@
 What slskd and our libraries actually do. Each library section names the version it was checked against.
 The slskd sections are verified against slskd `e3d377d4` (2026-09-20). Most of those items come from
 reading the source; the build-contract items were also confirmed against a running instance. slskd paths
-are relative to `slskd/src/slskd`, and line numbers drift over time.
+are relative to `slskd/src/slskd`, and line numbers drift over time. "Observed on the test network" means seen
+between slskd instances logged in to the tests' local Soulfind server, where the peer is always slskd.
 
 ## API surface
 
@@ -18,6 +19,9 @@ are relative to `slskd/src/slskd`, and line numbers drift over time.
   it. Poll-only: transfers, browse, search response bodies, rooms, conversations and events.
 - REST JSON omits nulls (`WhenWritingNull`, `Program.cs:981`), but hub payloads keep them. Error bodies are JSON
   strings or empty.
+- Times are UTC whatever zone slskd runs in, except logs', which are its local time with the offset. They carry the
+  `Z`, except a transfer's `requestedAt` and `enqueuedAt` in `GET /transfers/*` and the dates in the exceptions
+  report (see [Telemetry reports](#telemetry-reports)). Observed on the test network with slskd at +05:45.
 
 ## Transfers
 
@@ -39,7 +43,8 @@ Paths below are relative to `Transfers/` unless they start with another director
     duplicate transfers and size mismatches, so `Completed, Errored`, `TimedOut` and `Aborted` can all flip
     back to `Queued, Locally` **under the same id**, with `attempts` incremented. The wait before an attempt is
     `floor((2^n − 1) / 2) × 5 s` plus up to 5 s of jitter: 0–5 s before the second, 5–10 s before the third
-    (`Common/Compute.cs`, `Common/Retry.cs`).
+    (`Common/Compute.cs`, `Common/Retry.cs`). Observed on the test network: a download whose peer was killed while
+    it ran went through all 3 attempts under one id.
   - While it waits, the record keeps the failed attempt's `startedAt`, `endedAt`, `exception`,
     `bytesTransferred` and `averageSpeed`. They're overwritten by the next attempt's first state change.
     `placeInQueue` is already cleared.
@@ -50,6 +55,8 @@ Paths below are relative to `Transfers/` unless they start with another director
   - A failure before Soulseek reports any state flips the state
     `Completed, Errored` → `Queued, Locally` → `Completed, Errored` within milliseconds, for example when
     enqueueing while disconnected. This affects downloads and uploads.
+  - A download cancelled while it's `Initializing` can end as `Completed, Errored` rather than `Cancelled`
+    (observed on the test network).
   - If moving the file after a download fails, the state stays `Completed, Succeeded` but the record gains an `exception`.
   - Small race windows can bump `bytesTransferred`/`averageSpeed` after `Completed`, or un-remove a record.
   - These fields never change: `id, batchId, username, direction, filename, size, requestedAt`.
@@ -60,6 +67,9 @@ Paths below are relative to `Transfers/` unless they start with another director
   Soulseek login after that, the unfinished _downloads_ are re-enqueued under new ids, without their batch (so
   a batch destination is lost), and the old records are removed. If the peer is offline the old record just
   stays errored. Observed: pressing Connect on the dev instance restarted 34 such downloads.
+  - A graceful restart can end some unfinished downloads while it shuts down, as `Completed, Errored`
+    ("Operation cancelled"), and those aren't re-enqueued (observed on the test network: 1 of 3). After a crash,
+    every unfinished download is.
 - Uploads have no enqueue, retry or position endpoint, and never have the `Remotely` flag. A peer's
   re-request supersedes the old record like a download re-enqueue does.
 - Retention (`retention.transfers.{upload,download}.{succeeded,errored,cancelled,failed}`, YAML only) is in
@@ -74,20 +84,39 @@ Everything is under `/transfers`, and returns 403 in relay agent mode.
   `GET .../{username}` returns one user's object (not an array) and 404 if there are none.
 - `DELETE .../{username}/{id}?remove=bool` always returns 204 for a well-formed id, even an unknown one.
   - The cancel is asynchronous.
-  - `remove=true` only removes a record that's already `Completed`. On an active transfer it just cancels,
-    and removing the resulting `Completed, Cancelled` record takes a second DELETE.
+  - `remove=true` only removes a record that's already `Completed` when it checks, just after asking for the
+    cancel. So on an active transfer it cancels, and removes the record too only if the cancel has finished by then
+    (observed both ways). Removing it for certain takes a second DELETE once it's `Completed, Cancelled`.
   - A stuck download with nothing to cancel is set to `Completed, Cancelled` in the same call; uploads have no
     such fallback.
+- **Cancelling a running upload to an slskd peer usually puts it back in the peer's queue.** A cancelled upload ends
+  as `Completed, Cancelled`, and Soulseek.NET 10.0.2 then sends the downloader `UploadDenied` with the reason
+  `Cancelled` (`SoulseekClient.cs`), but closes a running upload's transfer connection first. Observed on the test
+  network:
+  - A queued upload's download ends as `Completed, Rejected` with the exception `Cancelled`, and isn't tried again.
+  - A running upload's download usually finds the connection closed first, and fails as `Completed, Errored`, with
+    the exception `Transfer failed: Read error: Remote connection closed`. It's tried again within seconds under the
+    same id, and the new request supersedes the cancelled upload. In 2 of 16 cancels on 2 cores, `UploadDenied` got
+    there first, and the download ended like a queued one.
 - `DELETE downloads/all/completed` (and `uploads/...`) removes every `Completed` record, succeeded and failed
   alike. There's no succeeded-only or failed-only variant and no bulk cancel.
 - **`GET downloads/{username}/{id}/position` is a Soulseek action**: it asks the peer. It returns a bare
   integer and stores it as `placeInQueue`, which the next state change clears. Every Soulseek failure is a
   500; observed: `"The wait timed out after 5000 milliseconds"` when the peer didn't answer.
+  An slskd peer answers with an estimate that counts from 0, so 0 means next: the file's place among that user's
+  queued files, plus files of other users likely to go first (`Transfers/Uploads/UploadQueue.cs`,
+  `EstimatePosition`). Observed 0, 1 and 2 on the test network.
 - `POST downloads/batches` takes `{id?, searchId?, username, files: [{filename, size}], options?: {destination?}}`.
   - It returns `{batch, failures: [{filename, message}]}` with 201 (all enqueued), 207 (partial) or 200 (none).
     Failures include `"Skipped: Already in progress"` when the file's current record isn't `Completed`.
   - It returns 400 for invalid bodies and duplicate filenames, 404 when the user is offline or blacklisted,
     409 for a duplicate batch id, and 500 when not logged in to Soulseek or the peer can't be reached.
+  - **It's a 429 while two enqueues are being handled**, counting stock's obsolete `POST downloads/{username}`, since
+    they share a `SemaphoreSlim(2, 2)` (`API/Controllers/TransfersController.cs`). The message says only one is
+    permitted. A request holds its place until it returns, and while a batch inserts its records it holds a lock on
+    its user that another batch for that user waits on, holding the other place (`Downloads/DownloadService.cs`).
+    Observed: one of two single-file batches sent together was a 429 while a 300-file batch for the same user was
+    being inserted, which took about 2 s.
   - `options` may be omitted, but `"options": null` is a 500. `externalId` is accepted and dropped.
   - It returns once the records are inserted as `Queued, Locally`, without waiting for the peer's queue.
   - It has no limit on the number of files. Kestrel's default 30 MB body limit applies, and behind nginx's default
@@ -103,10 +132,24 @@ Everything is under `/transfers`, and returns 403 in relay agent mode.
     without an `@@abcde`, drive or UNC root), `SOURCE_DIRECTORY`, `BATCH_ID`, `BATCH_EXTERNAL_ID`, `SEARCH_ID` and
     `SEARCH_TEXT` (`Core/Options.cs`). So `Album\CD1\01.flac` and `Album\CD2\01.flac` land in `CD1/` and `CD2/`, and
     two albums' `CD1`s merge, with a clashing name renamed `01_<ticks>.flac` under the default `exists: rename`.
+  - `SEARCH_ID` and `SEARCH_TEXT` come from the search named by the batch's `searchId`, looked up at completion. The
+    text is the stored one (see [Search](#search)), with anything a file name can't hold replaced by `_`. A batch
+    without a search, or whose search has been deleted by then, gets `unknown_search_id` and `unknown_search_text`
+    (from the source). Observed on the test network: `${SEARCH_TEXT}/${SEARCH_ID}` put a file in
+    `album intro/<id>/`.
   - A batch's `options.destination` replaces the pattern. It's one literal folder relative to the downloads
     directory, with no template expansion, and `.` or `..` segments are rejected. `\` and `/` both work as
     separators.
 - `GET downloads/batches/{id}` includes removed transfers. There's no endpoint that lists batches.
+- **An slskd peer ignores a request for a file while its upload of an earlier request for it is still ending**
+  ("Ignoring concurrent invocation", `Uploads/UploadService.cs`), and nothing retries it, so the new download stays
+  `Queued, Remotely` for good. Observed on the test network when a file was requested again within milliseconds of
+  its earlier transfer ending or being cancelled, including after the peer's upload record had completed: the record
+  completes a few milliseconds before the upload lets go of the file.
+- Cancelling a download while it's `Requested` or `Initializing` doesn't reach the peer, whose upload waits out its
+  transfer timeout (at least 30 s, `soulseek.connection.timeout.transfer`) before it ends. Cancelling one that's
+  `Queued, Remotely` or `InProgress` ends the peer's upload within moments, the queued one when the peer offers it
+  (observed on the test network).
 - **There's no retry endpoint.** Retrying means enqueueing the same `username` + `filename` + `size` again.
   Stock's retry uses the obsolete `POST downloads/{username}` one file at a time, so it loses the batch and
   its destination, and runs into the 429.
@@ -163,14 +206,31 @@ observed on throwaway instances of the dev build and the 0.25.1 and 0.26.0 relea
 - `PUT /application` restarts and `DELETE /application` shuts down. Both need a JWT (API keys can't call them),
   return 204 at once, and aren't gated on any option or on relay mode (`ApplicationController.cs`).
 - **Restart re-executes slskd itself** (`Process.Start` with the same command line, then a graceful stop), and
-  **fails for good while slskd is still answering a request.** The new process checks the single-instance mutex
-  first thing, and the old one holds it until its graceful stop ends, which waits up to 30 s for open requests
-  (`Program.cs`). Observed:
+  **fails for good whenever the old process is slower to let go than the new one is to start.** The new process
+  checks the single-instance mutex first thing and quits if it's held, logging "An instance of slskd is already
+  running". The old one holds it until its graceful stop ends, which waits up to 30 s for open requests
+  (`Program.cs`). Nothing is left running once the old one exits. Observed:
   - Idle, it came back every time (about 20 restarts), answering `/health` again in about 2 s. The new process won
     the race by only 35–80 ms.
-  - With a slow 20 MB download open it never came back (3 of 3). The new process logged "An instance of slskd is
-    already running" and quit, and the old one exited when the request ended or 30 s passed. A 761 KB download
-    didn't block it, and open hub connections don't either.
+  - With a slow 20 MB download open it never came back (3 of 3), and the old process exited when the request ended
+    or 30 s passed. A 761 KB download didn't block it.
+  - With hub connections open on 2 cores, it sometimes didn't come back: 5 of 35 restarts of the dev build and 4 of 25
+    of the 0.26.0 release binary, and the UI test's restart in CI. The PUT itself stalls:
+    `ApplicationController.cs` starts the new process and then calls `StopApplication()`, which runs the
+    `ApplicationStopping` handlers on the request thread, and ASP.NET Core's SignalR handler disposes every hub
+    connection and waits up to 5 s for them in `Task.WaitAll` (`HttpConnectionManager.CloseConnections`). In 7 of the
+    9 failures the PUT took 0.7–1.8 s to answer rather than 30–80 ms, and requests that arrived meanwhile were held
+    as long. The other 2 were 0.26.0, whose new process quit 20–35 ms after starting, just before the old one exited.
+  - With the dev build, none failed on 2 cores without hub connections (0 of 20) or with the thread pool's minimum
+    raised to 20 through `DOTNET_ThreadPool_ForceMinWorkerThreads` (0 of 20), nor on 4 cores with hub connections
+    (0 of 10) or with 8 busy processes and none (0 of 15).
+  - Restarting 0.26.0 again as soon as it answered, logging in and opening four hub connections each time, it failed
+    within 2 to 4 restarts on 2 cores (4 runs) and within 6 and 9 on 4 cores (2 runs).
+  - A hub client that reconnects at once can reach the old process after SignalR has closed its connections. SignalR
+    closes them only as the application stops, so the new one stays open, and the old process's graceful stop waits
+    for it until the 30 s timeout. Observed in the UI test on 2 cores: the page's metrics hub reconnected 150 ms after
+    the PUT and stayed connected for 27.6 s, while the new process had already quit. Stock's hubs retry after 0, 100,
+    250 and 500 ms (`web/src/lib/hubFactory.js`), and ours at once and then after 1 s.
   - The mutex is per Unix session (no `Global\` prefix), and the child stays in its parent's session.
   - Under devenv 2.3's process manager, when the process it started exits, the manager signals every process group in
     that process's Unix session and kills what's left after `shutdown.grace`, taking the re-executed child with it
@@ -205,8 +265,9 @@ observed on throwaway instances of the dev build and the 0.25.1 and 0.26.0 relea
   as sets, so reordering the entries or adding a duplicate doesn't set it. While a scan runs it comes from the share
   service's own flag, which never sees config changes.
 - `PUT /shares` rescans and always returns 200, even while a scan runs (observed). Its 409 for a scan in progress can't
-  happen, because the exception lands in the returned task (`Shares/ShareService.cs`). `DELETE /shares` cancels (204,
-  or 404 when none runs).
+  happen, because the exception lands in the returned task (`Shares/ShareService.cs`). So a `PUT` while a scan runs is
+  dropped with only a logged warning, and that includes the moment after a scan sets `ready` and before it lets go
+  (observed in CI). `DELETE /shares` cancels (204, or 404 when none runs; observed).
 
 ### Privileges
 
@@ -441,6 +502,12 @@ in relay agent mode.
   - Anything else is a 500 with a JSON string. That includes a path outside the roots and bad base64.
   - The check is on the resolved path, so either root's endpoint reaches the other through `..` (observed).
   - A trailing `/` in a configured directory makes everything below that root a 500.
+  - **A listing fails when another request reads the options at the same time.** Reading them validates them, which
+    checks that the downloads and incomplete directories are writable by writing and deleting a file with a GUID for a
+    name in each (`Program.cs`, `Common/Validation/DirectoryExistsAttributes.cs`). A recursive listing that comes
+    across one is a 500, `"Could not find file '<directory>/<guid>'."`. Observed: 4–7 of 300 pairs of listings sent
+    together failed, and 7 of 300 listings sent with two `GET /options`. With `GET /shares`, `/application`,
+    `/transfers/downloads` or `/conversations`, none did.
 
 ### Deleting
 
@@ -497,6 +564,9 @@ configuration and the debug view were checked on the dev build with `SLSKD_REMOT
   - It rejects the documented `log_sql` and `case_sensitive_regex`, as well as camelCase and hyphenated keys. The
     runtime lowercases keys and drops `_` and `-`, so it takes them all. A file with a rejected spelling can't be saved
     through `PUT`, which validates too.
+  - It wants each property's name with `_` before every capital, so the two flags are `flags.log_s_q_l` and
+    `flags.case_sensitive_reg_ex` (`Core/Options.cs`). The first unknown key stops it, with a message that names the
+    key in quotes: `Property 'log_sql' not found on type 'slskd.Options+FlagsOptions'.`
   - It passes duplicate keys, `yes`/`no`/`on`/`off` for booleans, and a document that's empty or only comments.
 - `PUT /options/yaml` validates the text alone (env and the command line aren't merged in), copies the file to
   `<file>.bak` (replacing the last one and keeping its mode), writes the text verbatim and not atomically, and returns
@@ -504,7 +574,8 @@ configuration and the debug view were checked on the dev build with `SLSKD_REMOT
   read.
   - With the config watch on, slskd reloads about 250 ms later. It sets `pendingRestart`, `pendingReconnect` or
     `scanPending`, and pushes `OPTIONS`, only if an effective value changed. Observed: a comments-only edit pushed
-    nothing, and a new `instance_name` was pushed within 300 ms and set `pendingRestart`.
+    nothing, and a new `instance_name` was pushed within 300 ms and set `pendingRestart`. A new `shares.filters` was
+    pushed and set `scanPending`, and a new Soulseek password set `pendingReconnect`, which a disconnect cleared.
   - With `no_config_watch` it sets `pendingRestart` whatever changed, and nothing reloads.
 - **What the validator lets through breaks slskd** (observed):
   - Duplicate keys: the reload fails silently and every YAML value is dropped (`instanceName` went back to `default`
@@ -573,6 +644,18 @@ dashboard yet.
   there's no auto-reconnect. It always returns 204.
 - The controller returns 403 in relay agent mode.
 
+## Peer connections
+
+- **The first message connection between two peers can lose what's sent on it.** Soulseek.NET 10.0.2 tries a direct
+  and an indirect connection at once. When the other peer accepts the direct one while its indirect one has just
+  been established, cancelling the indirect one throws ("The CancellationTokenSource has been disposed"), and it
+  drops the direct one from its cache without reading from it (`SN:Network/PeerConnectionManager.cs`). The
+  sender's messages on it are lost until the inactivity timeout (`soulseek.connection.timeout.inactivity`, 15 s)
+  closes it: a browse fails after 60 s, and `info` gives a 500 after 5 s. Observed on the test network, where both
+  connections arrive within milliseconds; not seen on the real network.
+- The inactivity timeout applies to peer message and distributed connections. The server connection never times out
+  for inactivity, and transfers use `soulseek.connection.timeout.transfer` (`Application.cs`).
+
 ## Serving the UI (build contract)
 
 - slskd serves `web.content_path` (default `wwwroot`), relative to the slskd binary's directory
@@ -612,6 +695,9 @@ Paths below are relative to `Search/` unless they start with another directory. 
   - The optional attributes are omitted when the peer didn't send them. `length` is seconds, `bitRate` kbps, and
     `sampleRate` the peer's raw value (Hz in practice). A response's `uploadSpeed` is the peer's raw number, which
     stock shows as bytes per second.
+  - slskd peers send `length`, `sampleRate` and `bitDepth` for a file TagLib gives a bit depth, and `bitRate`,
+    `length` and `isVariableBitRate` for any other audio or video file (`Shares/SoulseekFileFactory.cs`). Observed on
+    the test network with a FLAC and an MP3, in search responses, browses and `GET /shares/contents`.
   - Observed across 2,280 real result files from 37 users (the dev account's stored searches):
     - 1,536 files were lossless (bit depth and sample rate), but only 112 of those had a `bitRate`.
     - 125 had no attributes at all: mostly jpg, txt and nfo, but also 31 mp3 and 2 flac from peers that send none.
@@ -633,7 +719,12 @@ Paths below are relative to `Search/` unless they start with another directory. 
     (`API/Controllers/SearchesController.cs`, a `SemaphoreSlim(1,1)` held for the whole request). Observed: three
     POSTs sent at once got three 429s between them before all three were created.
   - On a 400 or 409 the search is still stored and broadcast, as `Completed, Errored` with `endedAt = startedAt`
-    and no responses (observed for 409).
+    and no responses (observed), except blank text, a 400 before anything is stored.
+- **A search needs a term of two characters or more.** The text is split on single spaces. A word of two characters
+  or more starting with `-` is an exclusion, and every other word is a term (`SN:SearchQuery.cs`), but terms of one
+  character are dropped, empty ones from a double space included (`RemoveSingleCharacterSearchTerms`, which slskd
+  leaves on). Without a term left it's a 400 (`SN:SoulseekClient.cs`, `SearchAsync`). That comes before the 409 when
+  the text had no term at all (`-ab`), and after it when every term was one character (`a -bc`, `- x`). Observed.
 - **At most two searches run at once** (`maximumConcurrentSearches: 2`, `Program.cs`). The rest wait in `Queued`,
   where the timeout isn't running yet.
 - `GET /searches` returns every stored search with `responses: []`, with no pagination, filter or `ORDER BY`.
@@ -642,8 +733,9 @@ Paths below are relative to `Search/` unless they start with another directory. 
 - **`DELETE /searches/{id}` doesn't stop a running search** (`SearchService.cs`, `DeleteAsync`). Observed: a PUT, then
   waiting for the update that sets `endedAt`, then a DELETE logs no error, and the search is gone.
 - Searches persist across restarts in SQLite. Any that were running become `Completed, TimedOut` with zero
-  counts, with no broadcast. `retention.search` (YAML only, minutes, minimum 5, off by default) prunes them every
-  5 minutes by `endedAt`, broadcasting a `DELETE` for each. With it off, the list grows forever.
+  counts and `endedAt` set, with no broadcast (observed on the test network). `retention.search` (YAML only,
+  minutes, minimum 5, off by default) prunes them every 5 minutes by `endedAt`, broadcasting a `DELETE` for each.
+  With it off, the list grows forever.
 - Once logged in, other peers' searches arrive constantly. If no share scan has ever run (`no_share_scan`), each
   one logs a `no such table: filenames` warning, about 3,600 in the first two minutes (observed).
 
@@ -652,6 +744,9 @@ Paths below are relative to `Search/` unless they start with another directory. 
 - A search sends `CREATE` as `Requested`, then an `UPDATE` on every state change and one as the POST returns.
   While responses arrive, the counts go out at most every 250 ms, and a pending one can be dropped at the end.
   The final `UPDATE` comes after the responses are saved (`SearchService.cs`, `StartAsync`).
+- The first response's counts go out at once, and can arrive before the POST that created the search returns, so
+  the POST's record can be older than a push (observed on the test network, where a peer answers within
+  milliseconds).
 - `endedAt` is set only by finalisation, so "`isComplete` and `endedAt` set" means the responses are there, on every
   path (normal, stopped, errored at start, restart cleanup). The `Completed` state change arrives before that, with
   `endedAt: null`.
@@ -661,18 +756,32 @@ Paths below are relative to `Search/` unless they start with another directory. 
 Paths are relative to `Users/`, and Soulseek.NET 10.0.2's source is `SN:`. `info` and `directory` ask the peer, `status`
 and `endpoint` ask the server, and all of them are Soulseek actions. Not being logged in to Soulseek gives a 500. A
 blacklisted user gets an empty 404 from all of them, `status` included, before anything is asked. The blacklist check
-is by name only.
+is by name only. An offline user gets a 404 with a JSON string, `"User <u> appears to be offline"`, from `info`,
+`endpoint` and `browse` (observed on the test network).
 
 - `POST /users/{u}/directory {directory}` asks the peer for one folder. It waits up to 5 s, and that includes the
   endpoint lookup and connecting. It returns a browse response's directory list, usually with one entry and without
-  `lockedDirectories`. The file names are bare, so the full path is `directory + '\' + filename`. slskd peers send
-  exactly one directory with no subfolders (`Application.cs`, `Shares/ShareService.cs`), so it can't rebuild the tree
-  beneath a folder.
+  `lockedDirectories`. The file names are bare.
+  - **slskd peers send more than the folder**: one directory named as asked, holding every file whose path starts
+    with the folder's. That's every file beneath it at any depth, in a sibling folder whose name starts with it
+    (`Music\Album 2` for `Music\Album`), and in a file whose name does (`Music\AlbumX.flac`).
+    `Shares/SqliteShareRepository.cs` (`ListFiles`) matches `LIKE directory || '%'` with no separator and no
+    `ESCAPE`, so `_` and `%` in the name are wildcards and ASCII case is ignored, and it strips each name to the
+    file's. So `directory + '\' + filename` is only right for the folder's own files, and nothing tells them apart.
+    Subfolders and siblings were observed on the test network, and the rest seen by running `ListFiles`. It's the
+    same in 0.26.0 and at master `e3d377d`. slskd#1189 (closed as a duplicate) and #1311 (open, to send subfolders
+    as entries of their own) cover subfolders but not the rest.
+  - Nicotine+, SoulseekQt, aioslsk and Seeker send only the folder's own files, and Soulseek NS its subfolders as
+    entries of their own. That's from their source or their maintainers, not checked on a network. Nothing in the
+    protocol says which client a peer runs.
 - `GET /users/{u}/info`: nothing caches it, and **one 5 s wait covers the endpoint lookup, connecting and the reply**:
   slskd never sets Soulseek.NET's 5 s message timeout, and the wait starts before the lookup (`SN:SoulseekClient.cs`,
   `SN:Common/Waiter.cs`). `picture` is the raw bytes as base64, with no type and no size limit, and is left out when
   there's none. Observed: our own username answers, with an 800×800 JPEG that Chromium draws from
   `data:image;base64,…`.
+  - Observed on the test network: a peer that had stopped answering gave a 500,
+    `"The wait timed out after 5000 milliseconds"`, and one that had gone, while its endpoint was still cached, a 500
+    saying it failed to establish a direct or indirect message connection.
 - `GET /users/{u}/endpoint` is always IPv4 in practice. A successful lookup is cached for 60 s and shared with browsing
   and transfers (`Common/UserEndPointCache.cs`).
 - `GET /users/{u}/status` asks the server on every call. An offline user is a 200 `Offline` rather than a 404, and so
@@ -767,6 +876,8 @@ There's no concurrency limit and no 429.
 - A message's `timestamp` is when slskd handled it (`DateTime.UtcNow`), because the server sends none. Soulseek.NET
   raises each message on its own task, so messages arriving close together may be stored out of order (inferred).
 - Our own messages arrive about 1–1.5 s after sending, with `self: true`, in the order sent.
+- A user's `countryCode` is an empty string when the server gives no country (observed on the test network, where
+  Soulfind gives none).
 
 ### Lifetime
 
@@ -777,6 +888,8 @@ There's no concurrency limit and no 429.
   which is never pruned.
 - A Soulseek disconnect clears nothing: the rooms, messages and users stay, and the GETs keep working. On every login
   slskd joins the `rooms` option and then rejoins every tracked room (`RoomService.cs`), and failures are only logged.
+  Observed on the test network: `STATE.rooms` and the messages stayed while a peer in the room saw us leave, and the
+  peer saw us come back at the next login.
   - The rejoin doesn't refresh the users, so users who left meanwhile stay listed and newcomers are missing.
   - A rejoin that fails leaves a room that can't be left until a restart (inferred).
 - The blacklist only drops incoming messages; blacklisted users are still listed.
@@ -810,7 +923,8 @@ string.
 - The unread count from `GET /conversations/{u}` only covers its 100 messages, so it can disagree with the list.
 - `POST /conversations/{u}` sends.
   - It returns an empty 201 once the message is stored, so the next GET has it.
-  - **It returns an empty 200 when the user is blacklisted, having sent and stored nothing.**
+  - **It returns an empty 200 when the user is blacklisted, having sent and stored nothing and started no
+    conversation.** The check comes first, so this holds without a Soulseek login too.
   - An empty body is a 400, but whitespace passes. Not being logged in is a 500.
   - Nothing comes back from the server, so sending to an offline or nonexistent user also gets a 201. There's no
     delivery or online status.
@@ -825,11 +939,19 @@ string.
   **Each acknowledgement sends MessageAcked to the server**, one per message, and needs a Soulseek login (a 500
   otherwise).
 - Acknowledging all also covers messages that arrived after the UI's last fetch.
+- Soulseek.NET 10.0.2 holds a message's id as an `int`, while the protocol's is a uint32, so an id of 2^31 or more
+  arrives negative. Acknowledging a negative id throws, though 0 is accepted (`SN:SoulseekClient.cs`). `PUT` and
+  `DELETE /conversations/{u}` are then 500s that mark nothing read, since `AcknowledgeAsync` saves only after
+  acknowledging every unread message (`ConversationService.cs`). The messages it got to first have still had
+  MessageAcked sent. Every later `PUT` or `DELETE` of the conversation fails the same way, and `DELETE` leaves it open.
+  Observed for both against an unpatched Soulfind, which picks ids at random. The real server's ids count up across the
+  network, from about 1,005,000 to 1,041,000 over ten hours on 2026-09-25, far below 2^31.
 - **Acknowledging a sent message by id fails**: they all have id 0, so with two or more of them the lookup throws a
   500 (`"Sequence contains more than one element"`).
 - A re-delivered message matches its stored copy on `(username, id, timestamp)` and is set unread again, with
   `wasReplayed`, instead of being duplicated. It raises `PrivateMessageReceived` again, so the event log and webhooks
-  get a duplicate at each login.
+  get a duplicate at each login. Observed on the test network: an unacknowledged message came back as soon as slskd
+  logged in, and an acknowledged one didn't.
 - Messages from blacklisted users are dropped before they're stored, with no event.
 
 ## Stock UI

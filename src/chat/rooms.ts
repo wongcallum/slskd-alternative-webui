@@ -2,15 +2,16 @@ import { isHTTPError } from 'ky'
 import { useMemo } from 'react'
 
 import { api } from '../lib/api'
+import { toTime } from '../lib/format'
 import { createAtom, createResource, createResourceMap, poll, type Resource, useAtom, useResource } from '../lib/store'
 import { createStoredAtom } from '../lib/stored'
 import { byUsername, compareExactly } from '../lib/text'
 import { application, ownUsername } from '../system/application'
 import { lastOpen, mentionMatcher, type Message, reuseMessages } from './messages'
 
-type RawRoomMessage = { timestamp: string; username: string; message: string; self?: boolean }
+export type RawRoomMessage = { timestamp: string; username: string; message: string; self?: boolean }
 
-type RawRoomUser = { username: string; countryCode?: string | null; fileCount: number; self?: boolean }
+export type RawRoomUser = { username: string; countryCode?: string | null; fileCount: number; self?: boolean }
 
 export type RoomUser = { username: string; country?: string; files: number; self: boolean }
 
@@ -95,7 +96,7 @@ function toMessages(room: string, raws: RawRoomMessage[], previous?: readonly Me
     const self = raw.self === true
     return {
       key: count === 0 ? base : `${base} ${count}`,
-      time: Date.parse(raw.timestamp),
+      time: toTime(raw.timestamp),
       username: raw.username,
       text: raw.message,
       self,
@@ -129,7 +130,8 @@ export const roomMessages = messageResources.get
 function toUser(raw: RawRoomUser): RoomUser {
   return {
     username: raw.username,
-    country: raw.countryCode ?? undefined,
+    // Empty when the server doesn't know it.
+    country: raw.countryCode || undefined,
     files: raw.fileCount,
     self: raw.self === true,
   }

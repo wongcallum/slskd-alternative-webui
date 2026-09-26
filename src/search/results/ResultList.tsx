@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 
+import { browses, loadedShares, useShareList } from '../../browse/browse'
 import { useAtom } from '../../lib/store'
 import {
   collapsed,
@@ -37,6 +38,9 @@ type Props = {
 
 export function ResultList({ searchId, table, folders, gate, folderGate }: Props) {
   const { pending, marks } = useAtom(downloadsOf(searchId))
+  const { records } = useShareList()
+  const memory = useAtom(loadedShares)
+  const running = useAtom(browses)
   const layout = useLayout()
   const stacked = layout === 'stacked'
   const rows = table.getRowModel().rows
@@ -66,13 +70,16 @@ export function ResultList({ searchId, table, folders, gate, folderGate }: Props
   function render(row: TableRow) {
     const original = row.original
     if (original.kind === 'group') {
+      const fetch = folders.get(original.id)
       return (
         <GroupRow
           searchId={searchId}
           group={original}
           layout={layout}
           {...groupState(row)}
-          fetch={folders.get(original.id)}
+          fetch={fetch}
+          cached={records.has(original.username) || memory.get(original.username)?.status === 'ready'}
+          browsing={fetch?.pending ? running.get(original.username) : undefined}
           gate={gate}
           folderGate={folderGate}
           onSelect={onSelect}
@@ -83,6 +90,7 @@ export function ResultList({ searchId, table, folders, gate, folderGate }: Props
     return (
       <FileRow
         searchId={searchId}
+        rowId={row.id}
         file={original}
         layout={layout}
         selected={row.getIsSelected()}

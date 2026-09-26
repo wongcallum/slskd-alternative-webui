@@ -1,0 +1,48 @@
+name: Test
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+  # Catches slskd changing under the app before a release does.
+  schedule:
+    - cron: '0 6 * * *'
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        slskd: ${{ github.event_name == 'schedule' && fromJSON('["release", "master"]') || fromJSON('["pinned", "release"]') }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: cachix/install-nix-action@v31
+      - run: nix profile add nixpkgs#devenv
+
+      - name: Pick the slskd source
+        if: matrix.slskd != 'pinned'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ '${{ matrix.slskd }}' = release ]; then
+            ref=$(gh release view --repo slskd/slskd --json tagName --jq .tagName)
+          else
+            ref=master
+          fi
+          echo "SLSKD_INPUT=github:slskd/slskd/$ref" >> "$GITHUB_ENV"
+
+      - name: Build slskd
+        run: |
+          devenv ${SLSKD_INPUT:+--override-input slskd "$SLSKD_INPUT"} tasks run slskd:build
+          jq -r '.nodes.slskd.locked | "slskd \(.rev)"' devenv.lock
+
+      - run: >
+          devenv ${SLSKD_INPUT:+--override-input slskd "$SLSKD_INPUT"} shell --
+          bash -e -c 'pnpm install --frozen-lockfile && pnpm test'
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: playwright-report-${{ matrix.slskd }}
+          path: playwright-report

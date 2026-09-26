@@ -1,19 +1,13 @@
+import { browse, cachedShare } from '../../browse/browse'
 import { api, describeError } from '../../lib/api'
-import {
-  describeRange,
-  lastSeparator,
-  nameOf,
-  qualityOf,
-  type RawDirectory,
-  type RawFile,
-  widenRange,
-} from '../../lib/files'
+import { describeRange, lastSeparator, nameOf, qualityOf, type RawFile, widenRange } from '../../lib/files'
 import { createAtom } from '../../lib/store'
 import { byName, compareNames, queryMatcher } from '../../lib/text'
+import { filesUnder, type TreeFile } from '../../lib/tree'
 import { sessionSignal } from '../../session/session'
-import { createDownloads, enqueueDownloads } from '../../transfers/enqueue'
+import { type Batch, createDownloads, enqueueDownloads } from '../../transfers/enqueue'
 
-type RawResponse = {
+export type RawResponse = {
   username: string
   files: RawFile[]
   lockedFiles: RawFile[]
@@ -42,6 +36,7 @@ export type ResultFile = {
   qualityLabel: string
   locked: boolean
   matched: boolean
+  fetchedWith?: string
   search: string
 }
 
@@ -187,7 +182,15 @@ function toResults(responses: RawResponse[]): Results {
   return { all, unlocked, byId: new Map(all.map((group) => [group.id, group])), locked }
 }
 
-export type FolderFetch = { pending: boolean; files?: ResultFile[]; error?: string; at?: number }
+// fetchedAt is the share's, and missing means the folder isn't in it.
+export type FolderFetch = {
+  pending: boolean
+  files?: ResultFile[]
+  fetchedAt?: number
+  missing?: boolean
+  error?: string
+  failedAt?: number
+}
 
 // Quality is a floor on the quality ranking, size is in bytes and length in seconds. Zero turns a criterion off.
 type ResultFilter = {
@@ -222,7 +225,8 @@ export function viewGroups(results: Results, folders: ReadonlyMap<string, Folder
   const view: ResultGroup[] = []
   for (const group of base) {
     if (filter.free && !group.peer.free) continue
-    const extras = folders.get(group.id)?.files ?? []
+    const fetched = folders.get(group.id)?.files ?? []
+    const extras = filter.locked ? fetched : fetched.filter((file) => !file.locked)
     let files = matches === undefined ? group.files : group.files.filter((file) => matches(file.search))
     if (judging) {
       files = files.filter(passes)
@@ -282,17 +286,32 @@ export async function loadResults(id: string) {
   }
 }
 
-export async function fetchFolder(searchId: string, group: ResultGroup) {
+// Named by its path in the folder, with the quality the tree worked out, since the tree keeps fewer attributes.
+const fetchedFile = (file: TreeFile, group: ResultGroup): ResultFile => ({
+  ...toFile(file, group.peer, file.locked, false),
+  name: file.filename.slice(group.directory.length + 1),
+  quality: file.quality,
+  qualityLabel: file.qualityLabel,
+  fetchedWith: group.directory,
+})
+
+// The folder comes from the user's whole share rather than a request for the folder, since slskd peers answer that
+// with files from other folders too, under paths that don't exist.
+export async function fetchFolder(searchId: string, group: ResultGroup, fresh: boolean) {
   const signal = sessionSignal()
   const previous = entries.get().get(searchId)?.folders.get(group.id)
   const set = (fetch: FolderFetch) =>
     update(searchId, (entry) => ({ ...entry, folders: new Map(entry.folders).set(group.id, fetch) }))
   set({ ...previous, pending: true })
   try {
-    const directories = await api
-      .post(`users/${encodeURIComponent(group.username)}/directory`, { json: { directory: group.directory }, signal })
-      .json<RawDirectory[]>()
-    const directory = directories.find((each) => each.name === group.directory) ?? directories[0]
+    const outcome = (fresh ? undefined : await cachedShare(group.username)) ?? (await browse(group.username))
+    if (outcome === undefined) return
+    if (!('share' in outcome)) throw new Error(outcome.error)
+    const folder = outcome.share.byPath.get(group.directory)
+    if (folder === undefined) {
+      set({ pending: false, fetchedAt: outcome.fetchedAt, missing: true, failedAt: Date.now() })
+      return
+    }
     const present = new Set(
       entries
         .get()
@@ -300,28 +319,49 @@ export async function fetchFolder(searchId: string, group: ResultGroup) {
         ?.results?.byId.get(group.id)
         ?.files.map((file) => file.id),
     )
-    const files = (directory?.files ?? [])
-      .map((raw) =>
-        toFile({ ...raw, filename: `${group.directory}\\${nameOf(raw.filename)}` }, group.peer, false, false),
-      )
+    const files = filesUnder(folder, true)
+      .map((file) => fetchedFile(file, group))
       .filter((file) => !present.has(file.id))
       .sort(byName)
-    set({ pending: false, files, at: Date.now() })
+    set({ pending: false, files, fetchedAt: outcome.fetchedAt })
   } catch (error) {
-    if (!signal.aborted) set({ ...previous, pending: false, error: describeError(error), at: Date.now() })
+    if (!signal.aborted) {
+      set({ ...previous, pending: false, missing: false, error: describeError(error), failedAt: Date.now() })
+    }
   }
 }
 
 export const downloadsOf = createDownloads()
 
-// One batch per user, carrying the search so slskd's SEARCH_ID and SEARCH_TEXT destination variables work.
-export const download = (searchId: string, files: ResultFile[]) =>
-  enqueueDownloads(
-    downloadsOf(searchId),
-    [...Map.groupBy(files, (file) => file.username)].map(([username, batch]) => ({
-      username,
-      label: username,
-      files: batch,
-      searchId,
-    })),
-  )
+const within = (directory: string, root: string) =>
+  directory === root || directory.startsWith(`${root}\\`) || directory.startsWith(`${root}/`)
+
+// One batch per user, carrying the search so slskd's SEARCH_ID and SEARCH_TEXT destination variables work. Once a
+// fetched folder's subfolders are downloaded, everything under that folder goes in a batch per remote folder instead,
+// rooted at it, like a download from Browse. A file selected in two groups is downloaded once.
+export function download(searchId: string, files: ResultFile[]) {
+  const unique = [...new Map(files.map((file) => [file.id, file])).values()]
+  const roots = new Map<string, { username: string; directory: string }>()
+  for (const { username, directory, fetchedWith } of unique) {
+    if (fetchedWith !== undefined && directory !== fetchedWith) {
+      roots.set(`${username}\n${fetchedWith}`, { username, directory: fetchedWith })
+    }
+  }
+  const outermost = [...roots.values()].sort((a, b) => a.directory.length - b.directory.length)
+  const batches = new Map<string, Batch<ResultFile>>()
+  for (const file of unique) {
+    const root = outermost.find((each) => each.username === file.username && within(file.directory, each.directory))
+    const key = root === undefined ? file.username : `${file.username}\n${file.directory}`
+    let batch = batches.get(key)
+    if (batch === undefined) {
+      const destination =
+        root &&
+        [nameOf(root.directory), ...file.directory.slice(root.directory.length + 1).split(/[\\/]/)]
+          .filter((segment) => segment !== '')
+          .join('/')
+      batches.set(key, (batch = { username: file.username, label: file.username, files: [], searchId, destination }))
+    }
+    batch.files.push(file)
+  }
+  return enqueueDownloads(downloadsOf(searchId), [...batches.values()])
+}
