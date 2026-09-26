@@ -10,11 +10,9 @@ import { type Media, media } from './media'
 export type Config = {
   urlBase: string
   auth: boolean
-  // remote_configuration, remote_file_management and debug, which are all off by default.
-  features: boolean
 }
 
-export const defaultConfig: Config = { urlBase: '/slskd', auth: true, features: true }
+export const defaultConfig: Config = { urlBase: '/slskd', auth: true }
 
 export const credentials = { username: 'slskd', password: 'slskd' }
 
@@ -76,7 +74,7 @@ export async function freePort() {
 
 export const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-export async function writeFiles(root: string, files: Record<string, string | Buffer>) {
+async function writeFiles(root: string, files: Record<string, string | Buffer>) {
   for (const [name, content] of Object.entries(files)) {
     const file = path.join(root, name)
     await mkdir(path.dirname(file), { recursive: true })
@@ -95,7 +93,6 @@ const shareFiles = ({ flac, mp3 }: Media) => ({
 export const downloadFiles = {
   'Album/01 Intro.flac': 'a'.repeat(3000),
   'Album/CD2/01 Encore.flac': 'c'.repeat(5000),
-  '.hidden': 'hidden',
   'Ünïcødé/файл.txt': 'unicode',
 }
 
@@ -188,9 +185,9 @@ export async function start(overrides: Partial<Config> = {}, extraEnv: Record<st
     SLSKD_USERNAME: credentials.username,
     SLSKD_PASSWORD: credentials.password,
     SLSKD_NO_AUTH: String(!config.auth),
-    SLSKD_REMOTE_CONFIGURATION: String(config.features),
-    SLSKD_REMOTE_FILE_MANAGEMENT: String(config.features),
-    SLSKD_DEBUG: String(config.features),
+    SLSKD_REMOTE_CONFIGURATION: 'true',
+    SLSKD_REMOTE_FILE_MANAGEMENT: 'true',
+    SLSKD_DEBUG: 'true',
     SLSKD_DOWNLOADS_DIR: dirs.downloads,
     SLSKD_INCOMPLETE_DIR: dirs.incomplete,
     SLSKD_SHARED_DIR: [

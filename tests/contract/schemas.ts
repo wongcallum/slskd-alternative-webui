@@ -46,7 +46,7 @@ const withOffset = v.pipe(v.string(), v.regex(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\
 const count = v.pipe(v.number(), v.integer(), v.minValue(0))
 
 // Soulseek.NET's TransferStates, which slskd stores as a number and serialises by their flags.
-export const states = [
+const states = [
   'Requested',
   'Queued, Locally',
   'Queued, Remotely',
@@ -313,9 +313,6 @@ const privateMessage = v.object({
 })
 
 export const privateMessages = shape<RawPrivateMessage[]>(v.array(privateMessage))
-
-// The app doesn't read it, but it tells a message the server delivered again at login.
-export const replayedMessages = v.array(v.object({ ...privateMessage.entries, wasReplayed: v.boolean() }))
 
 export const roomMessages = shape<RawRoomMessage[]>(
   v.array(v.object({ timestamp: utc, username: v.string(), message: v.string(), self: v.optional(v.boolean()) })),

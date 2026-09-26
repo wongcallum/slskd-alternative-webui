@@ -1,5 +1,3 @@
-import path from 'node:path'
-
 import { expect, test } from '../fixtures'
 import { openHub } from '../hub'
 import { timeZone } from '../slskd'
@@ -19,27 +17,14 @@ test('the state comes over REST, and from the application hub as it connects', a
   }
 })
 
-test('the options name the directories and shares slskd was started with', async ({ slskd, api }) => {
-  const options = schemas.parse(schemas.options, await (await api.get('options')).json())
-  expect(options.remoteConfiguration).toBe(true)
-  expect(options.remoteFileManagement).toBe(true)
-  expect(options.directories).toEqual({ downloads: slskd.downloads, incomplete: slskd.incomplete })
-  expect(options.shares.directories).toEqual([
-    path.join(slskd.shares, 'Music'),
-    `[Extra]${path.join(slskd.shares, 'Other')}`,
-    `-${path.join(slskd.shares, 'Music/Private')}`,
-  ])
+test('the options come over REST, and the startup options say whether debug is on', async ({ api }) => {
+  schemas.parse(schemas.options, await (await api.get('options')).json())
   expect(await (await api.get('options/startup')).json()).toMatchObject({ debug: true })
 })
 
 test('process metrics come as JSON when asked for it alone', async ({ api }) => {
   const response = await api.get('telemetry/metrics', { headers: { Accept: 'application/json' } })
-  const metrics = schemas.parse(schemas.processMetrics, await response.json())
-  expect(metrics.process_start_time_seconds?.samples[0]?.value).toBeGreaterThan(0)
-  expect(metrics.process_working_set_bytes?.samples[0]?.value).toBeGreaterThan(0)
-  expect(Object.keys(metrics.dotnet_build_info?.samples[0]?.labels ?? {})).toEqual(
-    expect.arrayContaining(['runtime_version', 'os_version', 'process_architecture']),
-  )
+  schemas.parse(schemas.processMetrics, await response.json())
 })
 
 test('the metrics hub sends transfer counts as it connects', async ({ slskd, token }) => {

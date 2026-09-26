@@ -6,12 +6,6 @@ import { promisify } from 'node:util'
 
 export type Media = { flac: Buffer; mp3: Buffer; png: Buffer }
 
-// What slskd should read from the files, which random bytes have none of.
-export const toneAttributes = {
-  flac: { length: 3, sampleRate: 44_100, bitDepth: 16 },
-  mp3: { length: 3, isVariableBitRate: true },
-}
-
 const outputs = {
   flac: ['-f', 'lavfi', '-i', 'sine=duration=3', '-ar', '44100', '-sample_fmt', 's16', '-c:a', 'flac'],
   mp3: ['-f', 'lavfi', '-i', 'sine=duration=3', '-c:a', 'libmp3lame', '-q:a', '4'],

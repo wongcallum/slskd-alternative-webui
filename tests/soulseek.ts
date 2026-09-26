@@ -23,8 +23,6 @@ export type Peer = {
 export type Network = {
   // The environment for an instance that logs in to this network as `username`.
   login: (username: string) => Record<string, string>
-  // Where peers started for one test keep their files.
-  root: string
   fast: Peer
   // One upload slot at 20 KiB/s, so its 2 MB files stay in progress or queued for as long as a test needs.
   slow: Peer
@@ -32,9 +30,9 @@ export type Network = {
 }
 
 // Each file's content, or a size to fill with random bytes.
-export type Files = Record<string, Buffer | number>
+type Files = Record<string, Buffer | number>
 
-export const slowPeerEnv = { SLSKD_UPLOAD_SLOTS: '1', SLSKD_UPLOAD_SPEED_LIMIT: '20' }
+const slowPeerEnv = { SLSKD_UPLOAD_SLOTS: '1', SLSKD_UPLOAD_SPEED_LIMIT: '20' }
 
 const fastFiles = ({ flac, mp3 }: Media): Files => ({
   'Music/Artist - Album/01 Intro.flac': flac,
@@ -81,7 +79,7 @@ const listening = (port: number) =>
     socket.once('error', () => resolve(false))
   })
 
-export async function waitForState(instance: Instance, done: (state: RawState) => boolean, timeout = 30_000) {
+async function waitForState(instance: Instance, done: (state: RawState) => boolean, timeout = 30_000) {
   const token = instance.config.auth ? await logIn(instance) : undefined
   const headers: Record<string, string> = token === undefined ? {} : { Authorization: `Bearer ${token}` }
   const deadline = Date.now() + timeout
@@ -93,7 +91,7 @@ export async function waitForState(instance: Instance, done: (state: RawState) =
   }
 }
 
-export const loggedIn = (instance: Instance) => waitForState(instance, (state) => state.server.isLoggedIn)
+const loggedIn = (instance: Instance) => waitForState(instance, (state) => state.server.isLoggedIn)
 
 const scanned = (instance: Instance, files: Map<string, Buffer>) =>
   waitForState(instance, (state) => state.server.isLoggedIn && state.shares.files === files.size)
@@ -180,7 +178,6 @@ export async function startNetwork(): Promise<Network> {
     }
     return {
       login,
-      root,
       fast: fast.value,
       slow: slow.value,
       stop: async () => {
@@ -228,29 +225,6 @@ export async function startLoggedIn(
     throw error
   }
   return instance
-}
-
-// A peer for one test, which can stop or break it. It's checked from `from` the way startLoggedIn checks the peers,
-// starting the peer again if that fails, which closes the connection `from` lost.
-export async function startOwnPeer(
-  network: Network,
-  from: Instance,
-  username: string,
-  files: Files,
-  env: Record<string, string> = {},
-): Promise<Peer> {
-  const peer = await startPeer(path.join(network.root, username), network.login, username, files, { env })
-  try {
-    for (let attempt = 1; !(await reaches(from, [username])); attempt++) {
-      if (attempt === 3) throw new Error(`${username} couldn't be reached`)
-      await peer.instance.relaunch()
-      await scanned(peer.instance, peer.files)
-    }
-  } catch (error) {
-    await peer.instance.stop()
-    throw error
-  }
-  return { ...peer, token: await logIn(peer.instance) }
 }
 
 const endedAWhileAgo = ({ state, endedAt }: RawTransfer) =>
