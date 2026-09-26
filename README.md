@@ -67,8 +67,8 @@ and `tests/ui` checks the pages in Chromium.
 
 - To test another slskd, set `SLSKD_BIN` to its `slskd` binary or `slskd.dll`. A release binary needs libicu, or
   `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1` where there's none.
-- CI runs the tests against the pinned slskd and the latest release, and nightly against the latest release and
-  slskd's master.
+- CI runs the tests in the devenv shell against the pinned slskd and the latest release, and nightly against the latest
+  release and slskd's master, each built from source.
 
 ## Roadmap
 
