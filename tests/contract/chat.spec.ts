@@ -211,4 +211,45 @@ test.describe('logged in to Soulseek', () => {
     await first.delete(path)
     await Promise.all([first.dispose(), later.dispose()])
   })
+
+  test('a room stays joined with its messages while slskd is disconnected, and is joined again at the next login', async ({
+    network,
+  }) => {
+    test.setTimeout(90_000)
+    const started = await network()
+    const me = `rooms.${randomUUID().slice(0, 8)} test`
+    const instance = await startLoggedIn(started, {}, me)
+    const api = await contextFor(instance)
+    const peer = await contextFor(started.fast.instance)
+    const room = unique('Room')
+    const path = `rooms/joined/${encodeURIComponent(room)}`
+    try {
+      const rooms = async () => schemas.parse(schemas.state, await (await api.get('application')).json()).rooms
+      const said = async () =>
+        schemas
+          .parse(schemas.roomMessages, await (await api.get(`${path}/messages`)).json())
+          .map((each) => each.message)
+      const seenByPeer = async () =>
+        schemas.parse(schemas.roomUsers, await (await peer.get(`${path}/users`)).json()).map((user) => user.username)
+      expect((await peer.post('rooms/joined', jsonString(room))).status()).toBe(201)
+      expect((await api.post('rooms/joined', jsonString(room))).status()).toBe(201)
+      const hello = unique('Hello')
+      expect((await api.post(`${path}/messages`, jsonString(hello))).status()).toBe(201)
+      await expect.poll(said).toContain(hello)
+      await expect.poll(seenByPeer).toContain(me)
+
+      expect((await api.delete('server', jsonString('client disconnected from web UI'))).status()).toBe(204)
+      await expect.poll(seenByPeer).not.toContain(me)
+      expect(await rooms()).toContain(room)
+      expect(await said()).toContain(hello)
+
+      expect((await api.put('server')).ok()).toBe(true)
+      await expect.poll(seenByPeer, { timeout: 15_000 }).toContain(me)
+      expect(await rooms()).toContain(room)
+    } finally {
+      await peer.delete(path)
+      await Promise.all([peer.dispose(), api.dispose()])
+      await instance.stop()
+    }
+  })
 })
