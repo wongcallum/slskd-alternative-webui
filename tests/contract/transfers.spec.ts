@@ -25,8 +25,14 @@ async function enqueue(api: APIRequestContext, peer: Peer, files: File[], extra:
   return { status: response.status(), ...body, ids: body.batch.transfers.map((transfer) => transfer.id) }
 }
 
-async function listed(api: APIRequestContext, direction: 'download' | 'upload', username: string) {
-  const users = schemas.parse(schemas.transferUsers, await (await api.get(`transfers/${direction}s`)).json())
+async function listed(
+  api: APIRequestContext,
+  direction: 'download' | 'upload',
+  username: string,
+  includeRemoved = false,
+) {
+  const response = await api.get(`transfers/${direction}s`, { params: { includeRemoved } })
+  const users = schemas.parse(schemas.transferUsers, await response.json())
   return users.find((user) => user.username === username)?.directories.flatMap((directory) => directory.files) ?? []
 }
 
@@ -45,6 +51,33 @@ async function finished(api: APIRequestContext, peer: Peer, ids: string[]) {
 }
 
 const transferPath = (peer: Peer, id: string) => `transfers/downloads/${encodeURIComponent(peer.username)}/${id}`
+
+const uploadPath = (username: string, id: string) => `transfers/uploads/${encodeURIComponent(username)}/${id}`
+
+// The slow peer uploads one of two files to us, and queues the other.
+async function uploadingTwo(api: APIRequestContext, slow: Peer) {
+  const me = await ownName(api)
+  const peer = await contextFor(slow.instance)
+  await enqueue(
+    api,
+    slow,
+    ['Slow\\Big 1.flac', 'Slow\\Big 2.flac'].map((name) => file(slow, name)),
+  )
+  const active = async () =>
+    (await listed(peer, 'upload', me)).filter((transfer) => !transfer.state.startsWith('Completed'))
+  await expect
+    .poll(async () => (await active()).map((transfer) => transfer.state).sort(), { timeout: 30_000 })
+    .toEqual(['InProgress', 'Queued, Locally'])
+  const uploads = await active()
+  const upload = async (id: string) => (await listed(peer, 'upload', me)).find((transfer) => transfer.id === id)
+  return {
+    me,
+    peer,
+    upload,
+    running: uploads.find((transfer) => transfer.state === 'InProgress')!,
+    queued: uploads.find((transfer) => transfer.state === 'Queued, Locally')!,
+  }
+}
 
 const albumFile = (folder: string, name: string) =>
   ['Music\\Artist - Album', ...folder.split('/').filter(Boolean), name].join('\\')
@@ -250,6 +283,58 @@ test('clearing finished downloads removes every finished one, and leaves the res
   const ids = left.map((transfer) => transfer.id)
   for (const id of done.ids) expect(ids).not.toContain(id)
   expect(ids).toContain(running.ids[0])
+})
+
+test("cancelling a queued upload finishes it as cancelled and the peer's download as rejected, and removing it then drops it", async ({
+  api,
+  peers: { slow },
+}) => {
+  const { me, peer, upload, running, queued } = await uploadingTwo(api, slow)
+  expect((await peer.delete(uploadPath(me, queued.id), { params: { remove: false } })).status()).toBe(204)
+  await expect.poll(async () => (await upload(queued.id))?.state).toBe('Completed, Cancelled')
+  await expect
+    .poll(async () => {
+      const downloads = await listed(api, 'download', slow.username)
+      const download = downloads.find((transfer) => transfer.filename === queued.filename)
+      return { state: download?.state, exception: download?.exception }
+    })
+    .toEqual({ state: 'Completed, Rejected', exception: 'Cancelled' })
+  expect((await peer.delete(uploadPath(me, queued.id), { params: { remove: true } })).status()).toBe(204)
+  await expect.poll(() => upload(queued.id)).toBeUndefined()
+  expect((await upload(running.id))?.state).toBe('InProgress')
+  await peer.dispose()
+})
+
+test("cancelling a running upload finishes it as cancelled, and the peer's download stops", async ({
+  api,
+  peers: { slow },
+}) => {
+  const { me, peer, running } = await uploadingTwo(api, slow)
+  const downloads = await listed(api, 'download', slow.username)
+  const { id } = downloads.find((transfer) => transfer.filename === running.filename)!
+  expect((await peer.delete(uploadPath(me, running.id))).status()).toBe(204)
+  // A download that asks for the file again supersedes the cancelled upload, which removes it from the list.
+  await expect
+    .poll(async () => (await listed(peer, 'upload', me, true)).find((transfer) => transfer.id === running.id)?.state)
+    .toBe('Completed, Cancelled')
+  // The peer is told the upload was cancelled, but it can find the connection closed first, and then tries again.
+  await expect
+    .poll(async () => {
+      const download = (await listed(api, 'download', slow.username)).find((transfer) => transfer.id === id)
+      if (download?.state === 'Completed, Rejected') return `rejected: ${download.exception}`
+      return download?.attempts === 2 && !download.state.startsWith('Completed') ? 'tried again' : download?.state
+    })
+    .toMatch(/^(rejected: Cancelled|tried again)$/)
+  await peer.dispose()
+})
+
+test('clearing finished uploads removes every finished one, and leaves the rest', async ({ api, peers: { slow } }) => {
+  const { me, peer, upload, running, queued } = await uploadingTwo(api, slow)
+  await peer.delete(uploadPath(me, queued.id))
+  await expect.poll(async () => (await upload(queued.id))?.state).toBe('Completed, Cancelled')
+  expect((await peer.delete('transfers/uploads/all/completed')).status()).toBe(204)
+  expect((await listed(peer, 'upload', me)).map((transfer) => transfer.id)).toEqual([running.id])
+  await peer.dispose()
 })
 
 test("a user's history counts their finished downloads", async ({ api, peers: { fast } }) => {
