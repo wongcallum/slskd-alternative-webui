@@ -1,6 +1,6 @@
 import * as v from 'valibot'
 
-import type { RawShare as RawBrowse } from '../../src/browse/browse'
+import type { RawShare as RawBrowse, RawProgress } from '../../src/browse/browse'
 import type { RawConversation, RawPrivateMessage } from '../../src/chat/conversations'
 import type { RawAvailableRoom } from '../../src/chat/JoinRoomDialog'
 import type { RawRoomMessage, RawRoomUser } from '../../src/chat/rooms'
@@ -29,8 +29,16 @@ export const parse = <T>(schema: v.GenericSchema<unknown, T>, value: unknown) =>
   throw new Error(`Unexpected payload: ${v.summarize(result.issues)}\n${JSON.stringify(value, null, 2).slice(0, 2000)}`)
 }
 
-// The app reads a timestamp without an offset as UTC.
-const utc = v.pipe(v.string(), v.regex(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z?$/))
+// The app reads a timestamp without an offset as UTC. slskd runs hours from UTC (see slskd.ts), so a local time would be
+// hours from now, while everything the tests see happened within minutes.
+const utc = v.pipe(
+  v.string(),
+  v.regex(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z?$/),
+  v.check(
+    (text) => Math.abs(Date.parse(text.replace(/Z?$/, 'Z')) - Date.now()) < 60 * 60 * 1000,
+    'Not within an hour of now, so not UTC',
+  ),
+)
 
 const withOffset = v.pipe(v.string(), v.regex(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?(Z|[+-]\d\d:\d\d)$/))
 
@@ -268,6 +276,10 @@ const directory = v.object({ name: v.string(), files: v.array(file) })
 
 export const share = shape<RawBrowse>(
   v.object({ directories: v.array(directory), lockedDirectories: v.array(directory) }),
+)
+
+export const browseProgress = shape<RawProgress>(
+  v.object({ bytesTransferred: count, size: count, percentComplete: v.number() }),
 )
 
 export const userInfo = shape<RawInfo>(

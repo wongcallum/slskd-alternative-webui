@@ -5,7 +5,7 @@ import path from 'node:path'
 import type { APIRequestContext } from '@playwright/test'
 
 import { contextFor, expect, ownName, test } from '../fixtures'
-import { loggedIn, type Peer, startLoggedIn, uploadsEnded } from '../soulseek'
+import { loggedIn, type Peer, slowPeerEnv, startLoggedIn, startOwnPeer, uploadsEnded } from '../soulseek'
 import * as schemas from './schemas'
 
 test.use({ config: { soulseek: true } })
@@ -75,6 +75,13 @@ test('downloads are listed by user and remote folder, with states named by their
   expect(done.find((transfer) => transfer.filename === missing.filename)?.exception).toBe(
     'Transfer rejected: File not shared.',
   )
+  for (const transfer of done.filter((each) => each.state === 'Completed, Succeeded')) {
+    expect(transfer).toMatchObject({
+      enqueuedAt: expect.any(String),
+      startedAt: expect.any(String),
+      endedAt: expect.any(String),
+    })
+  }
 })
 
 test('the peer lists them among its uploads, under our username', async ({ api, peers: { fast } }) => {
@@ -126,6 +133,42 @@ test('a folder enqueued as one batch per remote folder, each with its destinatio
         fast.files.get(albumFile(folder, name)),
       )
     }
+  }
+})
+
+test('a download whose peer goes away is tried again under the same id, counting its attempts', async ({
+  api,
+  slskd,
+  network,
+}) => {
+  test.setTimeout(90_000)
+  const peer = await startOwnPeer(
+    await network(),
+    slskd,
+    `gone.${randomUUID().slice(0, 8)} peer`,
+    { 'Slow/Big.flac': 2_000_000 },
+    slowPeerEnv,
+  )
+  try {
+    const {
+      ids: [id],
+    } = await enqueue(api, peer, [file(peer, 'Slow\\Big.flac')])
+    await expect.poll(() => stateOf(api, peer, id!), { timeout: 30_000 }).toBe('InProgress')
+    peer.instance.signal('SIGKILL')
+    // Three attempts in all by default, each after a wait of up to 5 s and then 10 s.
+    await expect
+      .poll(
+        async () =>
+          (await listed(api, 'download', peer.username)).map(({ id: current, attempts, state }) => ({
+            id: current,
+            attempts,
+            finished: state.startsWith('Completed'),
+          })),
+        { timeout: 60_000 },
+      )
+      .toEqual([{ id, attempts: 3, finished: true }])
+  } finally {
+    await peer.instance.stop()
   }
 })
 

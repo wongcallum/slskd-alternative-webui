@@ -193,20 +193,20 @@ export const failures = createAtom<ReadonlyMap<string, Failure>>(new Map())
 
 export const dismissFailure = (username: string) => failures.set((current) => without(current, username))
 
-type Status = { bytesTransferred: number; size: number; percentComplete: number }
+export type RawProgress = { bytesTransferred: number; size: number; percentComplete: number }
 
 const statusPollInterval = 500
 
 async function readStatus(username: string, signal: AbortSignal) {
   try {
-    return await api.get(`users/${encodeURIComponent(username)}/browse/status`, { signal }).json<Status>()
+    return await api.get(`users/${encodeURIComponent(username)}/browse/status`, { signal }).json<RawProgress>()
   } catch (error) {
     if (isHTTPError(error) && error.response.status === 404) return undefined
     throw error
   }
 }
 
-const sameStatus = (a: Status | undefined, b: Status | undefined) =>
+const sameStatus = (a: RawProgress | undefined, b: RawProgress | undefined) =>
   a !== undefined &&
   b !== undefined &&
   a.bytesTransferred === b.bytesTransferred &&

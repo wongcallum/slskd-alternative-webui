@@ -19,6 +19,9 @@ between slskd instances logged in to the tests' local Soulfind server, where the
   it. Poll-only: transfers, browse, search response bodies, rooms, conversations and events.
 - REST JSON omits nulls (`WhenWritingNull`, `Program.cs:981`), but hub payloads keep them. Error bodies are JSON
   strings or empty.
+- Times are UTC whatever zone slskd runs in, except logs', which are its local time with the offset. They carry the
+  `Z`, except a transfer's `requestedAt` and `enqueuedAt` in `GET /transfers/*` and the dates in the exceptions
+  report (see [Telemetry reports](#telemetry-reports)). Observed on the test network with slskd at +05:45.
 
 ## Transfers
 
@@ -40,7 +43,8 @@ Paths below are relative to `Transfers/` unless they start with another director
     duplicate transfers and size mismatches, so `Completed, Errored`, `TimedOut` and `Aborted` can all flip
     back to `Queued, Locally` **under the same id**, with `attempts` incremented. The wait before an attempt is
     `floor((2^n − 1) / 2) × 5 s` plus up to 5 s of jitter: 0–5 s before the second, 5–10 s before the third
-    (`Common/Compute.cs`, `Common/Retry.cs`).
+    (`Common/Compute.cs`, `Common/Retry.cs`). Observed on the test network: a download whose peer was killed while
+    it ran went through all 3 attempts under one id.
   - While it waits, the record keeps the failed attempt's `startedAt`, `endedAt`, `exception`,
     `bytesTransferred` and `averageSpeed`. They're overwritten by the next attempt's first state change.
     `placeInQueue` is already cleared.
@@ -226,7 +230,7 @@ observed on throwaway instances of the dev build and the 0.25.1 and 0.26.0 relea
 - `PUT /shares` rescans and always returns 200, even while a scan runs (observed). Its 409 for a scan in progress can't
   happen, because the exception lands in the returned task (`Shares/ShareService.cs`). So a `PUT` while a scan runs is
   dropped with only a logged warning, and that includes the moment after a scan sets `ready` and before it lets go
-  (observed in CI). `DELETE /shares` cancels (204, or 404 when none runs).
+  (observed in CI). `DELETE /shares` cancels (204, or 404 when none runs; observed).
 
 ### Privileges
 
@@ -530,7 +534,8 @@ configuration and the debug view were checked on the dev build with `SLSKD_REMOT
   read.
   - With the config watch on, slskd reloads about 250 ms later. It sets `pendingRestart`, `pendingReconnect` or
     `scanPending`, and pushes `OPTIONS`, only if an effective value changed. Observed: a comments-only edit pushed
-    nothing, and a new `instance_name` was pushed within 300 ms and set `pendingRestart`.
+    nothing, and a new `instance_name` was pushed within 300 ms and set `pendingRestart`. A new `shares.filters` was
+    pushed and set `scanPending`, and a new Soulseek password set `pendingReconnect`, which a disconnect cleared.
   - With `no_config_watch` it sets `pendingRestart` whatever changed, and nothing reloads.
 - **What the validator lets through breaks slskd** (observed):
   - Duplicate keys: the reload fails silently and every YAML value is dropped (`instanceName` went back to `default`
@@ -650,6 +655,9 @@ Paths below are relative to `Search/` unless they start with another directory. 
   - The optional attributes are omitted when the peer didn't send them. `length` is seconds, `bitRate` kbps, and
     `sampleRate` the peer's raw value (Hz in practice). A response's `uploadSpeed` is the peer's raw number, which
     stock shows as bytes per second.
+  - slskd peers send `length`, `sampleRate` and `bitDepth` for a file TagLib gives a bit depth, and `bitRate`,
+    `length` and `isVariableBitRate` for any other audio or video file (`Shares/SoulseekFileFactory.cs`). Observed on
+    the test network with a FLAC and an MP3, in search responses, browses and `GET /shares/contents`.
   - Observed across 2,280 real result files from 37 users (the dev account's stored searches):
     - 1,536 files were lossless (bit depth and sample rate), but only 112 of those had a `bitRate`.
     - 125 had no attributes at all: mostly jpg, txt and nfo, but also 31 mp3 and 2 flac from peers that send none.
@@ -680,8 +688,9 @@ Paths below are relative to `Search/` unless they start with another directory. 
 - **`DELETE /searches/{id}` doesn't stop a running search** (`SearchService.cs`, `DeleteAsync`). Observed: a PUT, then
   waiting for the update that sets `endedAt`, then a DELETE logs no error, and the search is gone.
 - Searches persist across restarts in SQLite. Any that were running become `Completed, TimedOut` with zero
-  counts, with no broadcast. `retention.search` (YAML only, minutes, minimum 5, off by default) prunes them every
-  5 minutes by `endedAt`, broadcasting a `DELETE` for each. With it off, the list grows forever.
+  counts and `endedAt` set, with no broadcast (observed on the test network). `retention.search` (YAML only,
+  minutes, minimum 5, off by default) prunes them every 5 minutes by `endedAt`, broadcasting a `DELETE` for each.
+  With it off, the list grows forever.
 - Once logged in, other peers' searches arrive constantly. If no share scan has ever run (`no_share_scan`), each
   one logs a `no such table: filenames` warning, about 3,600 in the first two minutes (observed).
 
@@ -702,7 +711,8 @@ Paths below are relative to `Search/` unless they start with another directory. 
 Paths are relative to `Users/`, and Soulseek.NET 10.0.2's source is `SN:`. `info` and `directory` ask the peer, `status`
 and `endpoint` ask the server, and all of them are Soulseek actions. Not being logged in to Soulseek gives a 500. A
 blacklisted user gets an empty 404 from all of them, `status` included, before anything is asked. The blacklist check
-is by name only.
+is by name only. An offline user gets a 404 with a JSON string, `"User <u> appears to be offline"`, from `info`,
+`endpoint` and `browse` (observed on the test network).
 
 - `POST /users/{u}/directory {directory}` asks the peer for one folder. It waits up to 5 s, and that includes the
   endpoint lookup and connecting. It returns a browse response's directory list, usually with one entry and without
@@ -724,6 +734,9 @@ is by name only.
   `SN:Common/Waiter.cs`). `picture` is the raw bytes as base64, with no type and no size limit, and is left out when
   there's none. Observed: our own username answers, with an 800×800 JPEG that Chromium draws from
   `data:image;base64,…`.
+  - Observed on the test network: a peer that had stopped answering gave a 500,
+    `"The wait timed out after 5000 milliseconds"`, and one that had gone, while its endpoint was still cached, a 500
+    saying it failed to establish a direct or indirect message connection.
 - `GET /users/{u}/endpoint` is always IPv4 in practice. A successful lookup is cached for 60 s and shared with browsing
   and transfers (`Common/UserEndPointCache.cs`).
 - `GET /users/{u}/status` asks the server on every call. An offline user is a 200 `Offline` rather than a 404, and so

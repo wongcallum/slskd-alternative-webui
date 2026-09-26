@@ -5,6 +5,8 @@ import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { type Media, media } from './media'
+
 export type Config = {
   urlBase: string
   auth: boolean
@@ -31,6 +33,8 @@ export type Instance = {
   waitUntilUp: () => Promise<void>
   // Kills slskd without letting it shut down, and starts it again on the same directories.
   relaunch: () => Promise<void>
+  // Signals slskd's process group, such as SIGSTOP to make it stop answering peers.
+  signal: (signal: NodeJS.Signals) => void
   stop: () => Promise<void>
 }
 
@@ -70,7 +74,7 @@ export async function freePort() {
 
 export const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-async function writeFiles(root: string, files: Record<string, string>) {
+export async function writeFiles(root: string, files: Record<string, string | Buffer>) {
   for (const [name, content] of Object.entries(files)) {
     const file = path.join(root, name)
     await mkdir(path.dirname(file), { recursive: true })
@@ -78,13 +82,13 @@ async function writeFiles(root: string, files: Record<string, string>) {
   }
 }
 
-export const shareFiles = {
-  'Music/Album/01 Intro.flac': 'a'.repeat(3000),
-  'Music/Album/02 Outro.flac': 'b'.repeat(4000),
+const shareFiles = ({ flac, mp3 }: Media) => ({
+  'Music/Album/01 Intro.flac': flac,
+  'Music/Album/02 Outro.mp3': mp3,
   'Music/Album/CD2/01 Encore.flac': 'c'.repeat(5000),
   'Music/Private/secret.flac': 'd'.repeat(100),
   'Other/notes.txt': 'notes',
-}
+})
 
 export const downloadFiles = {
   'Album/01 Intro.flac': 'a'.repeat(3000),
@@ -94,6 +98,9 @@ export const downloadFiles = {
 }
 
 export const incompleteFiles = { 'someone/Album/01 Intro.flac': 'a'.repeat(1000) }
+
+// Hours from UTC, so that a time slskd gives in its local time rather than UTC is hours off.
+export const timeZone = { name: 'Asia/Kathmandu', offset: '+05:45' }
 
 // Everything else is set through the environment, since the file would override it.
 export const configYaml = 'instance_name: test\n'
@@ -158,7 +165,7 @@ export async function start(overrides: Partial<Config> = {}, extraEnv: Record<st
     incomplete: path.join(root, 'incomplete'),
     shares: path.join(root, 'shares'),
   }
-  await writeFiles(dirs.shares, shareFiles)
+  await writeFiles(dirs.shares, shareFiles(await media()))
   await writeFiles(dirs.downloads, downloadFiles)
   await symlink('Album/01 Intro.flac', path.join(dirs.downloads, 'link.flac'))
   await writeFiles(dirs.incomplete, incompleteFiles)
@@ -196,6 +203,7 @@ export async function start(overrides: Partial<Config> = {}, extraEnv: Record<st
     SLSKD_NO_LOGO: 'true',
     DOTNET_CLI_TELEMETRY_OPTOUT: '1',
     DOTNET_NOLOGO: '1',
+    TZ: timeZone.name,
     ...extraEnv,
   }
 
@@ -228,6 +236,8 @@ export async function start(overrides: Partial<Config> = {}, extraEnv: Record<st
     await waitUntilUp()
   }
 
+  const signal = (name: NodeJS.Signals) => process.kill(-group, name)
+
   async function stop() {
     await stopGroup(group)
     await rm(root, { recursive: true, force: true })
@@ -239,7 +249,7 @@ export async function start(overrides: Partial<Config> = {}, extraEnv: Record<st
     await stop()
     throw error
   }
-  return { config, base, api, root, configFile, log, ...dirs, waitUntilUp, relaunch, stop }
+  return { config, base, api, root, configFile, log, ...dirs, waitUntilUp, relaunch, signal, stop }
 }
 
 export async function logIn(instance: Instance) {
