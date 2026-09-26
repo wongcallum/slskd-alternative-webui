@@ -1,4 +1,5 @@
 import { api } from '../lib/api'
+import { toTime } from '../lib/format'
 import { createAtom, createResource, type Measure, poll, type Sink } from '../lib/store'
 import { queryMatcher } from '../lib/text'
 import { sessionSignal } from '../session/session'
@@ -91,7 +92,7 @@ function toRecord(raw: RawEvent, order: number): EventRecord {
   return {
     id: raw.id,
     order,
-    time: Date.parse(raw.timestamp),
+    time: toTime(raw.timestamp),
     timestamp: raw.timestamp,
     type: raw.type,
     data,

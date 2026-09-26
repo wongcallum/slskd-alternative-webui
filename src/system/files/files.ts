@@ -2,6 +2,7 @@ import { isHTTPError, type RetryOptions } from 'ky'
 
 import { type Actions, actOnEach, begin, idle, summarise } from '../../lib/actions'
 import { api, readsOptions } from '../../lib/api'
+import { toTime } from '../../lib/format'
 import { createAtom, createResource, load, type Resource, type Sink } from '../../lib/store'
 import { buildTree, type InputDirectory, type Item, type Tree } from '../../lib/tree'
 import { options } from '../options/options'
@@ -43,7 +44,7 @@ function toDirectories(listings: readonly RawListing[], removed: ReadonlySet<str
       const directory = {
         name: path,
         files: [],
-        modifiedAt: Date.parse(entry.modifiedAt),
+        modifiedAt: toTime(entry.modifiedAt),
         hidden: has(entry, 'Hidden'),
       }
       byPath.set(path, directory)
@@ -62,7 +63,7 @@ function toDirectories(listings: readonly RawListing[], removed: ReadonlySet<str
       byPath.get(path.slice(0, path.lastIndexOf('/')))?.files.push({
         filename: entry.name,
         size: link ? 0 : (entry.length ?? 0),
-        modifiedAt: Date.parse(entry.modifiedAt),
+        modifiedAt: toTime(entry.modifiedAt),
         hidden: has(entry, 'Hidden'),
         link,
       })

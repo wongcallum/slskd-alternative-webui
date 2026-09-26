@@ -1,4 +1,5 @@
 import { api } from '../lib/api'
+import { toTime } from '../lib/format'
 import { applicationHub, followHub, useLiveResource, type Via } from '../lib/hubs'
 import { createAtom, createResource, sameItems } from '../lib/store'
 
@@ -69,7 +70,7 @@ export type Application = {
   isConnected: boolean
   isLoggedIn: boolean
   isTransitioning: boolean
-  retryingAt?: string
+  retryingAt?: number
   username?: string
   privilegeSeconds: number
   sharedFiles: number
@@ -118,7 +119,9 @@ function fromState(via: Via, state: RawState): Application {
     isLoggedIn: server.isLoggedIn,
     isTransitioning: server.isTransitioning,
     retryingAt:
-      (state.connectionWatchdog.isAttemptingConnection && state.connectionWatchdog.nextAttemptAt) || undefined,
+      state.connectionWatchdog.isAttemptingConnection && state.connectionWatchdog.nextAttemptAt
+        ? toTime(state.connectionWatchdog.nextAttemptAt)
+        : undefined,
     username: user.username ?? undefined,
     privilegeSeconds: user.privileges.privilegesRemaining,
     sharedFiles: user.statistics.fileCount,

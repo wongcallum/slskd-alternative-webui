@@ -2,6 +2,7 @@ import { isHTTPError } from 'ky'
 import { useMemo } from 'react'
 
 import { api } from '../lib/api'
+import { toTime } from '../lib/format'
 import { createAtom, createResource, createResourceMap, poll, type Resource, useAtom, useResource } from '../lib/store'
 import { createStoredAtom } from '../lib/stored'
 import { byUsername, compareExactly } from '../lib/text'
@@ -95,7 +96,7 @@ function toMessages(room: string, raws: RawRoomMessage[], previous?: readonly Me
     const self = raw.self === true
     return {
       key: count === 0 ? base : `${base} ${count}`,
-      time: Date.parse(raw.timestamp),
+      time: toTime(raw.timestamp),
       username: raw.username,
       text: raw.message,
       self,
