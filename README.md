@@ -59,6 +59,17 @@ It provides Node.js, pnpm, the .NET SDK and Chromium, and links `slskd` to the s
 - To move to another slskd commit, change its rev in `devenv.yaml` and run `devenv update slskd`.
 - Run `pnpm fmt` and `pnpm lint` before committing.
 
+### Tests
+
+`pnpm test` builds the UI and runs the tests with Playwright. Each test worker starts its own offline slskd instances,
+with no Soulseek login, from the build `devenv up` makes. `tests/contract` checks the slskd behaviour the UI relies on,
+and `tests/ui` checks the pages in Chromium.
+
+- To test another slskd, set `SLSKD_BIN` to its `slskd` binary or `slskd.dll`. A release binary needs libicu, or
+  `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1` where there's none.
+- CI runs the tests against the pinned slskd and the latest release, and nightly against the latest release and
+  slskd's master.
+
 ## Roadmap
 
 - A prebuilt `dist` attached to each GitHub release
