@@ -868,12 +868,13 @@ string.
   **Each acknowledgement sends MessageAcked to the server**, one per message, and needs a Soulseek login (a 500
   otherwise).
 - Acknowledging all also covers messages that arrived after the UI's last fetch.
-- Soulseek.NET 10.0.2 holds a message's id as an `int` and refuses to acknowledge one below 1, while the protocol's id
-  is a uint32. An id of 2^31 or more arrives negative, and acknowledging it throws. `PUT` and `DELETE
-/conversations/{u}` are then 500s that mark nothing read, since `AcknowledgeAsync` saves only after acknowledging
-  every unread message (`Messaging/ConversationService.cs`), and `DELETE` leaves the conversation open. Observed for
-  `DELETE` on the test network, where Soulfind picks ids at random; whether the real server's ids reach 2^31 isn't
-  known.
+- Soulseek.NET 10.0.2 holds a message's id as an `int`, while the protocol's is a uint32, so an id of 2^31 or more
+  arrives negative. Acknowledging a negative id throws, though 0 is accepted (`SN:SoulseekClient.cs`). `PUT` and
+  `DELETE /conversations/{u}` are then 500s that mark nothing read, since `AcknowledgeAsync` saves only after
+  acknowledging every unread message (`ConversationService.cs`). The messages it got to first have still had
+  MessageAcked sent. Every later `PUT` or `DELETE` of the conversation fails the same way, and `DELETE` leaves it open.
+  Observed for `DELETE` on the test network, where Soulfind picks ids at random. The real server's ids count up across
+  the network, from about 1,005,000 to 1,041,000 over ten hours on 2026-09-25, far below 2^31.
 - **Acknowledging a sent message by id fails**: they all have id 0, so with two or more of them the lookup throws a
   500 (`"Sequence contains more than one element"`).
 - A re-delivered message matches its stored copy on `(username, id, timestamp)` and is set unread again, with
