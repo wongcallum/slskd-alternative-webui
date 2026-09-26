@@ -28,6 +28,7 @@ test('connecting without a Soulseek login keeps retrying on a timer, until a dis
   const hub = await openHub(slskd, 'application', token, ['STATE'])
   const latest = () => schemas.parse(schemas.state, hub.received('STATE').at(-1)).connectionWatchdog
   try {
+    await expect.poll(() => hub.received('STATE').length).toBeGreaterThan(0)
     expect((await api.put('server')).ok()).toBe(true)
     await expect.poll(() => latest().isAttemptingConnection).toBe(true)
     expect(Date.parse(latest().nextAttemptAt!)).toBeGreaterThan(Date.now() - 1000)
