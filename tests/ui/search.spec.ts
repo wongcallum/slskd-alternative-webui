@@ -10,9 +10,15 @@ import type { Peer } from '../soulseek'
 test.use({ config: { soulseek: true } })
 
 // Only the fast peer's `Music\Artist - Album\01 Intro.flac` matches.
+// Enter does nothing until the app knows slskd is logged in to Soulseek, just after logging in for one, while a click
+// waits for the button.
+async function search(page: Page, text: string) {
+  await page.getByPlaceholder('Search Soulseek').fill(text)
+  await page.getByRole('button', { name: 'Search', exact: true }).click()
+}
+
 async function searchAlbumIntro(page: Page, fast: Peer) {
-  await page.getByPlaceholder('Search Soulseek').fill('album intro')
-  await page.getByPlaceholder('Search Soulseek').press('Enter')
+  await search(page, 'album intro')
   await expect(page.getByText('1 response, 1 file')).toBeVisible()
   await page.getByRole('button', { name: 'Stop' }).click()
   await expect(page.getByRole('button', { name: fast.username, exact: true })).toBeVisible()
@@ -102,8 +108,7 @@ test("a new search's counts aren't overwritten by its POST when a peer answers f
     await sleep(1000)
     return route.fulfill({ response })
   })
-  await page.getByPlaceholder('Search Soulseek').fill('album intro')
-  await page.getByPlaceholder('Search Soulseek').press('Enter')
+  await search(page, 'album intro')
   await expect(page.getByText('1 response, 1 file')).toBeVisible()
   await page.getByRole('button', { name: 'Stop' }).click()
 })
