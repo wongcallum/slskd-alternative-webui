@@ -1,4 +1,5 @@
 import ky, { isHTTPError } from 'ky'
+import pLimit from 'p-limit'
 
 import { endSession, getSession } from '../session/session'
 import { urlBase } from './urlBase'
@@ -29,6 +30,11 @@ export const api = http.extend({
 })
 
 export const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+// A request that reads slskd's options makes it write and delete a file in the downloads and incomplete directories,
+// and a recursive listing that comes across one fails (see the facts). So the Files page's requests and the options
+// go one at a time.
+export const readsOptions = pLimit(1)
 
 // slskd answers 429 without doing anything when a concurrency limit is reached, so the request is resent as part
 // of the same gesture rather than reported as a failure.
