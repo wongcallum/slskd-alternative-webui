@@ -888,6 +888,8 @@ There's no concurrency limit and no 429.
   which is never pruned.
 - A Soulseek disconnect clears nothing: the rooms, messages and users stay, and the GETs keep working. On every login
   slskd joins the `rooms` option and then rejoins every tracked room (`RoomService.cs`), and failures are only logged.
+  Observed on the test network: `STATE.rooms` and the messages stayed while a peer in the room saw us leave, and the
+  peer saw us come back at the next login.
   - The rejoin doesn't refresh the users, so users who left meanwhile stay listed and newcomers are missing.
   - A rejoin that fails leaves a room that can't be left until a restart (inferred).
 - The blacklist only drops incoming messages; blacklisted users are still listed.
