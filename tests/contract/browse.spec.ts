@@ -1,0 +1,44 @@
+import { expect, test } from '../fixtures'
+import * as schemas from './schemas'
+
+test.use({ config: { soulseek: true } })
+
+test("browsing a peer gets its whole share, with every folder's full path and bare file names", async ({
+  api,
+  peers: { fast },
+}) => {
+  const response = await api.get(`users/${encodeURIComponent(fast.username)}/browse`)
+  expect(response.status()).toBe(200)
+  const share = schemas.parse(schemas.share, await response.json())
+  expect(share.lockedDirectories).toEqual([])
+  expect(share.directories.map((directory) => directory.name).sort()).toEqual([
+    'Music',
+    'Music\\Artist - Album',
+    'Music\\Artist - Album 2',
+    'Music\\Artist - Album\\CD2',
+    'Music\\Artist - Album\\CD2\\Scans',
+  ])
+  const files = share.directories.flatMap((directory) =>
+    directory.files.map((file) => `${directory.name}\\${file.filename}`),
+  )
+  expect(files.sort()).toEqual([...fast.files.keys()].sort())
+})
+
+test('asking a peer for a folder gets every file beneath it and in folders whose names start with it, by bare name', async ({
+  api,
+  peers: { fast },
+}) => {
+  const response = await api.post(`users/${encodeURIComponent(fast.username)}/directory`, {
+    data: { directory: 'Music\\Artist - Album' },
+  })
+  expect(response.status()).toBe(200)
+  const directories = schemas.parse(schemas.directories, await response.json())
+  expect(directories.map((directory) => directory.name)).toEqual(['Music\\Artist - Album'])
+  expect(directories[0]!.files.map((file) => file.filename).sort()).toEqual([
+    '01 Encore.flac',
+    '01 Intro.flac',
+    '01 Other.flac',
+    '02 Outro.flac',
+    'cover.jpg',
+  ])
+})

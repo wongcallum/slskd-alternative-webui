@@ -61,12 +61,18 @@ It provides Node.js, pnpm, the .NET SDK and Chromium, and links `slskd` to the s
 
 ### Tests
 
-`pnpm test` builds the UI and runs the tests with Playwright. Each test worker starts its own offline slskd instances,
-with no Soulseek login, from the build `devenv up` makes. `tests/contract` checks the slskd behaviour the UI relies on,
-and `tests/ui` checks the pages in Chromium.
+`pnpm test` builds the UI and runs the tests with Playwright. Each test worker starts its own slskd instances from the
+build `devenv up` makes. `tests/contract` checks the slskd behaviour the UI relies on, and `tests/ui` checks the pages
+in Chromium.
+
+Tests that need a Soulseek login run on a local network, which each worker starts the first time one of them runs:
+[Soulfind](https://github.com/soulfind-dev/soulfind) as the server, and two slskd peers sharing test files. Nothing
+reaches the real Soulseek network.
 
 - To test another slskd, set `SLSKD_BIN` to its `slskd` binary or `slskd.dll`. A release binary needs libicu, or
   `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1` where there's none.
+- devenv builds Soulfind from the commit pinned in `devenv.yaml` and sets `SOULFIND_BIN`. Soulfind needs an IPv4
+  route, though not internet access.
 - CI runs the tests in the devenv shell against the pinned slskd and the latest release, and nightly against the latest
   release and slskd's master, each built from source.
 

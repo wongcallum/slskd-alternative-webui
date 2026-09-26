@@ -1,22 +1,44 @@
 import { type APIRequestContext, test as base, expect, type Page } from '@playwright/test'
 
+import type { RawState } from '../src/system/application'
+import type { RawTransfer, RawUser } from '../src/transfers/transfers'
 import { type Config, credentials, type Instance, logIn, start } from './slskd'
+import { type Network, type Peer, startLoggedIn, startNetwork, uploadsEnded } from './soulseek'
 
 type TestFixtures = {
   // Which instance a test runs against. Instances are started on first use and kept for the rest of the worker, so
-  // tests don't assume one is fresh.
-  config: Partial<Config>
+  // tests don't assume one is fresh. With `soulseek`, it's logged in to the worker's network.
+  config: Partial<Config> & { soulseek?: boolean }
   slskd: Instance
   token: string | undefined
   api: APIRequestContext
+  // The network's peers. Downloads a test leaves unfinished are cancelled after it, which frees the slow peer's slot.
+  peers: { fast: Peer; slow: Peer }
   // Whether a page may log failed requests, as it does while slskd restarts and after, until its token is dropped.
   failedRequests: boolean
 }
 
-type WorkerFixtures = { pool: Map<string, Promise<Instance>> }
+type WorkerFixtures = {
+  pool: Map<string, Promise<Instance>>
+  // Started on first use: Soulfind and two peers logged in to it. Each worker has its own, since a search goes to
+  // everyone on the server.
+  network: () => Promise<Network>
+}
 
 export const test = base.extend<TestFixtures, WorkerFixtures>({
   config: [{}, { option: true }],
+  network: [
+    // oxlint-disable-next-line no-empty-pattern -- Playwright reads fixture dependencies from the destructuring
+    async ({}, use) => {
+      let network: Promise<Network> | undefined
+      await use(() => (network ??= startNetwork()))
+      await network?.then(
+        (started) => started.stop(),
+        () => {},
+      )
+    },
+    { scope: 'worker' },
+  ],
   pool: [
     // oxlint-disable-next-line no-empty-pattern -- Playwright reads fixture dependencies from the destructuring
     async ({}, use) => {
@@ -34,11 +56,20 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
     { scope: 'worker' },
   ],
   slskd: [
-    async ({ pool, config }, use) => {
+    async ({ pool, network, config }, use, testInfo) => {
       const key = JSON.stringify(config)
       let instance = pool.get(key)
-      if (instance === undefined) pool.set(key, (instance = start(config)))
-      await use(await instance)
+      if (instance === undefined) {
+        const { soulseek, ...overrides } = config
+        const username = `user.${pool.size} test`
+        instance = soulseek
+          ? network().then((started) => startLoggedIn(started, overrides, username))
+          : start(overrides)
+        pool.set(key, instance)
+      }
+      const started = await instance
+      await use(started)
+      if (testInfo.status !== testInfo.expectedStatus) await testInfo.attach('slskd.log', { path: started.log })
     },
     { timeout: 60_000 },
   ],
@@ -51,6 +82,45 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
     await use(context)
     await context.dispose()
   },
+  peers: [
+    async ({ network, api }, use, testInfo) => {
+      const { fast, slow } = await network()
+      await use({ fast, slow })
+      let failure: unknown
+      try {
+        const me = ((await (await api.get('application')).json()) as RawState).user.username!
+        const unfinished = async () =>
+          ((await (await api.get('transfers/downloads')).json()) as RawUser[]).flatMap(({ username, directories }) =>
+            directories
+              .flatMap((directory) => directory.files)
+              .filter((file) => !file.state.startsWith('Completed'))
+              .map((file) => ({ username, file })),
+          )
+        // Downloads from the fast peer finish on their own. One from the slow peer is cancelled only once it's queued
+        // there or in progress, since cancelling it while it's being requested or started leaves the peer waiting out
+        // its transfer timeout. The queued ones go first, since cancelling the running one lets the next one start.
+        const settled = ({ username, file }: { username: string; file: RawTransfer }) =>
+          username === slow.username && /Remotely|InProgress/.test(file.state)
+        await expect.poll(async () => (await unfinished()).every(settled), { timeout: 10_000 }).toBe(true)
+        const byRunning = (await unfinished()).sort(
+          (a, b) => Number(a.file.state === 'InProgress') - Number(b.file.state === 'InProgress'),
+        )
+        for (const { username, file } of byRunning) {
+          await api.delete(`transfers/downloads/${encodeURIComponent(username)}/${file.id}`)
+        }
+        await Promise.all([fast, slow].map((peer) => uploadsEnded(peer, me)))
+      } catch (error) {
+        failure = error
+      }
+      if (failure !== undefined || testInfo.status !== testInfo.expectedStatus) {
+        for (const [name, peer] of Object.entries({ fast, slow })) {
+          await testInfo.attach(`${name} peer.log`, { path: peer.instance.log })
+        }
+      }
+      if (failure !== undefined) throw failure
+    },
+    { timeout: 60_000 },
+  ],
   baseURL: async ({ slskd }, use) => use(`${slskd.base}/`),
   failedRequests: [false, { option: true }],
   page: async ({ page, failedRequests }, use) => {

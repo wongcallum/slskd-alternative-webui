@@ -13,7 +13,7 @@ import { byName, compareNames, queryMatcher } from '../../lib/text'
 import { sessionSignal } from '../../session/session'
 import { createDownloads, enqueueDownloads } from '../../transfers/enqueue'
 
-type RawResponse = {
+export type RawResponse = {
   username: string
   files: RawFile[]
   lockedFiles: RawFile[]

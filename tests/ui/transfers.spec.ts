@@ -1,39 +1,45 @@
-import { randomUUID } from 'node:crypto'
-
 import { expect, logInPage, test } from '../fixtures'
-import { seedTransfers } from '../seed'
+
+test.use({ config: { soulseek: true } })
+
+const file = (files: Map<string, Buffer>, filename: string) => ({ filename, size: files.get(filename)!.length })
 
 test('downloads are split into active and finished, and clearing finished ones leaves the rest', async ({
   page,
-  slskd,
   api,
+  peers: { fast, slow },
 }) => {
-  const username = `user ${randomUUID().slice(0, 8)}`
-  seedTransfers(slskd, [
-    { username, filename: 'Music\\Album\\01 Done.flac', state: 'Completed, Succeeded' },
-    { username, filename: 'Music\\Album\\02 Failed.flac', state: 'Completed, Errored' },
-    { username, filename: 'Music\\Album\\03 Waiting.flac', state: 'Queued, Locally' },
-  ])
+  await api.delete('transfers/downloads/all/completed')
+  await api.post('transfers/downloads/batches', {
+    data: {
+      username: fast.username,
+      files: [
+        file(fast.files, 'Music\\Artist - Album\\01 Intro.flac'),
+        { filename: 'Music\\Nowhere\\missing.flac', size: 1 },
+      ],
+    },
+  })
+  await api.post('transfers/downloads/batches', {
+    data: { username: slow.username, files: [file(slow.files, 'Slow\\Big 1.flac')] },
+  })
   await page.goto('downloads')
   await logInPage(page)
-  await expect(page.getByText('03 Waiting.flac')).toBeVisible()
-  await expect(page.getByText('Queued locally')).toBeVisible()
+  await expect(page.getByText('Big 1.flac')).toBeVisible()
   await expect(page.getByText('1 succeeded, 1 failed')).toBeVisible()
 
   await page.getByRole('button', { name: 'Clear finished' }).click()
   await page.getByRole('alertdialog').getByRole('button', { name: 'Clear' }).click()
   await expect(page.getByText('1 succeeded, 1 failed')).toBeHidden()
-  await expect(page.getByText('03 Waiting.flac')).toBeVisible()
-  const list = (await (await api.get('transfers/downloads')).json()) as { username: string }[]
-  expect(JSON.stringify(list.find((user) => user.username === username))).not.toContain('Completed')
+  await expect(page.getByText('Big 1.flac')).toBeVisible()
+  expect(JSON.stringify(await (await api.get('transfers/downloads')).json())).not.toContain('Completed')
 })
 
-test('uploads are listed', async ({ page, slskd }) => {
-  seedTransfers(slskd, [
-    { direction: 'Upload', username: 'uploader', filename: 'Shared\\Uploaded.flac', state: 'InProgress' },
-  ])
-  await page.goto('uploads')
+test("a peer's uploads are listed on its own page", async ({ page, api, peers: { slow } }) => {
+  await api.post('transfers/downloads/batches', {
+    data: { username: slow.username, files: [file(slow.files, 'Slow\\Big 2.flac')] },
+  })
+  await page.goto(`${slow.instance.base}/uploads`)
   await logInPage(page)
-  await expect(page.getByText('Uploaded.flac')).toBeVisible()
-  await expect(page.getByText('1 uploading')).toBeVisible()
+  await expect(page.getByText('Big 2.flac')).toBeVisible()
+  await expect(page.getByText(/1 uploading/)).toBeVisible()
 })

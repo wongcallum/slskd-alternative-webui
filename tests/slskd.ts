@@ -24,10 +24,13 @@ export type Instance = {
   root: string
   appDir: string
   configFile: string
+  log: string
   downloads: string
   incomplete: string
   shares: string
   waitUntilUp: () => Promise<void>
+  // Kills slskd without letting it shut down, and starts it again on the same directories.
+  relaunch: () => Promise<void>
   stop: () => Promise<void>
 }
 
@@ -57,7 +60,7 @@ const canListen = (port: number) =>
     server.listen(port, () => server.close(() => resolve(true)))
   })
 
-async function freePort() {
+export async function freePort() {
   for (let tries = 0; tries < portBlock; tries++) {
     const port = firstPort + (portOffset++ % portBlock)
     if (await canListen(port)) return port
@@ -65,7 +68,7 @@ async function freePort() {
   throw new Error(`No free port from ${firstPort}`)
 }
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+export const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 async function writeFiles(root: string, files: Record<string, string>) {
   for (const [name, content] of Object.entries(files)) {
@@ -116,7 +119,37 @@ const groupAlive = (group: number) => {
   }
 }
 
-export async function start(overrides: Partial<Config> = {}): Promise<Instance> {
+// Starts a process in its own Unix session, which slskd needs because it allows one instance per session. Returns its
+// process group.
+export function spawnGroup(command: string, args: string[], env: NodeJS.ProcessEnv, log: string, cwd?: string) {
+  const output = openSync(log, 'a')
+  const child = spawn(command, args, { env, cwd, detached: true, stdio: ['ignore', output, output] })
+  closeSync(output)
+  if (child.pid === undefined) throw new Error(`Couldn't start ${command}`)
+  running.add(child.pid)
+  return child.pid
+}
+
+export async function stopGroup(group: number, graceful = true) {
+  const steps = [
+    ['SIGTERM', 10_000],
+    ['SIGKILL', 5000],
+  ] as const
+  for (const [signal, wait] of graceful ? steps : steps.slice(1)) {
+    try {
+      process.kill(-group, signal)
+    } catch {
+      break
+    }
+    const deadline = Date.now() + wait
+    while (groupAlive(group) && Date.now() < deadline) await sleep(50)
+    if (!groupAlive(group)) break
+  }
+  running.delete(group)
+}
+
+// `extraEnv` is applied last, over the offline defaults.
+export async function start(overrides: Partial<Config> = {}, extraEnv: Record<string, string> = {}): Promise<Instance> {
   const config = { ...defaultConfig, ...overrides }
   const root = await mkdtemp(path.join(tmpdir(), 'slskd-test-'))
   const dirs = {
@@ -163,17 +196,13 @@ export async function start(overrides: Partial<Config> = {}): Promise<Instance> 
     SLSKD_NO_LOGO: 'true',
     DOTNET_CLI_TELEMETRY_OPTOUT: '1',
     DOTNET_NOLOGO: '1',
+    ...extraEnv,
   }
 
   const log = path.join(root, 'slskd.log')
-  const output = openSync(log, 'a')
   const [command, args] = executable.endsWith('.dll') ? ['dotnet', [executable]] : [executable, []]
-  // slskd allows one instance per Unix session, so each gets its own.
-  const child = spawn(command, args, { env, detached: true, stdio: ['ignore', output, output] })
-  closeSync(output)
-  if (child.pid === undefined) throw new Error(`Couldn't start ${command}`)
-  const group = child.pid
-  running.add(group)
+  const launch = () => spawnGroup(command, args, env, log)
+  let group = launch()
 
   const base = `http://127.0.0.1:${port}${config.urlBase === '/' ? '' : config.urlBase}`
   const api = `${base}/api/v0`
@@ -193,21 +222,14 @@ export async function start(overrides: Partial<Config> = {}): Promise<Instance> 
     }
   }
 
+  async function relaunch() {
+    await stopGroup(group, false)
+    group = launch()
+    await waitUntilUp()
+  }
+
   async function stop() {
-    for (const [signal, wait] of [
-      ['SIGTERM', 10_000],
-      ['SIGKILL', 5000],
-    ] as const) {
-      try {
-        process.kill(-group, signal)
-      } catch {
-        break
-      }
-      const deadline = Date.now() + wait
-      while (groupAlive(group) && Date.now() < deadline) await sleep(50)
-      if (!groupAlive(group)) break
-    }
-    running.delete(group)
+    await stopGroup(group)
     await rm(root, { recursive: true, force: true })
   }
 
@@ -217,7 +239,7 @@ export async function start(overrides: Partial<Config> = {}): Promise<Instance> 
     await stop()
     throw error
   }
-  return { config, base, api, root, configFile, ...dirs, waitUntilUp, stop }
+  return { config, base, api, root, configFile, log, ...dirs, waitUntilUp, relaunch, stop }
 }
 
 export async function logIn(instance: Instance) {

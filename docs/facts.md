@@ -51,6 +51,8 @@ Paths below are relative to `Transfers/` unless they start with another director
   - A failure before Soulseek reports any state flips the state
     `Completed, Errored` → `Queued, Locally` → `Completed, Errored` within milliseconds, for example when
     enqueueing while disconnected. This affects downloads and uploads.
+  - A download cancelled while it's `Initializing` can end as `Completed, Errored` rather than `Cancelled`
+    (observed on the test network).
   - If moving the file after a download fails, the state stays `Completed, Succeeded` but the record gains an `exception`.
   - Small race windows can bump `bytesTransferred`/`averageSpeed` after `Completed`, or un-remove a record.
   - These fields never change: `id, batchId, username, direction, filename, size, requestedAt`.
@@ -61,6 +63,9 @@ Paths below are relative to `Transfers/` unless they start with another director
   Soulseek login after that, the unfinished _downloads_ are re-enqueued under new ids, without their batch (so
   a batch destination is lost), and the old records are removed. If the peer is offline the old record just
   stays errored. Observed: pressing Connect on the dev instance restarted 34 such downloads.
+  - A graceful restart can end some unfinished downloads while it shuts down, as `Completed, Errored`
+    ("Operation cancelled"), and those aren't re-enqueued (observed on the test network: 1 of 3). After a crash,
+    every unfinished download is.
 - Uploads have no enqueue, retry or position endpoint, and never have the `Remotely` flag. A peer's
   re-request supersedes the old record like a download re-enqueue does.
 - Retention (`retention.transfers.{upload,download}.{succeeded,errored,cancelled,failed}`, YAML only) is in
@@ -75,8 +80,9 @@ Everything is under `/transfers`, and returns 403 in relay agent mode.
   `GET .../{username}` returns one user's object (not an array) and 404 if there are none.
 - `DELETE .../{username}/{id}?remove=bool` always returns 204 for a well-formed id, even an unknown one.
   - The cancel is asynchronous.
-  - `remove=true` only removes a record that's already `Completed`. On an active transfer it just cancels,
-    and removing the resulting `Completed, Cancelled` record takes a second DELETE.
+  - `remove=true` only removes a record that's already `Completed` when it checks, just after asking for the
+    cancel. So on an active transfer it cancels, and removes the record too only if the cancel has finished by then
+    (observed both ways). Removing it for certain takes a second DELETE once it's `Completed, Cancelled`.
   - A stuck download with nothing to cancel is set to `Completed, Cancelled` in the same call; uploads have no
     such fallback.
 - `DELETE downloads/all/completed` (and `uploads/...`) removes every `Completed` record, succeeded and failed
@@ -84,6 +90,9 @@ Everything is under `/transfers`, and returns 403 in relay agent mode.
 - **`GET downloads/{username}/{id}/position` is a Soulseek action**: it asks the peer. It returns a bare
   integer and stores it as `placeInQueue`, which the next state change clears. Every Soulseek failure is a
   500; observed: `"The wait timed out after 5000 milliseconds"` when the peer didn't answer.
+  An slskd peer answers with an estimate that counts from 0, so 0 means next: the file's place among that user's
+  queued files, plus files of other users likely to go first (`Transfers/Uploads/UploadQueue.cs`,
+  `EstimatePosition`). Observed 0, 1 and 2 on the test network.
 - `POST downloads/batches` takes `{id?, searchId?, username, files: [{filename, size}], options?: {destination?}}`.
   - It returns `{batch, failures: [{filename, message}]}` with 201 (all enqueued), 207 (partial) or 200 (none).
     Failures include `"Skipped: Already in progress"` when the file's current record isn't `Completed`.
@@ -108,6 +117,14 @@ Everything is under `/transfers`, and returns 403 in relay agent mode.
     directory, with no template expansion, and `.` or `..` segments are rejected. `\` and `/` both work as
     separators.
 - `GET downloads/batches/{id}` includes removed transfers. There's no endpoint that lists batches.
+- **An slskd peer ignores a request for a file while its upload of an earlier request for it is still ending**
+  ("Ignoring concurrent invocation", `Uploads/UploadService.cs`), and nothing retries it, so the new download stays
+  `Queued, Remotely` for good. Observed on the test network when a file was requested again within milliseconds of
+  its earlier transfer ending or being cancelled.
+- Cancelling a download while it's `Requested` or `Initializing` doesn't reach the peer, whose upload waits out its
+  transfer timeout (at least 30 s, `soulseek.connection.timeout.transfer`) before it ends. Cancelling one that's
+  `Queued, Remotely` or `InProgress` ends the peer's upload within moments, the queued one when the peer offers it
+  (observed on the test network).
 - **There's no retry endpoint.** Retrying means enqueueing the same `username` + `filename` + `size` again.
   Stock's retry uses the obsolete `POST downloads/{username}` one file at a time, so it loses the batch and
   its destination, and runs into the 429.
@@ -580,6 +597,18 @@ dashboard yet.
   there's no auto-reconnect. It always returns 204.
 - The controller returns 403 in relay agent mode.
 
+## Peer connections
+
+- **The first message connection between two peers can lose what's sent on it.** Soulseek.NET 10.0.2 tries a direct
+  and an indirect connection at once. When the other peer accepts the direct one while its indirect one has just
+  been established, cancelling the indirect one throws ("The CancellationTokenSource has been disposed"), and it
+  drops the direct one from its cache without reading from it (`SN:Network/PeerConnectionManager.cs`). The
+  sender's messages on it are lost until the inactivity timeout (`soulseek.connection.timeout.inactivity`, 15 s)
+  closes it: a browse fails after 60 s, and `info` gives a 500 after 5 s. Observed on the test network, where both
+  connections arrive within milliseconds; not seen on the real network.
+- The inactivity timeout applies to peer message and distributed connections. The server connection never times out
+  for inactivity, and transfers use `soulseek.connection.timeout.transfer` (`Application.cs`).
+
 ## Serving the UI (build contract)
 
 - slskd serves `web.content_path` (default `wwwroot`), relative to the slskd binary's directory
@@ -675,9 +704,13 @@ is by name only.
 
 - `POST /users/{u}/directory {directory}` asks the peer for one folder. It waits up to 5 s, and that includes the
   endpoint lookup and connecting. It returns a browse response's directory list, usually with one entry and without
-  `lockedDirectories`. The file names are bare, so the full path is `directory + '\' + filename`. slskd peers send
-  exactly one directory with no subfolders (`Application.cs`, `Shares/ShareService.cs`), so it can't rebuild the tree
-  beneath a folder.
+  `lockedDirectories`. The file names are bare.
+  - **slskd peers send more than the folder**: one directory named as asked, holding every file whose path starts
+    with the folder's, which is every file beneath it at any depth and every file in a sibling folder whose name
+    starts with it (`Music\Album 2` for `Music\Album`). `Shares/SqliteShareRepository.cs` (`ListFiles`) matches
+    `LIKE directory || '%'` with no separator, and strips each name. So `directory + '\' + filename` is only right
+    for the folder's own files, and nothing tells them apart (observed on the test network). Other clients can
+    differ.
 - `GET /users/{u}/info`: nothing caches it, and **one 5 s wait covers the endpoint lookup, connecting and the reply**:
   slskd never sets Soulseek.NET's 5 s message timeout, and the wait starts before the lookup (`SN:SoulseekClient.cs`,
   `SN:Common/Waiter.cs`). `picture` is the raw bytes as base64, with no type and no size limit, and is left out when
@@ -835,6 +868,12 @@ string.
   **Each acknowledgement sends MessageAcked to the server**, one per message, and needs a Soulseek login (a 500
   otherwise).
 - Acknowledging all also covers messages that arrived after the UI's last fetch.
+- Soulseek.NET 10.0.2 holds a message's id as an `int` and refuses to acknowledge one below 1, while the protocol's id
+  is a uint32. An id of 2^31 or more arrives negative, and acknowledging it throws. `PUT` and `DELETE
+/conversations/{u}` are then 500s that mark nothing read, since `AcknowledgeAsync` saves only after acknowledging
+  every unread message (`Messaging/ConversationService.cs`), and `DELETE` leaves the conversation open. Observed for
+  `DELETE` on the test network, where Soulfind picks ids at random; whether the real server's ids reach 2^31 isn't
+  known.
 - **Acknowledging a sent message by id fails**: they all have id 0, so with two or more of them the lookup throws a
   500 (`"Sequence contains more than one element"`).
 - A re-delivered message matches its stored copy on `(username, id, timestamp)` and is set unread again, with
