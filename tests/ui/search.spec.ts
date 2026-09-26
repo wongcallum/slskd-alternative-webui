@@ -49,12 +49,25 @@ test.describe(() => {
 
   // slskd peers answer a request for one folder with every file whose path starts with it, by bare name, which would
   // list `CD2\01 Encore.flac` and `Artist - Album 2\01 Other.flac` as if they were in the folder.
-  test("a folder's full contents come from the peer's share with its subfolders", async ({ page, peers: { fast } }) => {
+  test("a folder's full contents come from the peer's share with its subfolders, which its download keeps", async ({
+    page,
+    slskd,
+    peers: { fast },
+  }) => {
+    const downloaded = path.join(slskd.downloads, 'Artist - Album')
+    await rm(downloaded, { recursive: true, force: true })
     await page.goto('searches')
     await logInPage(page)
     await searchAlbumIntro(page, fast)
     await page.getByRole('button', { name: `Get the full folder (browses ${fast.username}'s whole share)` }).click()
     await expectFullFolder(page)
+    await page.getByRole('button', { name: 'Download folder' }).click()
+    await expect(page.getByText('Enqueued 4 downloads')).toBeVisible()
+    for (const name of album) {
+      await expect
+        .poll(() => readFile(path.join(downloaded, ...name.split('\\'))).catch(() => undefined))
+        .toEqual(fast.files.get(`Music\\Artist - Album\\${name}`))
+    }
   })
 
   test("a folder's full contents come from a cached share without browsing again", async ({

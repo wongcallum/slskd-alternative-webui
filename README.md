@@ -8,7 +8,7 @@ A drop-in replacement web UI for [slskd](https://github.com/slskd/slskd).
 - Browsed shares and user profiles persist across reloads and logins.
 - Page state, such as the open user, room or conversation and filters and sorts, is stored in the URL.
 - Transfers and search results are sortable, filterable tables.
-- Downloading a folder from Browse keeps its subfolders.
+- Downloading a folder from Browse or a search result keeps its subfolders.
 - Search results filter by quality, size, length, files per folder and free upload slot.
 - Files shows each directory's whole tree, with folder sizes and a filter.
 
