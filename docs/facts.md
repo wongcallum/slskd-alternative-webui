@@ -3,7 +3,8 @@
 What slskd and our libraries actually do. Each library section names the version it was checked against.
 The slskd sections are verified against slskd `e3d377d4` (2026-09-20). Most of those items come from
 reading the source; the build-contract items were also confirmed against a running instance. slskd paths
-are relative to `slskd/src/slskd`, and line numbers drift over time.
+are relative to `slskd/src/slskd`, and line numbers drift over time. "Observed on the test network" means seen
+between slskd instances logged in to the tests' local Soulfind server, where the peer is always slskd.
 
 ## API surface
 
@@ -658,6 +659,9 @@ Paths below are relative to `Search/` unless they start with another directory. 
 - A search sends `CREATE` as `Requested`, then an `UPDATE` on every state change and one as the POST returns.
   While responses arrive, the counts go out at most every 250 ms, and a pending one can be dropped at the end.
   The final `UPDATE` comes after the responses are saved (`SearchService.cs`, `StartAsync`).
+- The first response's counts go out at once, and can arrive before the POST that created the search returns, so
+  the POST's record can be older than a push (observed on the test network, where a peer answers within
+  milliseconds).
 - `endedAt` is set only by finalisation, so "`isComplete` and `endedAt` set" means the responses are there, on every
   path (normal, stopped, errored at start, restart cleanup). The `Completed` state change arrives before that, with
   `endedAt: null`.

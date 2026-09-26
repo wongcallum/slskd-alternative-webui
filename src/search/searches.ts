@@ -121,7 +121,10 @@ export const searches = createResource<Searches>((sink) => {
     },
     interval: searchPollInterval,
   })
-  upsertLocally = upsert
+  // A push can arrive before the POST that created the search returns, and the POST's record is older than it.
+  upsertLocally = (raw) => {
+    if (!current()?.byId.has(raw.id)) upsert(raw)
+  }
   return {
     stop() {
       following.stop()
