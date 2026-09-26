@@ -10,5 +10,6 @@ test('a restart ends the session, and logging in again returns to the same page'
   await expect(page.getByText('Your session ended. Log in again.')).toBeVisible({ timeout: 30_000 })
   await logInPage(page)
   await expect(page).toHaveURL(/\/slskd\/system\/info$/)
-  await expect(page.getByText('Live', { exact: true })).toBeVisible()
+  // By now the hubs retry every 5 s, and logging in doesn't hurry the next attempt.
+  await expect(page.getByText('Live', { exact: true })).toBeVisible({ timeout: 10_000 })
 })

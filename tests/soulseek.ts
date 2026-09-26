@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import type { RawState } from '../src/system/application'
-import type { RawUser } from '../src/transfers/transfers'
+import type { RawTransfer, RawUser } from '../src/transfers/transfers'
 import { type Config, freePort, type Instance, logIn, sleep, spawnGroup, start, stopGroup } from './slskd'
 
 export type Peer = {
@@ -210,8 +210,12 @@ export async function startLoggedIn(network: Network, overrides: Partial<Config>
   return instance
 }
 
+const endedAWhileAgo = ({ state, endedAt }: RawTransfer) =>
+  state.startsWith('Completed') && (endedAt === undefined || Date.now() - Date.parse(endedAt.replace(/Z?$/, 'Z')) > 500)
+
 // A peer ignores a request for a file while its upload of an earlier request for it is still ending, which leaves the
-// new download queued for good. So after cancelling, wait for the peer to finish its uploads to `username`.
+// new download queued for good. So after cancelling, wait for the peer to finish its uploads to `username`. An upload's
+// record completes a few milliseconds before the upload lets go of the file, so they must have ended a while ago.
 export async function uploadsEnded(peer: Peer, username: string, timeout = 15_000) {
   const deadline = Date.now() + timeout
   for (;;) {
@@ -220,7 +224,7 @@ export async function uploadsEnded(peer: Peer, username: string, timeout = 15_00
     })
     const users = (await response.json()) as RawUser[]
     const files = users.find((user) => user.username === username)?.directories.flatMap((directory) => directory.files)
-    if (files === undefined || files.every((file) => file.state.startsWith('Completed'))) return
+    if (files === undefined || files.every(endedAWhileAgo)) return
     if (Date.now() > deadline) throw new Error(`${peer.username} is still uploading to ${username}`)
     await sleep(100)
   }
