@@ -26,7 +26,8 @@ const shape = <T>(schema: v.GenericSchema<unknown, T>) => schema
 export const parse = <T>(schema: v.GenericSchema<unknown, T>, value: unknown) => {
   const result = v.safeParse(schema, value)
   if (result.success) return result.output
-  throw new Error(`Unexpected payload: ${v.summarize(result.issues)}\n${JSON.stringify(value, null, 2).slice(0, 2000)}`)
+  const shown = value === undefined ? 'undefined' : JSON.stringify(value, null, 2).slice(0, 2000)
+  throw new Error(`Unexpected payload: ${v.summarize(result.issues)}\n${shown}`)
 }
 
 // The app reads a timestamp without an offset as UTC. slskd runs hours from UTC (see slskd.ts), so a local time would be
