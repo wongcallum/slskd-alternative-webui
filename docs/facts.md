@@ -111,6 +111,12 @@ Everything is under `/transfers`, and returns 403 in relay agent mode.
     Failures include `"Skipped: Already in progress"` when the file's current record isn't `Completed`.
   - It returns 400 for invalid bodies and duplicate filenames, 404 when the user is offline or blacklisted,
     409 for a duplicate batch id, and 500 when not logged in to Soulseek or the peer can't be reached.
+  - **It's a 429 while two enqueues are being handled**, counting stock's obsolete `POST downloads/{username}`, since
+    they share a `SemaphoreSlim(2, 2)` (`API/Controllers/TransfersController.cs`). The message says only one is
+    permitted. A request holds its place until it returns, and while a batch inserts its records it holds a lock on
+    its user that another batch for that user waits on, holding the other place (`Downloads/DownloadService.cs`).
+    Observed: one of two single-file batches sent together was a 429 while a 300-file batch for the same user was
+    being inserted, which took about 2 s.
   - `options` may be omitted, but `"options": null` is a 500. `externalId` is accepted and dropped.
   - It returns once the records are inserted as `Queued, Locally`, without waiting for the peer's queue.
   - It has no limit on the number of files. Kestrel's default 30 MB body limit applies, and behind nginx's default
