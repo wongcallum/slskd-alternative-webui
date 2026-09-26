@@ -50,9 +50,11 @@ in
   };
 
   processes.slskd = {
+    # slskd restarts by starting a copy of itself and exiting, and devenv ends the session when this script exits.
     exec = ''
       mkdir -p "$DEVENV_ROOT/dist"
-      SLSKD_CONTENT_PATH=$(realpath --relative-to="$(dirname "${dll}")" "$DEVENV_ROOT/dist") exec dotnet "${dll}"
+      SLSKD_CONTENT_PATH=$(realpath --relative-to="$(dirname "${dll}")" "$DEVENV_ROOT/dist") dotnet "${dll}" || exit
+      while ${pkgs.lib.getExe' pkgs.procps "pidwait"} -s 0 -x dotnet; do :; done
     '';
     env = {
       SLSKD_APP_DIR = "${state}/app";
