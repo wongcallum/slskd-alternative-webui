@@ -4,12 +4,14 @@ import { useNavigate } from '@tanstack/react-router'
 
 import { conversations } from '../chat/conversations'
 import { plural } from '../lib/format'
+import { useTouch } from '../lib/media'
 import { useAtom, useResource } from '../lib/store'
 import { logout, useSession } from '../session/session'
 import { application, releaseNotes } from '../system/application'
 import { SpeedValue } from '../transfers/TransferSpeeds'
 import { useIsActive } from '../ui/nav'
 import { CornerDot } from '../ui/status'
+import { keysOpen } from './keys'
 import { sections } from './sections'
 import { themeChoice } from './theme'
 
@@ -31,6 +33,7 @@ export function AppMenu({ pages, speeds, update }: Props) {
   const choice = useAtom(themeChoice)
   const isActive = useIsActive()
   const navigate = useNavigate()
+  const touch = useTouch()
   const latest = update && data?.updateAvailable ? data.latest : undefined
   const dot = pages && unread > 0 ? 'red' : latest === undefined ? undefined : 'amber'
   const shown = pages ? sections : speeds ? sections.filter((section) => section.direction !== undefined) : []
@@ -102,6 +105,14 @@ export function AppMenu({ pages, speeds, update }: Props) {
             </DropdownMenu.RadioItem>
           ))}
         </DropdownMenu.RadioGroup>
+        {!touch && (
+          <>
+            <DropdownMenu.Separator />
+            <DropdownMenu.Item shortcut="?" onSelect={() => keysOpen.set(true)}>
+              Keyboard shortcuts
+            </DropdownMenu.Item>
+          </>
+        )}
         {session.status === 'authenticated' && (
           <>
             <DropdownMenu.Separator />

@@ -89,6 +89,7 @@ export function LogsPage({ search, onSearchChange }: Props) {
   } else {
     content = (
       <HeldList
+        label="Log"
         templates={templates}
         labels={labels}
         records={shown}

@@ -78,6 +78,8 @@ export function BrowsePage() {
           </Text>
         </>
       }
+      to="/browse"
+      label="Browsed users"
       list={list}
       what="the cache"
       empty="Nothing browsed yet. Browse a user by name, or from a search result or a transfer."

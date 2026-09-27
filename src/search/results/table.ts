@@ -65,5 +65,14 @@ export const stackedSize = (row: TableRow) => (row.original.kind === 'group' ? s
 
 export const expansions = createAtom<ReadonlyMap<string, Expansion>>(new Map())
 
+// The files a download of the selection takes: locked ones can't be downloaded.
+export function selectedFiles(table: ResultTable) {
+  const files: ResultFile[] = []
+  for (const row of table.getSelectedRowModel().flatRows) {
+    if (row.original.kind === 'file' && !row.original.locked) files.push(row.original)
+  }
+  return files
+}
+
 export const canSelect = (row: TableRow) =>
   row.original.kind === 'group' ? row.original.files.some((file) => !file.locked) : !row.original.locked

@@ -4,6 +4,7 @@ import { useNavigate } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 
 import { useBrowseUser } from '../browse/useBrowseUser'
+import { useRowTabIndex } from '../ui/listNav'
 import { stop } from '../ui/table'
 import { useLookUpUser } from './useLookUpUser'
 
@@ -11,11 +12,12 @@ type Place = 'profile' | 'message' | 'browse'
 
 // Names often sit in rows that toggle on click, and React bubbles clicks out of the menu's portal too.
 export function UserMenu({ username, here, children }: { username: string; here?: Place; children?: ReactNode }) {
+  const tabIndex = useRowTabIndex()
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger onClick={stop}>
         {children ?? (
-          <button type="button" className="user-name-button">
+          <button type="button" className="user-name-button" tabIndex={tabIndex}>
             {username}
           </button>
         )}

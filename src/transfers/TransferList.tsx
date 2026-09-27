@@ -1,16 +1,19 @@
 import { ChevronDownIcon, ChevronRightIcon } from '@radix-ui/react-icons'
 import { Button, Flex, SegmentedControl, Text } from '@radix-ui/themes'
 import { defaultRangeExtractor, type Range, useVirtualizer } from '@tanstack/react-virtual'
-import { type ReactNode, useCallback, useRef } from 'react'
+import { type ReactNode, useCallback, useMemo, useRef } from 'react'
 
 import { countFiles } from '../lib/files'
 import { formatSpeed, plural } from '../lib/format'
 import { useFrom } from '../lib/media'
 import { useAtom } from '../lib/store'
 import { type Choices, ChoiceSelect, ConfirmButton } from '../ui/controls'
+import { type ListKey, useListKeys } from '../ui/keys'
+import { RowScope, useListNav } from '../ui/listNav'
 import {
   ColumnHeader,
   columnsHeight,
+  groupNav,
   groupState,
   HeaderRow,
   type Layout,
@@ -20,9 +23,10 @@ import {
   toggleExpanded,
   useLayout,
   useRowToggle,
+  useSelectionKeys,
   virtualRowStyle,
 } from '../ui/table'
-import { actions, cancel, clearFinished, lookups, retry } from './actions'
+import { actions, cancel, clearFinished, lookups, remove, retry } from './actions'
 import { FileRow, GroupRow } from './rows'
 import {
   barHeight,
@@ -37,12 +41,25 @@ import {
   templates,
   twoLineBarHeight,
 } from './table'
-import { type Direction, type Group, isFailed, type Section, type Show, type Transfers } from './transfers'
+import {
+  type Direction,
+  type Group,
+  isFailed,
+  isFinished,
+  isRetryable,
+  type Section,
+  type Show,
+  type Transfer,
+  type Transfers,
+} from './transfers'
 
-type ListItem =
-  | { type: 'header'; section: Section }
-  | { type: 'empty'; section: Section }
-  | { type: 'row'; section: Section; row: TableRow }
+type RowItem = { type: 'row'; section: Section; row: TableRow }
+
+type ListItem = { type: 'header'; section: Section } | { type: 'empty'; section: Section } | RowItem
+
+const listKey = (item: ListItem) => (item.type === 'row' ? item.row.id : `${item.type}:${item.section}`)
+
+const isRow = (item: ListItem): item is RowItem => item.type === 'row'
 
 type ListProps = {
   direction: Direction
@@ -52,6 +69,7 @@ type ListProps = {
   activeTable: SectionTable
   finishedTable: SectionTable
   filtered: boolean
+  selected: Transfer[]
   show: Show
   onShowChange: (show: Show) => void
   gates: Gates
@@ -68,30 +86,105 @@ export function TransferList(props: ListProps) {
   const retryGate = running.retry === undefined ? gates.soulseek : 'A retry is running'
   const activeRows = activeTable.getRowModel().rows
   const finishedRows = finishedTable.getRowModel().rows
-  const activeCount = open.active ? Math.max(activeRows.length, 1) : 0
-  const finishedHeader = activeCount + 1
-  const finishedCount = open.finished ? Math.max(finishedRows.length, 1) : 0
-
-  const itemAt = useCallback(
-    (index: number): ListItem => {
-      if (index === 0) return { type: 'header', section: 'active' }
-      if (index === finishedHeader) return { type: 'header', section: 'finished' }
-      const [section, rows, offset] =
-        index < finishedHeader
-          ? (['active', activeRows, 1] as const)
-          : (['finished', finishedRows, finishedHeader + 1] as const)
-      const row = rows[index - offset]
-      return row === undefined ? { type: 'empty', section } : { type: 'row', section, row }
-    },
-    [activeRows, finishedRows, finishedHeader],
-  )
+  const items = useMemo(() => {
+    const list: ListItem[] = []
+    for (const [section, rows] of [
+      ['active', activeRows],
+      ['finished', finishedRows],
+    ] as const) {
+      list.push({ type: 'header', section })
+      if (!open[section]) continue
+      if (rows.length === 0) list.push({ type: 'empty', section })
+      for (const row of rows) list.push({ type: 'row', section, row })
+    }
+    return list
+  }, [activeRows, finishedRows, open])
+  const finishedHeader = open.active ? Math.max(activeRows.length, 1) + 1 : 1
+  const itemAt = useCallback((index: number) => items[index] as ListItem, [items])
 
   const headerHeight = (section: Section) =>
     (twoLines ? twoLineBarHeight : barHeight) + (open[section] ? columnsHeight : 0)
   const scrollRef = useRef<HTMLDivElement>(null)
   const stickyRef = useRef(0)
+  const onSelect = { active: useRowToggle(activeTable), finished: useRowToggle(finishedTable) }
+  const onToggle = useCallback(
+    (section: Section, id: string) =>
+      expansions[direction].set((state) => ({ ...state, [section]: toggleExpanded(state[section], id) })),
+    [direction],
+  )
+  const keys = { active: useSelectionKeys(activeTable), finished: useSelectionKeys(finishedTable) }
+  const nav = useListNav<ListItem>({
+    name: 'transfers',
+    items,
+    itemKey: listKey,
+    isRow,
+    rank: 1,
+    label: direction === 'download' ? 'Downloads' : 'Uploads',
+    role: 'treegrid',
+    multiselectable: true,
+    depth: (item) => (isRow(item) ? item.row.depth : -1),
+    canToggle: (item) => isRow(item) && groupNav.canToggle(item.row),
+    isOpen: (item) => isRow(item) && item.row.getIsExpanded(),
+    aria: (item) => (isRow(item) ? groupNav.aria(item.row) : {}),
+    onToggle: (item) => isRow(item) && onToggle(item.section, item.row.id),
+    onEnter: (item) => {
+      if (!isRow(item)) return
+      if (item.row.original.kind === 'group') onToggle(item.section, item.row.id)
+      else onSelect[item.section](item.row.id, false)
+    },
+    onSpace: (item, range) => isRow(item) && keys[item.section].onSpace(item.row, range),
+    // Selection stays within a section, as Shift+click's does.
+    onExtend: (from, to) =>
+      isRow(from) && isRow(to) && from.section === to.section && keys[from.section].onExtend(from.row, to.row),
+    onSelectAll: () => {
+      keys.active.onSelectAll()
+      keys.finished.onSelectAll()
+    },
+    onEscape: () => {
+      const active = keys.active.onEscape()
+      return keys.finished.onEscape() || active
+    },
+  })
+  const setRef = useCallback(
+    (element: HTMLDivElement | null) => {
+      scrollRef.current = element
+      nav.containerRef.current = element
+    },
+    [nav.containerRef],
+  )
+  const chosen = () => {
+    if (props.selected.length > 0) return props.selected
+    const item = nav.focused()
+    if (item === undefined || !isRow(item)) return []
+    const original = item.row.original
+    return original.kind === 'group' ? original.files : [original]
+  }
+  const retryKey: ListKey = {
+    hotkeys: ['R'],
+    name: 'Retry',
+    enabled: retryGate === undefined,
+    run: () => {
+      const files = chosen().filter((file) => isRetryable(file.state))
+      if (files.length > 0) void retry(files)
+    },
+  }
+  useListKeys(nav.containerRef, [
+    ...(direction === 'download' ? [retryKey] : []),
+    {
+      hotkeys: ['Delete', 'Mod+Backspace'],
+      name: 'Cancel, or remove what has finished',
+      enabled: gates.list === undefined && running.cancel === undefined && running.remove === undefined,
+      run: () => {
+        const files = chosen()
+        const active = files.filter((file) => !isFinished(file.state))
+        const done = files.filter((file) => isFinished(file.state))
+        if (active.length > 0) void cancel(direction, active)
+        if (done.length > 0) void remove(direction, done)
+      },
+    },
+  ])
   const virtualizer = useVirtualizer({
-    count: finishedHeader + 1 + finishedCount,
+    count: items.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: (index) => {
       if (index === 0) return headerHeight('active')
@@ -110,22 +203,13 @@ export function TransferList(props: ListProps) {
       [itemAt, open, layout, twoLines],
     ),
     overscan: 10,
-    rangeExtractor: useCallback(
-      (range: Range) => {
-        stickyRef.current = range.startIndex >= finishedHeader ? finishedHeader : 0
-        const indexes = defaultRangeExtractor(range)
+    rangeExtractor: (range: Range) =>
+      nav.rangeExtractor(range, (base) => {
+        stickyRef.current = base.startIndex >= finishedHeader ? finishedHeader : 0
+        const indexes = defaultRangeExtractor(base)
         return indexes.includes(stickyRef.current) ? indexes : [stickyRef.current, ...indexes]
-      },
-      [finishedHeader],
-    ),
+      }),
   })
-
-  const onSelect = { active: useRowToggle(activeTable), finished: useRowToggle(finishedTable) }
-  const onToggle = useCallback(
-    (section: Section, id: string) =>
-      expansions[direction].set((state) => ({ ...state, [section]: toggleExpanded(state[section], id) })),
-    [direction],
-  )
 
   function render(item: ListItem) {
     if (item.type === 'header') {
@@ -184,20 +268,27 @@ export function TransferList(props: ListProps) {
   }
 
   return (
-    <div ref={scrollRef} className="table-scroll">
+    <div ref={setRef} className="table-scroll" {...nav.containerProps}>
       <div style={{ height: virtualizer.getTotalSize(), position: 'relative', minWidth: minWidths[layout] }}>
-        {virtualizer.getVirtualItems().map((virtual) => (
-          <div
-            key={virtual.key}
-            style={
-              virtual.index === stickyRef.current
-                ? { position: 'sticky', top: 0, zIndex: 1, height: virtual.size }
-                : virtualRowStyle(virtual.size, virtual.start)
-            }
-          >
-            {render(itemAt(virtual.index))}
-          </div>
-        ))}
+        {virtualizer.getVirtualItems().map((virtual) => {
+          const item = itemAt(virtual.index)
+          return (
+            <div
+              key={virtual.key}
+              style={
+                virtual.index === stickyRef.current
+                  ? { position: 'sticky', top: 0, zIndex: 1, height: virtual.size }
+                  : {
+                      ...virtualRowStyle(virtual.size, virtual.start),
+                      scrollMarginTop: headerHeight(item.section),
+                    }
+              }
+              {...nav.rowProps(virtual.index)}
+            >
+              <RowScope tabbable={virtual.index === nav.stop}>{render(item)}</RowScope>
+            </div>
+          )
+        })}
       </div>
     </div>
   )

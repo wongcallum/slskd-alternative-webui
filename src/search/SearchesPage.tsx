@@ -56,7 +56,13 @@ export function SearchesPage({ search, onSearchChange }: Props) {
     <Flex direction="column" height="100%">
       <NewSearch />
       <Toolbar>
-        <FilterField placeholder="Filter searches" value={filter.text} onChange={filter.change} width="280px" />
+        <FilterField
+          placeholder="Filter searches"
+          value={filter.text}
+          onChange={filter.change}
+          width="280px"
+          list="searches"
+        />
         {selected.length > 0 && (
           <SelectionActions count={selected.length} onClear={() => setRowSelection({})}>
             <ActionButton
@@ -65,6 +71,7 @@ export function SearchesPage({ search, onSearchChange }: Props) {
               color="red"
               progress={running.delete}
               gate={gate}
+              shortcut={{ key: 'Delete', name: 'Delete' }}
               onClick={() => deleteSearches(selected)}
             />
           </SelectionActions>

@@ -87,6 +87,35 @@ The one exception is acknowledging private messages while their conversation is 
 Only Cancel all, Retry failed and Clear finished (which act on the whole section whatever the filter), Restart, Shut
 down and deleting files ask for confirmation.
 
+### Keyboard
+
+The whole app works from the keyboard, for sighted keyboard users first. `?` lists the keys.
+
+- **Each list is one Tab stop**: the row the keyboard is on. Tab goes through that row's own controls and then
+  leaves the list, since the other rows' controls are out of the Tab order. When every row was a Tab stop, Tab had to
+  walk the whole list, because focusing a row scrolls the list and the virtualiser renders the next rows (see the
+  facts).
+- A virtualised list always renders the keyboard's row, wherever it's scrolled, so neither focus nor the Tab stop
+  is lost when the row scrolls out of view.
+- **Keys that act on rows (`d`, `r`, Delete, ⌫) only work while focus is in their list**, so a letter can't set them
+  off from elsewhere (WCAG 2.1.4). `/`, `?` and the `g` sequences work anywhere except in a text field, a menu or a
+  dialog.
+- There's no type-ahead, since it would take the letters the row keys use, and `/` filters the whole tree rather than
+  the rows on screen.
+- In the folder tree, the arrows only move focus and Enter opens the folder, since opening one adds a history entry
+  and remounts the folder pane.
+- After a navigation takes focus away, it goes to the list that had it, or else the page's main list, or else the
+  first control on the page that isn't a text field. A field that focuses itself on mount keeps focus. Back returns
+  to the row the keyboard was on in each list.
+- The tree is built by hand over `VirtualTable`, like the lists. This is an exception to "prefer established
+  dependencies". Rejected:
+  - Headless Tree, whose defaults would mostly need working around at our size (see the facts).
+  - react-aria's Tree, which is 56 KB with its own virtualiser.
+- `d` downloads without asking, as the Download buttons do. **Accepted risk:** `d` on a top folder in the tree
+  queues the whole share.
+- **Accepted gap:** nothing is tested with a screen reader. Lists are grids, treegrids and a tree made of rows, but
+  their cells have no roles, since the linter wants table elements there.
+
 ## Features
 
 ### Shell

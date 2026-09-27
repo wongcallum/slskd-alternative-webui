@@ -1,16 +1,28 @@
 import { Flex, Link, Text } from '@radix-ui/themes'
 import { Link as RouterLink } from '@tanstack/react-router'
 import { type RowSelectionState, type SortingState, type Updater, useTable } from '@tanstack/react-table'
-import { type ComponentProps, Fragment, type ReactNode, useCallback, useMemo, useState } from 'react'
+import {
+  type ComponentProps,
+  type ComponentType,
+  Fragment,
+  type ReactNode,
+  useCallback,
+  useMemo,
+  useState,
+} from 'react'
 
 import { nameOf } from '../../lib/files'
 import { plural } from '../../lib/format'
 import { byName } from '../../lib/text'
 import { type Folder, type Item, type Matches, matchesUnder, relativePath, type Tree } from '../../lib/tree'
 import { SelectionActions, toolbarStyle } from '../controls'
+import { useListKeys } from '../keys'
+import { useListNav } from '../listNav'
 import { Ago, Empty } from '../status'
+import { rowId, rowSelected, useSelectionKeys } from '../table'
 import { type ExtraColumn, paneColumns, paneFeatures, paneLayout, sortItems, usePaneWidth } from './columns'
 import { type FileBadge, ItemList } from './ItemList'
+import { type KeysProps, upKeys } from './keys'
 
 type Page = '/browse' | '/system/files' | '/system/shares'
 
@@ -20,7 +32,8 @@ function FolderLink({ page, path, ...props }: { page: Page; path: string } & Omi
 }
 
 // What a view adds to the shared tree: its page and columns, and optionally what can be selected, what to do with a
-// selection, what to show beside it, and a badge on files.
+// selection, what to show beside it, a badge on files, and keys. The list the top shows instead of its folders, if it
+// does, is where going up from a top folder lands.
 export type Selection = { tree: Tree; folder: Folder; items: Item[]; clear: () => void }
 
 export type TreeConfig = {
@@ -31,6 +44,8 @@ export type TreeConfig = {
   actions?: (selection: Selection) => ReactNode
   status?: ReactNode
   Badge?: FileBadge
+  Keys?: ComponentType<KeysProps>
+  topList?: string
 }
 
 type Props = {
@@ -42,6 +57,7 @@ type Props = {
   sorting: SortingState
   onSortingChange: (updater: Updater<SortingState>) => void
   onOpen: (folder: Folder) => void
+  onUp: () => void
   config: TreeConfig
 }
 
@@ -54,9 +70,10 @@ export function FolderPane({
   sorting,
   onSortingChange,
   onOpen,
+  onUp,
   config,
 }: Props) {
-  const { page, scope, extras, selectable, actions, status, Badge } = config
+  const { page, scope, extras, selectable, actions, status, Badge, Keys } = config
   const folderOf = useCallback(
     (item: Item) => (item.kind === 'file' ? relativePath(tree, folder, item.folder) : ''),
     [tree, folder],
@@ -88,6 +105,25 @@ export function FolderPane({
   const selectedRows = table.getSelectedRowModel().rows
   const selected = useMemo(() => selectedRows.map((row) => row.original), [selectedRows])
   const clear = useCallback(() => setRowSelection({}), [])
+  const selectionKeys = useSelectionKeys(table)
+  const nav = useListNav({
+    name: 'pane',
+    items: table.getRowModel().rows,
+    itemKey: rowId,
+    rank: 1,
+    label: 'Contents',
+    ...(selectable === undefined ? {} : { ...selectionKeys, aria: rowSelected }),
+    onEnter: (row) => {
+      if (row.original.kind === 'folder') onOpen(row.original)
+      else if (selectable !== undefined) selectionKeys.onSpace(row, false)
+    },
+  })
+  useListKeys(nav.containerRef, upKeys(onUp))
+  const keySelection = () => {
+    const focused = nav.focused()?.original
+    if (selected.length === 0 && focused === undefined) return undefined
+    return { tree, folder, items: selected.length > 0 ? selected : [focused as Item], clear }
+  }
 
   const trail: Folder[] = []
   for (let current: Folder | undefined = folder; current !== undefined; current = current.parent) trail.unshift(current)
@@ -160,6 +196,7 @@ export function FolderPane({
       ) : (
         <ItemList
           table={table}
+          nav={nav}
           layout={layout}
           stacked={width === 'stacked'}
           selectable={selectable !== undefined}
@@ -170,6 +207,7 @@ export function FolderPane({
           onOpen={onOpen}
         />
       )}
+      {Keys !== undefined && <Keys target={nav.containerRef} tree={false} selection={keySelection} />}
     </Flex>
   )
 }

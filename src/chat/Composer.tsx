@@ -1,13 +1,14 @@
 import { PaperPlaneIcon } from '@radix-ui/react-icons'
 import { Box, IconButton, TextField } from '@radix-ui/themes'
-import type { KeyboardEvent } from 'react'
+import { type KeyboardEvent, useContext } from 'react'
 
 import { useTouch } from '../lib/media'
 import { useAtom } from '../lib/store'
 import { useRun } from '../lib/useRun'
 import { useSoulseekGate } from '../soulseek/soulseek'
-import { disabledProps, GateTip } from '../ui/controls'
+import { disabledProps, GateTip, mainField } from '../ui/controls'
 import { ActionNote } from '../ui/status'
+import { LogScroll } from './MessageLog'
 import { drafts } from './messages'
 
 type Props = { draftKey: string; placeholder: string; send: (text: string) => Promise<void> }
@@ -17,6 +18,7 @@ export function Composer({ draftKey, placeholder, send }: Props) {
   const gate = useSoulseekGate()
   const touch = useTouch()
   const text = useAtom(drafts).get(draftKey) ?? ''
+  const log = useContext(LogScroll)
   const { running: sending, error, run } = useRun()
   const blank = text.trim() === ''
   const reason = gate ?? (blank ? 'Type a message' : undefined)
@@ -37,8 +39,17 @@ export function Composer({ draftKey, placeholder, send }: Props) {
     })
   }
 
+  // PageUp and PageDown scroll the log, which a single-line field has no use for.
   function onKeyDown(event: KeyboardEvent) {
-    if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
+    if (event.nativeEvent.isComposing) return
+    if (event.key === 'PageUp' || event.key === 'PageDown') {
+      const scroller = log?.current
+      if (scroller === null || scroller === undefined) return
+      event.preventDefault()
+      scroller.scrollBy({ top: (event.key === 'PageUp' ? -1 : 1) * scroller.clientHeight * 0.9 })
+      return
+    }
+    if (event.key !== 'Enter') return
     event.preventDefault()
     submit()
   }
@@ -57,6 +68,7 @@ export function Composer({ draftKey, placeholder, send }: Props) {
         value={text}
         onChange={(event) => setText(event.target.value)}
         onKeyDown={onKeyDown}
+        {...mainField(true)}
       >
         <TextField.Slot side="right">
           <GateTip gate={reason} label="Send">

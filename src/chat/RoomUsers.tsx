@@ -4,6 +4,7 @@ import { memo, type ReactNode, useDeferredValue, useMemo, useState } from 'react
 import { plural } from '../lib/format'
 import { useResource } from '../lib/store'
 import { FilterField } from '../ui/controls'
+import { useListNav } from '../ui/listNav'
 import { Polling } from '../ui/status'
 import { Cell, GridRow, VirtualTable } from '../ui/table'
 import { UserMenu } from '../users/UserMenu'
@@ -25,6 +26,8 @@ const compact = new Intl.NumberFormat(undefined, { notation: 'compact' })
 
 const userKey = (user: RoomUser) => user.username
 
+const noUsers: readonly RoomUser[] = []
+
 // slskd takes a user's details as they join and never updates them, so status and speed would soon be wrong.
 export function RoomUsers({ room, fill }: { room: string; fill?: boolean }) {
   const { data, error } = useResource(roomUsers(room))
@@ -38,6 +41,7 @@ export function RoomUsers({ room, fill }: { room: string; fill?: boolean }) {
         : users.filter((user) => user.username.toLowerCase().includes(needle)),
     [users, needle],
   )
+  const nav = useListNav({ name: 'room-users', items: shown ?? noUsers, itemKey: userKey, label: 'Users' })
 
   let content: ReactNode
   if (shown === undefined) content = <Polling what="the users" error={error} />
@@ -48,6 +52,7 @@ export function RoomUsers({ room, fill }: { room: string; fill?: boolean }) {
         items={shown}
         itemKey={userKey}
         rowSize={fill ? 40 : 32}
+        nav={nav}
         renderItem={(user) => <UserRow user={user} />}
       />
     )
@@ -66,7 +71,13 @@ export function RoomUsers({ room, fill }: { room: string; fill?: boolean }) {
         <Text size="2" color="gray">
           {users === undefined ? 'Users' : plural(users.length, 'user')}
         </Text>
-        <FilterField placeholder="Filter users" value={filter} onChange={setFilter} style={{ width: '100%' }} />
+        <FilterField
+          placeholder="Filter users"
+          value={filter}
+          onChange={setFilter}
+          style={{ width: '100%' }}
+          list="room-users"
+        />
       </Flex>
       {content}
     </Flex>

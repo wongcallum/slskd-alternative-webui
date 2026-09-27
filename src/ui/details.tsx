@@ -3,6 +3,7 @@ import { Box, Flex, IconButton, Text } from '@radix-ui/themes'
 import type { ReactNode } from 'react'
 
 import { useFrom, useMedia } from '../lib/media'
+import { focusList } from './focus'
 
 export function Preformatted({ children }: { children: ReactNode }) {
   return (
@@ -17,7 +18,7 @@ export function Preformatted({ children }: { children: ReactNode }) {
 }
 
 // Below the list, or below sm and on short screens over it, so the list keeps its place underneath. The parent has
-// to be positioned.
+// to be positioned. Closing it returns the keyboard to the page's list.
 export function DetailsPane({
   header,
   onClose,
@@ -30,8 +31,17 @@ export function DetailsPane({
   const sm = useFrom('sm')
   const short = useMedia('(max-height: 599px)')
   const cover = !sm || short
+  const close = () => {
+    onClose()
+    focusList()
+  }
   return (
     <Flex
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape' || event.defaultPrevented) return
+        event.preventDefault()
+        close()
+      }}
       direction="column"
       gap="2"
       flexShrink="0"
@@ -49,7 +59,7 @@ export function DetailsPane({
       <Flex align="center" gap="3" wrap="wrap">
         {header}
         <Flex ml="auto">
-          <IconButton size="1" variant="ghost" color="gray" aria-label="Close" onClick={onClose}>
+          <IconButton size="1" variant="ghost" color="gray" aria-label="Close" onClick={close}>
             <Cross2Icon />
           </IconButton>
         </Flex>
