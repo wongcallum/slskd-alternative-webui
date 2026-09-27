@@ -22,3 +22,6 @@
 - Commit messages: a capitalised subject of about 50 characters with no trailing punctuation. Write the whole message in
   the imperative: "Fix bug", not "Fixed bug" or "Fixes bug". The subject is often enough; if not, add a blank line, then
   paragraphs hard-wrapped at 72 characters.
+- To release, run `pnpm version <version>` (its default commit message is fine) and `git push --follow-tags`. Once the
+  Test run on that commit passes, run `gh release create v<version> --verify-tag --generate-notes`, and the Release
+  workflow attaches the build.
