@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        slskd: [pinned, release]
+        slskd: [pinned, minimum, release]
     steps:
       - uses: actions/checkout@v7
       - uses: cachix/install-nix-action@v31
@@ -22,8 +22,17 @@ jobs:
         if: matrix.slskd != 'pinned'
         env:
           GH_TOKEN: ${{ github.token }}
+          SLSKD: ${{ matrix.slskd }}
         run: |
-          ref=$(gh release view --repo slskd/slskd --json tagName --jq .tagName)
+          if [ "$SLSKD" = minimum ]; then
+            ref=$(sed -n 's/^This application requires slskd \(.*\) or later\.$/\1/p' README.md)
+            if [ -z "$ref" ]; then
+              echo "::error::README.md doesn't state the minimum slskd version"
+              exit 1
+            fi
+          else
+            ref=$(gh release view --repo slskd/slskd --json tagName --jq .tagName)
+          fi
           echo "SLSKD_INPUT=github:slskd/slskd/$ref" >> "$GITHUB_ENV"
 
       - name: Build slskd

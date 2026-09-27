@@ -80,8 +80,8 @@ connected slskd peers sharing test files. Nothing reaches the real Soulseek netw
   `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1` where there's none.
 - devenv builds Soulfind from the commit pinned in `devenv.yaml` and sets `SOULFIND_BIN`. Soulfind needs an IPv4
   route, though not internet access.
-- CI runs the tests against the pinned slskd revision and the latest release. Weekly, it opens a pull request that
-  moves the pin to slskd's master revision.
+- CI runs the tests against the pinned slskd revision, the minimum version above and the latest release. Weekly, it
+  opens a pull request that moves the pin to slskd's master revision.
 
 ## License
 
