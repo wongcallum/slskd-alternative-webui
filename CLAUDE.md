@@ -19,3 +19,6 @@
 - The dev Soulseek account is real. Never write a fake slskd or Soulseek server; Soulfind is a real server, pinned in
   `devenv.yaml`.
 - Run `pnpm fmt` and `pnpm lint` before committing.
+- Commit messages: a capitalised subject of about 50 characters with no trailing punctuation. Write the whole message in
+  the imperative: "Fix bug", not "Fixed bug" or "Fixes bug". The subject is often enough; if not, add a blank line, then
+  paragraphs hard-wrapped at 72 characters.
