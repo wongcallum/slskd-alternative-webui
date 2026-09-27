@@ -1,6 +1,6 @@
 import { PaperPlaneIcon } from '@radix-ui/react-icons'
 import { Box, IconButton, TextField } from '@radix-ui/themes'
-import { type KeyboardEvent, useContext } from 'react'
+import { type KeyboardEvent, type Ref, useContext } from 'react'
 
 import { useTouch } from '../lib/media'
 import { useAtom } from '../lib/store'
@@ -9,12 +9,17 @@ import { useSoulseekGate } from '../soulseek/soulseek'
 import { disabledProps, GateTip, mainField } from '../ui/controls'
 import { ActionNote } from '../ui/status'
 import { LogScroll } from './MessageLog'
-import { drafts } from './messages'
+import { drafts, setDraft } from './messages'
 
-type Props = { draftKey: string; placeholder: string; send: (text: string) => Promise<void> }
+type Props = {
+  draftKey: string
+  placeholder: string
+  send: (text: string) => Promise<void>
+  inputRef?: Ref<HTMLInputElement>
+}
 
 // The text stays until slskd has taken it, so a failed send can be retried as it is.
-export function Composer({ draftKey, placeholder, send }: Props) {
+export function Composer({ draftKey, placeholder, send, inputRef }: Props) {
   const gate = useSoulseekGate()
   const touch = useTouch()
   const text = useAtom(drafts).get(draftKey) ?? ''
@@ -23,13 +28,7 @@ export function Composer({ draftKey, placeholder, send }: Props) {
   const blank = text.trim() === ''
   const reason = gate ?? (blank ? 'Type a message' : undefined)
 
-  const setText = (value: string) =>
-    drafts.set((current) => {
-      const next = new Map(current)
-      if (value === '') next.delete(draftKey)
-      else next.set(draftKey, value)
-      return next
-    })
+  const setText = (value: string) => setDraft(draftKey, value)
 
   function submit() {
     if (reason !== undefined || sending) return
@@ -62,6 +61,7 @@ export function Composer({ draftKey, placeholder, send }: Props) {
       style={{ boxShadow: 'inset 0 1px 0 0 var(--gray-a5)' }}
     >
       <TextField.Root
+        ref={inputRef}
         size={{ initial: '3', sm: '2' }}
         autoFocus={!touch}
         placeholder={placeholder}

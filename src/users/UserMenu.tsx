@@ -1,7 +1,7 @@
 import './users.css'
 import { DropdownMenu, Text } from '@radix-ui/themes'
 import { useNavigate } from '@tanstack/react-router'
-import type { ReactNode } from 'react'
+import { type ReactNode, useRef } from 'react'
 
 import { useBrowseUser } from '../browse/useBrowseUser'
 import { useRowTabIndex } from '../ui/listNav'
@@ -10,9 +10,13 @@ import { useLookUpUser } from './useLookUpUser'
 
 type Place = 'profile' | 'message' | 'browse'
 
+type Props = { username: string; here?: Place; onReply?: () => void; children?: ReactNode }
+
 // Names often sit in rows that toggle on click, and React bubbles clicks out of the menu's portal too.
-export function UserMenu({ username, here, children }: { username: string; here?: Place; children?: ReactNode }) {
+// The menu hands focus back to its trigger as it closes, so Reply waits for that before moving focus.
+export function UserMenu({ username, here, onReply, children }: Props) {
   const tabIndex = useRowTabIndex()
+  const replying = useRef(false)
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger onClick={stop}>
@@ -22,7 +26,22 @@ export function UserMenu({ username, here, children }: { username: string; here?
           </button>
         )}
       </DropdownMenu.Trigger>
-      <DropdownMenu.Content size="1" onClick={stop}>
+      <DropdownMenu.Content
+        size="1"
+        onClick={stop}
+        onCloseAutoFocus={(event) => {
+          if (!replying.current) return
+          replying.current = false
+          event.preventDefault()
+          onReply?.()
+        }}
+      >
+        {onReply !== undefined && (
+          <>
+            <DropdownMenu.Item onSelect={() => (replying.current = true)}>Reply</DropdownMenu.Item>
+            <DropdownMenu.Separator />
+          </>
+        )}
         <Items username={username} here={here} />
       </DropdownMenu.Content>
     </DropdownMenu.Root>
@@ -58,4 +77,6 @@ export function UserCell({ username }: { username?: string }) {
   )
 }
 
-export const renderUserMenu = (username: string) => <UserMenu username={username} />
+export const renderUserMenu = (username: string, onReply?: () => void) => (
+  <UserMenu username={username} onReply={onReply} />
+)

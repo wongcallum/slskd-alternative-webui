@@ -77,7 +77,7 @@ test('closing a conversation marks it read and takes it off the list', async ({ 
   await peer.dispose()
 })
 
-test('a room joined from the list shows who is in it and what they say, and takes our messages', async ({
+test('a room joined from the list shows who is in it and what they say, and takes our replies', async ({
   page,
   api,
   peers: { fast },
@@ -95,10 +95,15 @@ test('a room joined from the list shows who is in it and what they say, and take
   await expect(page.getByRole('button', { name: fast.username, exact: true })).toBeVisible()
   const [theirs, ours] = [unique('Hello'), unique('Hi')]
   await peer.post(`${path}/messages`, jsonString(theirs))
-  await expect(page.getByText(theirs)).toBeVisible()
-  await page.getByPlaceholder(`Message ${room}`).fill(ours)
+  await page.getByRole('row').filter({ hasText: theirs }).getByRole('button', { name: fast.username }).click()
+  await page.getByRole('menuitem', { name: 'Reply' }).click()
+  const box = page.getByPlaceholder(`Message ${room}`)
+  const reply = `[${fast.username}] ${theirs} --> ${ours}`
+  await expect(box).toBeFocused()
+  await page.keyboard.type(ours)
+  await expect(box).toHaveValue(reply)
   await page.getByRole('button', { name: 'Send' }).click()
-  await expect(page.getByText(ours)).toBeVisible()
+  await expect(page.getByText(reply)).toBeVisible()
   const me = await ownName(api)
   await expect
     .poll(async () =>
@@ -107,7 +112,7 @@ test('a room joined from the list shows who is in it and what they say, and take
         message,
       })),
     )
-    .toContainEqual({ username: me, message: ours })
+    .toContainEqual({ username: me, message: reply })
   await page.getByRole('button', { name: `Leave ${room}` }).click()
   await expect(page.getByRole('link', { name: room })).toBeHidden()
   await peer.delete(path)

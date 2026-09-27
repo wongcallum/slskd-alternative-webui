@@ -1,5 +1,5 @@
 import { Flex, Text } from '@radix-ui/themes'
-import { type ReactNode, useRef } from 'react'
+import { type ReactNode, type Ref, useRef } from 'react'
 
 import { useFrom } from '../lib/media'
 import type { Resource } from '../lib/store'
@@ -33,6 +33,7 @@ type Props = {
   interval: number
   error: unknown
   send: (text: string) => Promise<void>
+  inputRef?: Ref<HTMLInputElement>
   // Undefined until the messages have loaded.
   log?: ReactNode
 }
@@ -46,6 +47,7 @@ export function ChatPane({
   interval,
   error,
   send,
+  inputRef,
   log,
 }: Props) {
   const logScroll = useRef<HTMLDivElement>(null)
@@ -64,7 +66,12 @@ export function ChatPane({
               <Polling what={target.kind === 'room' ? 'the room' : 'the conversation'} error={error} />
             </Flex>
           )}
-          <Composer draftKey={targetKey(target)} placeholder={`Message ${target.name}`} send={send} />
+          <Composer
+            draftKey={targetKey(target)}
+            placeholder={`Message ${target.name}`}
+            send={send}
+            inputRef={inputRef}
+          />
         </LogScroll>
       )}
     </Flex>

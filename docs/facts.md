@@ -894,6 +894,9 @@ There's no concurrency limit and no 429.
   the room stays joined**.
 - `POST joined/{room}/messages` with the text writes to the server without waiting, and returns an empty 201. An empty
   string is a 500, but whitespace passes. There's no length limit in slskd or Soulseek.NET.
+  - **The server silently drops a message with a line break or a long one**, so no echo comes back. Observed on the
+    real server: a plain line came back, while one with `\n` and a 2,148-byte one didn't. Soulfind's limit is 2,048
+    bytes (`src/server/room.d`).
 - `POST joined/{room}/ticker` sets our ticker, and `POST joined/{room}/members` adds a user to a private room. Tickers
   can't be read (slskd subscribes to no ticker event), a ticker can't be cleared, and nothing else about private room
   membership or operators is exposed.
@@ -955,6 +958,9 @@ string.
   - An empty body is a 400, but whitespace passes. Not being logged in is a 500.
   - Nothing comes back from the server, so sending to an offline or nonexistent user also gets a 201. There's no
     delivery or online status.
+  - The server silently drops a message with a line break or a long one, as it does in rooms. Observed on the real
+    server by messaging ourselves: a plain line came back, while one with `\n` and a 2,147-byte one didn't. Soulfind
+    drops them in `send_pm`.
   - It activates the conversation before sending, so a failed send leaves an active conversation with no messages.
 - `PUT /conversations/{u}` acknowledges all of its unread messages, `PUT /conversations/{u}/{id}` one, and
   `DELETE /conversations/{u}` acknowledges all and then closes it. Their 404s never fire, because the lookup isn't

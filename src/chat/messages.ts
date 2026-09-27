@@ -31,6 +31,16 @@ export const targetKey = (target: Target) => `${target.kind} ${target.name}`
 
 export const drafts = createAtom<ReadonlyMap<string, string>>(new Map())
 
+export const setDraft = (key: string, text: string) =>
+  drafts.set((current) => {
+    const next = new Map(current)
+    if (text === '') next.delete(key)
+    else next.set(key, text)
+    return next
+  })
+
+export const quote = (message: Message) => `[${message.username}] ${message.text} --> `
+
 // A mention is the username as a whole word, in any case.
 export function mentionMatcher(username: string | undefined) {
   if (username === undefined || username === '') return () => false

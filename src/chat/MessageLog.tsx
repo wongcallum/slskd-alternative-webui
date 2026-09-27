@@ -15,6 +15,7 @@ import {
 } from 'react'
 
 import { formatTime } from '../lib/format'
+import { useListKeys } from '../ui/keys'
 import { LinkedText } from '../ui/LinkedText'
 import { rowAttributes, RowScope, useListNav } from '../ui/listNav'
 import type { Message } from './messages'
@@ -34,7 +35,8 @@ type Props = {
   newFrom?: string
   note?: string
   empty: string
-  renderName?: (username: string) => ReactNode
+  renderName?: (username: string, onReply?: () => void) => ReactNode
+  onReply?: (message: Message) => void
 }
 
 const none: readonly PendingLine[] = []
@@ -46,7 +48,7 @@ export const LogScroll = createContext<RefObject<HTMLDivElement | null> | undefi
 
 // The log sticks to the newest message at the bottom. Once scrolled up it holds still, and counts what arrives.
 // The keyboard starts on the newest message, and a line's name and links are reached from it.
-export function MessageLog({ messages, pending = none, ownName, newFrom, note, empty, renderName }: Props) {
+export function MessageLog({ messages, pending = none, ownName, newFrom, note, empty, renderName, onReply }: Props) {
   const ownRef = useRef<HTMLDivElement>(null)
   const scrollRef = useContext(LogScroll) ?? ownRef
   const contentRef = useRef<HTMLDivElement>(null)
@@ -67,6 +69,21 @@ export function MessageLog({ messages, pending = none, ownName, newFrom, note, e
     [containerRef],
   )
   const stop = nav.stop
+  useListKeys(
+    nav.containerRef,
+    onReply === undefined
+      ? []
+      : [
+          {
+            hotkeys: ['R'],
+            name: 'Reply',
+            run: () => {
+              const message = nav.focused()
+              if (message !== undefined && !message.self) onReply(message)
+            },
+          },
+        ],
+  )
   // The key of the newest message when the log was scrolled up, or undefined while it follows the bottom.
   const [away, setAway] = useState<string>()
   const following = useRef(true)
@@ -128,6 +145,7 @@ export function MessageLog({ messages, pending = none, ownName, newFrom, note, e
           tabbable={index === stop}
           ownName={name}
           renderName={renderName}
+          onReply={onReply}
         />,
       )
     }
@@ -135,7 +153,7 @@ export function MessageLog({ messages, pending = none, ownName, newFrom, note, e
       list.push(<PendingRow key={`pending ${line.id}`} line={line} username={name} />)
     }
     return list
-  }, [messages, pending, newFrom, ownName, renderName, stop])
+  }, [messages, pending, newFrom, ownName, renderName, onReply, stop])
 
   return (
     <Box position="relative" flexGrow="1" minHeight="0">
@@ -166,12 +184,14 @@ const MessageRow = memo(function MessageRow({
   tabbable,
   ownName,
   renderName,
+  onReply,
 }: {
   message: Message
   index: number
   tabbable: boolean
   ownName: string
-  renderName?: (username: string) => ReactNode
+  renderName?: (username: string, onReply?: () => void) => ReactNode
+  onReply?: (message: Message) => void
 }) {
   const name = message.self ? ownName : message.username
   return (
@@ -186,7 +206,7 @@ const MessageRow = memo(function MessageRow({
           {clock.format(message.time)}
         </span>
         <span className="chat-name" title={name}>
-          {message.self || renderName === undefined ? name : renderName(name)}
+          {message.self || renderName === undefined ? name : renderName(name, onReply && (() => onReply(message)))}
         </span>
         <span className="chat-text">
           <LinkedText>{message.text}</LinkedText>

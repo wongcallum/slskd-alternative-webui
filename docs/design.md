@@ -204,6 +204,9 @@ The whole app works from the keyboard, for sighted keyboard users first. `?` lis
 
 - The open room's users are polled every 30 s, since they only change as people join and leave, and a busy room's
   list is hundreds of KB.
+- Reply quotes a room message in stock's format, `[user] message --> `, so replies read the same from either UI. The
+  quote goes before whatever is in the box, where stock replaces it. A quoted reply nests as it is.
+  - Rejected: Reply in conversations, where it's clear what's being answered, and on our own messages.
 
 ### System
 

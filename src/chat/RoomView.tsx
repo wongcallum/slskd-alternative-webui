@@ -1,7 +1,7 @@
 import { PersonIcon } from '@radix-ui/react-icons'
 import { Button, Flex, Text } from '@radix-ui/themes'
 import { Navigate } from '@tanstack/react-router'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { useFrom } from '../lib/media'
 import { useAtom, useResource } from '../lib/store'
@@ -14,7 +14,7 @@ import { renderUserMenu } from '../users/UserMenu'
 import { ChatEmpty } from './ChatEmpty'
 import { ChatPane, ChatToolbar } from './ChatPane'
 import { MessageLog } from './MessageLog'
-import { lastOpen } from './messages'
+import { drafts, lastOpen, type Message, quote, setDraft, targetKey } from './messages'
 import {
   joinRoom,
   markSeen,
@@ -72,6 +72,15 @@ function NotJoined({ room }: { room: string }) {
 
 function JoinedRoom({ room }: { room: string }) {
   const md = useFrom('md')
+  const input = useRef<HTMLInputElement>(null)
+  const reply = useCallback(
+    (message: Message) => {
+      const key = targetKey({ kind: 'room', name: room })
+      setDraft(key, quote(message) + (drafts.get().get(key) ?? ''))
+      input.current?.focus()
+    },
+    [room],
+  )
   const [usersShown, setUsersShown] = useState(false)
   const userCount = useResource(roomUsers(room)).data?.users.length
   const resource = roomMessages(room)
@@ -119,6 +128,7 @@ function JoinedRoom({ room }: { room: string }) {
         interval={roomPollInterval}
         error={error}
         send={(text) => sendToRoom(room, text)}
+        inputRef={input}
         log={
           data && (
             <MessageLog
@@ -132,6 +142,7 @@ function JoinedRoom({ room }: { room: string }) {
               }
               empty="No messages since slskd joined."
               renderName={renderUserMenu}
+              onReply={reply}
             />
           )
         }

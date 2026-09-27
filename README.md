@@ -87,7 +87,6 @@ reaches the real Soulseek network.
 
 ## Roadmap
 
-- Reply to a room message, quoting it in the message box.
 - Audit the stock UI for complete feature parity
 
 ## License
