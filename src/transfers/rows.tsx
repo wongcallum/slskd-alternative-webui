@@ -3,7 +3,7 @@ import { Flex, Progress, Spinner, Text } from '@radix-ui/themes'
 import { memo } from 'react'
 
 import { BrowseUserButton } from '../browse/BrowseUserButton'
-import { formatBytes, formatSpeed, formatTime, toTime } from '../lib/format'
+import { formatBytes, formatDuration, formatSpeed, formatTime, toTime } from '../lib/format'
 import { type Color, type Detail, DetailList, DetailsButton, fileDetails, GatedIconButton, Tip } from '../ui/controls'
 import { Ago } from '../ui/status'
 import {
@@ -50,12 +50,12 @@ function describeState({ state, attempts }: Transfer): [string, Color] {
 }
 
 // Stacked, the bar has a width of its own, since the line it's on doesn't stretch.
-function Bar({ value, stacked }: { value: number; stacked?: boolean }) {
+function Bar({ value, left, stacked }: { value: number; left?: number; stacked?: boolean }) {
   return (
     <Flex align="center" gap="2" flexGrow="1" minWidth={stacked ? '0' : '64px'} width={stacked ? '120px' : undefined}>
       <Progress value={value * 100} size="1" style={{ flex: 1 }} />
       <Text size="1" color="gray">
-        {Math.floor(value * 100)}%
+        {Math.floor(value * 100)}%{left !== undefined && `, ${formatDuration(left)} left`}
       </Text>
     </Flex>
   )
@@ -161,7 +161,7 @@ function FileStatus({
   layout: Layout
 }) {
   const stacked = layout === 'stacked'
-  if (file.state === 'InProgress') return <Bar value={fraction(file)} stacked={stacked} />
+  if (file.state === 'InProgress') return <Bar value={fraction(file)} left={remainingOf(file)} stacked={stacked} />
   const [label, color] = describeState(file)
   const place = lookup?.place ?? file.placeInQueue
   const text = (
@@ -203,6 +203,10 @@ function FileStatus({
   )
 }
 
+// As slskd works out remainingTime, from the transfer's average speed.
+const remainingOf = (file: Transfer) =>
+  file.averageSpeed > 0 ? (file.size - file.bytesTransferred) / file.averageSpeed : undefined
+
 function FileDetails({ file, direction }: { file: Transfer; direction: Direction }) {
   const rows: Detail[] = [
     ...fileDetails(file),
@@ -213,6 +217,8 @@ function FileDetails({ file, direction }: { file: Transfer; direction: Direction
   if (file.startedAt !== undefined) rows.push(['Started', formatTime(toTime(file.startedAt))])
   if (file.endedAt !== undefined) rows.push(['Ended', formatTime(toTime(file.endedAt))])
   rows.push(['Transferred', formatBytes(file.bytesTransferred)], ['Average speed', formatSpeed(file.averageSpeed)])
+  const left = file.state === 'InProgress' ? remainingOf(file) : undefined
+  if (left !== undefined) rows.push(['Remaining', formatDuration(left)])
   if (file.placeInQueue !== undefined) rows.push(['Place in queue', file.placeInQueue])
   if (direction === 'download') rows.push(['Attempts', file.attempts])
   if (file.exception !== undefined) rows.push(['Error', file.exception])

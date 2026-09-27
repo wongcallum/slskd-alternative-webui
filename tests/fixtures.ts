@@ -2,13 +2,14 @@ import { type APIRequestContext, test as base, expect, type Page, request } from
 
 import type { RawState } from '../src/system/application'
 import type { RawTransfer, RawUser } from '../src/transfers/transfers'
-import { type Config, credentials, type Instance, logIn, start } from './slskd'
+import { type Config, credentials, type Instance, logIn, start, startAgent } from './slskd'
 import { type Network, type Peer, startLoggedIn, startNetwork, uploadsEnded } from './soulseek'
 
 type TestFixtures = {
   // Which instance a test runs against. Instances are started on first use and kept for the rest of the worker, so
-  // tests don't assume one is fresh. With `soulseek`, it's logged in to the worker's network.
-  config: Partial<Config> & { soulseek?: boolean }
+  // tests don't assume one is fresh. With `soulseek`, it's logged in to the worker's network. With `agent`, it's a relay
+  // agent, with its controller.
+  config: Partial<Config> & { soulseek?: boolean; agent?: boolean }
   slskd: Instance
   token: string | undefined
   api: APIRequestContext
@@ -60,11 +61,11 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
       const key = JSON.stringify(config)
       let instance = pool.get(key)
       if (instance === undefined) {
-        const { soulseek, ...overrides } = config
+        const { soulseek, agent, ...overrides } = config
         const username = `user.${pool.size} test`
-        instance = soulseek
-          ? network().then((started) => startLoggedIn(started, overrides, username))
-          : start(overrides)
+        if (agent) instance = startAgent(overrides)
+        else if (soulseek) instance = network().then((started) => startLoggedIn(started, overrides, username))
+        else instance = start(overrides)
         pool.set(key, instance)
       }
       const started = await instance

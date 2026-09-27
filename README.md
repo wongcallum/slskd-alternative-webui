@@ -85,10 +85,6 @@ reaches the real Soulseek network.
 - CI runs the tests in the devenv shell against the pinned slskd and the latest release, and nightly against the latest
   release and slskd's master, each built from source.
 
-## Roadmap
-
-- Audit the stock UI for complete feature parity
-
 ## License
 
 [AGPL-3.0-or-later](LICENSE)

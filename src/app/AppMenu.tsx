@@ -2,12 +2,12 @@ import { HamburgerMenuIcon } from '@radix-ui/react-icons'
 import { DropdownMenu, Flex, IconButton, Text } from '@radix-ui/themes'
 import { useNavigate } from '@tanstack/react-router'
 
-import { conversations } from '../chat/conversations'
+import { useUnread } from '../chat/ChatBadge'
 import { plural } from '../lib/format'
 import { useTouch } from '../lib/media'
 import { useAtom, useResource } from '../lib/store'
 import { logout, useSession } from '../session/session'
-import { application, releaseNotes } from '../system/application'
+import { application, releaseNotes, useIsAgent } from '../system/application'
 import { SpeedValue } from '../transfers/TransferSpeeds'
 import { useIsActive } from '../ui/nav'
 import { CornerDot } from '../ui/status'
@@ -29,14 +29,16 @@ type Props = { pages: boolean; speeds: boolean; update: boolean }
 export function AppMenu({ pages, speeds, update }: Props) {
   const session = useSession()
   const { data } = useResource(application)
-  const unread = useResource(conversations).data?.unread ?? 0
+  const agent = useIsAgent()
+  const unread = useUnread(agent === false)
   const choice = useAtom(themeChoice)
   const isActive = useIsActive()
   const navigate = useNavigate()
   const touch = useTouch()
   const latest = update && data?.updateAvailable ? data.latest : undefined
   const dot = pages && unread > 0 ? 'red' : latest === undefined ? undefined : 'amber'
-  const shown = pages ? sections : speeds ? sections.filter((section) => section.direction !== undefined) : []
+  let shown = pages ? sections : speeds ? sections.filter((section) => section.direction !== undefined) : []
+  if (agent !== false) shown = []
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger>

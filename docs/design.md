@@ -40,6 +40,8 @@ has changed. Computed fields aren't mapped, because `elapsedTime` changes on eve
 - Accepted gaps:
   - A token that expires while its hub stays up looks logged in until the next REST call.
   - If auth is turned off across a restart, the tab stays "logged in" until it's reloaded.
+- Rejected: stock's Remember Me, which keeps the token in `sessionStorage` when unticked. That token stays in its own
+  tab, so every other tab would ask to log in again. Stock ticks it by default, so its default matches ours.
 
 ### Soulseek actions
 
@@ -84,8 +86,8 @@ The one exception is acknowledging private messages while their conversation is 
 
 ### Confirmation
 
-Only Cancel all, Retry failed and Clear finished (which act on the whole section whatever the filter), Restart, Shut
-down and deleting files ask for confirmation.
+Only the Cancel menu, Retry failed and Clear finished (which act on the whole section whatever the filter), Restart,
+Shut down and deleting files ask for confirmation.
 
 ### Keyboard
 
@@ -130,6 +132,21 @@ The whole app works from the keyboard, for sighted keyboard users first. `?` lis
 - **Accepted gap:** while no list is polled, the speed comes from the metrics hub, which during an album of short files
   shows about a quarter of the real rate. Only the Downloads or Uploads page is exact.
 - Speeds stay out of the page title, since one that changes every second is noise in the tab strip.
+- A privileged account has a star by its name in the bar. How long is left is in the Soulseek popover, since a tooltip
+  inside the popover's button couldn't be reached.
+
+### Relay agents
+
+- On a relay agent, slskd refuses everything Soulseek (see the facts), so the nav has only System, the landing page is
+  System's, and the other paths say it's an agent rather than redirecting. The nav and pages wait for the first state,
+  since until then they can't tell whether they'd only get 403s.
+- The Soulseek popover shows the controller's connection instead, and Info leaves out the account, searches and
+  distributed network. A Relay card on Info shows the controller, or on a controller the connected agents, since
+  nothing else shows an agent dropping.
+  - Rejected: stock's Controller button. Connecting hangs forever when already connected, and an agent's UI only
+    exists while it's connected, so disconnecting would cut it off with no reliable way back.
+- The VPN integration's state is in the Soulseek popover, since waiting for the VPN is why slskd isn't connecting.
+  - Rejected: `server.ipEndPoint`, the server's resolved address, which says nothing a user acts on.
 
 ### Responsiveness
 
@@ -152,16 +169,20 @@ The whole app works from the keyboard, for sighted keyboard users first. `?` lis
 - The errors table shows slskd's groups as they come, cancellations included, since they can't be filtered by state.
   - **Accepted gap:** a message with an IP address and port turns into a fragment (see the facts).
   - Rejected: repairing the fragments, which would be code keyed to one slskd bug.
+  - Rejected: stock's view of both directions' groups together, since the figures keep the directions apart.
 - Bars follow the local calendar. Hours, six hours and days are made of slskd's hourly buckets, and months of its UTC
   days, since a year of hours is megabytes. The totals cover exactly the bars' span.
   - **Accepted gaps:** the edges of months are off by the UTC offset, and in zones with a :30 or :45 offset so are
     the edges of days.
+  - Rejected: stock's 90-day and 180-day ranges. They fit neither unit: days make too many bars, and a span that
+    isn't whole months has ragged ends in months.
 - It loads again when the metrics hub counts a finished transfer, since nothing else changes the reports, at most once
   a minute and not while the tab is hidden. The hub doesn't count a cancelled download, which the figures leave out
   anyway.
 - The chart library loads with the chart, since it's about 100 kB gzipped.
-- Rejected: stock's tabs, its list of recent errors (the transfer lists filter to failures), its 12 chart series, and
-  custom date ranges.
+- Rejected: stock's tabs, its list of recent errors (the transfer lists filter to failures), its 12 chart series,
+  custom date ranges, the share ratio's colours, whose thresholds are arbitrary, and rank columns, since the order is
+  the rank.
 
 ### Transfers
 
@@ -174,6 +195,11 @@ The whole app works from the keyboard, for sighted keyboard users first. `?` lis
   aren't one.
 - Stock packs filter criteria into the text box as a syntax (see the facts). We dropped it for a Filters popover,
   because its keywords collide with path text and can't be discovered.
+  - Rejected: stock's VBR and CBR filters. Many files don't say whether they're VBR (see the facts), so either filter
+    would hide files that match it.
+- Starting a search opens its results, from the Search page too.
+  - Rejected: stock's Enter, which starts a search and stays on the list while the button opens it. The difference
+    can't be seen, and queueing several searches is rare.
 - The results page never reads the downloads list. Rows show Enqueued or Failed from the batch responses.
 - **A folder's full contents come from the user's whole share**, the one Browse caches, rather than a request for
   the folder. slskd peers answer that request with files from other folders under bare names, so some listed paths
@@ -193,17 +219,24 @@ The whole app works from the keyboard, for sighted keyboard users first. `?` lis
 - `d` on a folder in the filtered tree still downloads all it holds. Selecting in the filtered pane downloads only
   what's shown.
 - Filters is an icon in the tree's toolbar, since a labelled button leaves the text filter too narrow below lg.
+- Rejected: stock's folder counts on each tree row, which crowd the file counts, and its icons for each file type,
+  which the Quality column makes redundant.
 
 ### Users
 
 - Profile in a name's menu always looks the user up, unlike Browse, which opens a cached share. A lookup is one server
   request and one small message to the peer, and a stale presence or queue length is what would mislead.
 - Names have a menu (Profile, Message, Browse) wherever they appear, leaving out the page it's on.
+- Rejected: stock's placeholder for a profile without a picture, which the layout doesn't need.
 
 ### Chat
 
 - The open room's users are polled every 30 s, since they only change as people join and leave, and a busy room's
   list is hundreds of KB.
+  - Rejected: stock's online-first order and dimming of away users. slskd takes a user's status as they join and never
+    updates it, so it would soon be wrong.
+- Rejected: hiding a conversation with the user `..`, as stock does. slskd can't reach that user through any endpoint
+  (see the facts), and hiding it would be code keyed to one slskd bug.
 - Reply quotes a room message in stock's format, `[user] message --> `, so replies read the same from either UI. The
   quote goes before whatever is in the box, where stock replaces it. A quoted reply nests as it is.
   - Rejected: Reply in conversations, where it's clear what's being answered, and on our own messages.
@@ -231,6 +264,8 @@ The whole app works from the keyboard, for sighted keyboard users first. `?` lis
 
 - Nothing loads the whole table, which slskd never prunes (see the facts). While a filter is on, older pages load from
   a button, so a filter that matches little can't page through the whole table on its own.
+  - Rejected: stock's pager, which can jump to the oldest page. Events are read newest first, and a filter finds
+    older ones.
 - Test events aren't offered: slskd stores them without their data, sends them to webhooks twice, and can't delete them.
 
 ### Options

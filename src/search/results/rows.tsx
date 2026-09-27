@@ -153,6 +153,7 @@ type GroupRowProps = {
   folderGate?: string
   onSelect: (id: string, shiftKey: boolean) => void
   onToggle: (id: string) => void
+  onHide: (username: string) => void
 }
 
 export const GroupRow = memo(function GroupRow({
@@ -169,6 +170,7 @@ export const GroupRow = memo(function GroupRow({
   folderGate,
   onSelect,
   onToggle,
+  onHide,
 }: GroupRowProps) {
   const { peer } = group
   const open = group.files.filter((file) => !file.locked)
@@ -264,7 +266,7 @@ export const GroupRow = memo(function GroupRow({
         more={
           <Parts
             items={[
-              <UserMenu key="user" username={group.username} />,
+              <UserMenu key="user" username={group.username} onHide={() => onHide(group.username)} />,
               formatSpeed(peer.speed),
               peer.free ? (
                 <Text key="queue" color="green">
@@ -291,7 +293,7 @@ export const GroupRow = memo(function GroupRow({
     >
       {check}
       <GroupNameCell expanded={expanded} name={group.name} title={group.directory} />
-      <UserCell username={group.username} />
+      <UserCell username={group.username} onHide={() => onHide(group.username)} />
       <Cell end title={hidden > 0 ? `${plural(hidden, 'file')} filtered out` : undefined}>
         {hidden > 0 ? shown : `${group.matched.toLocaleString()}${plus}`}
       </Cell>

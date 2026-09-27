@@ -669,6 +669,49 @@ closed`, with a group per port. `exceptions` returns dates without the `Z`. `exc
   there's no auto-reconnect. It always returns 204.
 - The controller returns 403 in relay agent mode.
 
+## Relay
+
+Paths are relative to `Relay/`. Observed on throwaway instances of the dev build, and in the tests' controller and
+agent pair.
+
+- `relay.mode` is `controller`, `agent` or `debug`, which is both (`Types/RelayMode.cs`). `OPTIONS.relay.mode` is the
+  config string as written, in any case, and `OPTIONS.relay.enabled` says whether relay is on. The agents' instance
+  names are secrets, so `OPTIONS.relay.agents` shows only their keys, lowercased.
+- `STATE.relay` is `{mode, controller: {address, state}, agents: [{name, ipAddress}]}`, and keeps its defaults
+  (`Controller`, `Disconnected`, no agents) while relay is off (`RelayService.cs`). An agent sets `mode` to `Agent`
+  and fills `controller`, whose `state` is `Disconnected`, `Connecting`, `Connected` or `Reconnecting`. It reads
+  `Connecting` while retrying. A controller sets `agents` to those logged in, and drops one when it disconnects.
+- On a controller, each agent is also a host in `STATE.shares.hosts` and in `GET /shares` while it's connected.
+- An agent never connects to Soulseek. Everything under searches, transfers, rooms, conversations and users returns
+  403, and so do `PUT` and `DELETE /server`. Application, options, logs, events, shares, files, telemetry and session
+  work (observed).
+- **An agent's HTTP server only starts once it has reached its controller.** Startup waits on the relay client, which
+  retries forever with backoff up to 30 s (`RelayClient.cs`), so an agent's UI never loads while its controller is
+  down.
+- The controller refuses shares that were never scanned: the agent uploads its share database, the controller
+  rejects it as invalid, and the agent's upload gets a 400 and it tries again, forever. Observed with `no_share_scan`.
+- `connected` means the hub connection, not that the shares went up. After the controller dropped, an agent
+  reconnected without uploading its shares again (observed).
+- Connecting and disconnecting are `PUT` and `DELETE /relay/agent` (`API/Controllers/RelayController.cs`), which need
+  a JWT with the Administrator role and return 403 unless the agent started in agent or debug mode. `DELETE` returns
+  204, even when already disconnected. **`PUT` doesn't return until connected**, so it hangs while the controller is
+  down, and **hangs for good when already connected**, holding a lock that makes the next `PUT` return 200 at once
+  without doing anything. `DELETE` doesn't stop that loop, which then reconnects on its own (observed).
+
+## VPN
+
+- The VPN integration is `integrations.vpn` (`Core/Options.cs`), on when `enabled`, which `OPTIONS` shows unredacted.
+  Gluetun is the only client: slskd polls its public IP and, with `port_forwarding`, its forwarded port
+  (`Integrations/VPN/Clients/Gluetun.cs`).
+- `STATE.vpn` is `{isReady, isConnected, publicIPAddress, location, forwardedPort}`. `isReady` also needs a forwarded
+  port when port forwarding is on. It's only polled while the connection watchdog runs, so it keeps its defaults under
+  `no_connect` until a `PUT /server` (observed with a stub Gluetun).
+- `connectionWatchdog.isAwaitingVpn` is true while the watchdog would connect but the VPN isn't ready, and skips the
+  attempt. A VPN that stops being ready disconnects Soulseek (`Integrations/VPN/VPNService.cs`).
+- The forwarded port becomes the Soulseek listen port in the live options, and stays after the VPN drops.
+- `STATE.server.ipEndPoint` is the resolved address of the Soulseek server, and `version.full` is `current` followed
+  by the informational version, with the commit after a `+` on a release, such as `0.26.0.0 (0.26.0.0+abc1234)`.
+
 ## Peer connections
 
 - **The first message connection between two peers can lose what's sent on it.** Soulseek.NET 10.0.2 tries a direct
@@ -998,6 +1041,9 @@ Paths are relative to `slskd/src/web/src`.
 - The nav's connection item disconnects on a single click with no confirmation, and connects on a click while
   disconnected. There are no count badges; the footer shows transfer counts and `inProgress.averageSpeed` from the
   metrics hub.
+- In relay agent mode (`STATE.relay.mode === 'Agent'`) the nav is an "Agent Mode" item and a Controller item, and
+  every path goes to `/system`. The Controller item's connect and disconnect call `/relay`, which is a 404
+  (`lib/relay.js`). It never shows `STATE.vpn`.
 - Theme: localStorage `slskd-theme` (`dark`/`light`), falling back to `prefers-color-scheme`. It never sets
   `document.title`.
 - System (`components/System/`): `/system` redirects to `/system/info`, and every tab is always shown.

@@ -3,19 +3,28 @@ import type { ReactNode } from 'react'
 
 import { version } from '../../package.json'
 import { api, describeError } from '../lib/api'
-import { formatAge, formatBytes, formatSpeed, plural } from '../lib/format'
+import { formatAge, formatBytes, formatSpeed } from '../lib/format'
 import { useAtom, useClock, useResource } from '../lib/store'
 import { useRun } from '../lib/useRun'
 import { ActionButton, ConfirmButton, type Detail, DetailList } from '../ui/controls'
 import { Freshness, Polling } from '../ui/status'
-import { type Application, application, applicationPollInterval, releaseNotes, useApplication } from './application'
+import {
+  type Application,
+  application,
+  applicationPollInterval,
+  describePrivileges,
+  releaseNotes,
+  useApplication,
+} from './application'
 import { lifecycle, restartPatience, shutDown } from './lifecycle'
+import { useOptions } from './options/options'
 import { PendingCallouts, RestartButton, useLifecycleGate } from './PendingCallouts'
 import { processInfo } from './process'
 import { SystemPage } from './SystemPage'
 
 export function InfoPage() {
   const { data, error, live, known } = useApplication()
+  const relay = useOptions()?.relay === true
   return (
     <SystemPage status={<Freshness resource={application} interval={applicationPollInterval} live={live} />}>
       <Box flexGrow="1" minHeight="0" overflow="auto">
@@ -26,9 +35,14 @@ export function InfoPage() {
             <PendingCallouts data={data} known={known} />
             <Grid columns={{ initial: '1', md: '2' }} gap="4" align="start">
               <SlskdCard data={data} known={known} />
-              <AccountCard data={data} />
-              <SearchesCard data={data} />
-              <NetworkCard data={data} />
+              {data.relayMode !== 'Agent' && (
+                <>
+                  <AccountCard data={data} />
+                  <SearchesCard data={data} />
+                  <NetworkCard data={data} />
+                </>
+              )}
+              {(relay || data.relayMode === 'Agent') && <RelayCard data={data} />}
             </Grid>
           </Flex>
         )}
@@ -72,6 +86,7 @@ function SlskdCard({ data, known }: { data: Application; known: boolean }) {
     ['Latest', latest],
     ['Web UI', version],
   ]
+  if (data.commit !== undefined) rows.splice(1, 0, ['Commit', data.commit])
   if (process?.startedAt !== undefined) rows.push(['Uptime', <Uptime key="uptime" startedAt={process.startedAt} />])
   if (process?.runtime !== undefined) rows.push(['Runtime', process.runtime])
   if (process?.architecture !== undefined) rows.push(['Architecture', process.architecture])
@@ -145,13 +160,6 @@ function LifecycleLine() {
   )
 }
 
-function describePrivileges(seconds: number) {
-  if (seconds <= 0) return 'Not privileged'
-  const days = Math.round(seconds / 86_400)
-  if (days >= 1) return `About ${plural(days, 'day')} left`
-  return `About ${plural(Math.max(1, Math.round(seconds / 3600)), 'hour')} left`
-}
-
 function AccountCard({ data }: { data: Application }) {
   return (
     <Section title="Soulseek account">
@@ -215,6 +223,22 @@ function NetworkCard({ data }: { data: Application }) {
           ],
         ]}
       />
+    </Section>
+  )
+}
+
+function RelayCard({ data }: { data: Application }) {
+  const rows: Detail[] = []
+  if (data.relayMode !== 'Controller') {
+    rows.push(['Controller', data.controllerAddress ?? 'Unknown'], ['Connection', data.controllerState])
+  }
+  if (data.relayMode !== 'Agent') {
+    if (data.agents.length === 0) rows.push(['Agents', 'None connected'])
+    for (const agent of data.agents) rows.push([agent.name, agent.address])
+  }
+  return (
+    <Section title={data.relayMode === 'Agent' ? 'Relay agent' : 'Relay'}>
+      <DetailList rows={rows} />
     </Section>
   )
 }

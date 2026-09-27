@@ -5,7 +5,7 @@ import * as v from 'valibot'
 
 import { countCriteria, type CriteriaSearch, noCriteria, qualities } from '../lib/criteria'
 import { positiveDecimal, positiveInteger } from '../lib/params'
-import { ChoiceSelect, Tip } from './controls'
+import { CheckboxField, ChoiceSelect, Tip } from './controls'
 
 type FiltersProps = {
   filters: CriteriaSearch
@@ -77,6 +77,12 @@ export function FiltersButton({
         </Grid>
         <Flex justify="between" align="center" gap="3" mt="4">
           <Flex direction="column" gap="3">
+            <CheckboxField
+              checked={filters.lossy === 'only'}
+              onChange={(checked) => onChange({ lossy: checked ? 'only' : 'all' })}
+            >
+              Lossy only
+            </CheckboxField>
             {children}
           </Flex>
           <Button

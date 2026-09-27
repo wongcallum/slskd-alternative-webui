@@ -65,6 +65,7 @@ export const state = shape<RawState>(
   v.object({
     version: v.object({
       current: v.string(),
+      full: v.string(),
       latest: v.nullish(v.string()),
       isUpdateAvailable: v.nullish(v.boolean()),
       isCanary: v.boolean(),
@@ -79,7 +80,27 @@ export const state = shape<RawState>(
       isLoggedIn: v.boolean(),
       isTransitioning: v.boolean(),
     }),
-    connectionWatchdog: v.object({ isAttemptingConnection: v.boolean(), nextAttemptAt: v.nullish(utc) }),
+    connectionWatchdog: v.object({
+      isAttemptingConnection: v.boolean(),
+      isAwaitingVpn: v.optional(v.boolean()),
+      nextAttemptAt: v.nullish(utc),
+    }),
+    vpn: v.optional(
+      v.object({
+        isConnected: v.boolean(),
+        publicIPAddress: v.nullish(v.string()),
+        location: v.nullish(v.string()),
+        forwardedPort: v.nullish(count),
+      }),
+    ),
+    relay: v.object({
+      mode: v.picklist(['Controller', 'Agent', 'Debug']),
+      controller: v.object({
+        address: v.nullish(v.string()),
+        state: v.picklist(['Disconnected', 'Connecting', 'Connected', 'Reconnecting']),
+      }),
+      agents: v.array(v.object({ name: v.string(), ipAddress: v.string() })),
+    }),
     health: v.object({
       search: v.object({ incoming: v.object({ latency: v.number(), queueDepth: v.number(), dropRate: v.number() }) }),
     }),
@@ -121,6 +142,8 @@ export const options = shape<RawOptions>(
     remoteFileManagement: v.boolean(),
     directories: v.object({ downloads: v.string(), incomplete: v.string() }),
     shares: v.object({ directories: v.array(v.string()), filters: v.array(v.string()) }),
+    relay: v.object({ enabled: v.boolean() }),
+    integrations: v.object({ vpn: v.optional(v.object({ enabled: v.boolean() })) }),
   }),
 )
 

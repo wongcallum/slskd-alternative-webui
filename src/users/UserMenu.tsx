@@ -10,11 +10,11 @@ import { useLookUpUser } from './useLookUpUser'
 
 type Place = 'profile' | 'message' | 'browse'
 
-type Props = { username: string; here?: Place; onReply?: () => void; children?: ReactNode }
+type Props = { username: string; here?: Place; onReply?: () => void; onHide?: () => void; children?: ReactNode }
 
 // Names often sit in rows that toggle on click, and React bubbles clicks out of the menu's portal too.
 // The menu hands focus back to its trigger as it closes, so Reply waits for that before moving focus.
-export function UserMenu({ username, here, onReply, children }: Props) {
+export function UserMenu({ username, here, onReply, onHide, children }: Props) {
   const tabIndex = useRowTabIndex()
   const replying = useRef(false)
   return (
@@ -43,6 +43,12 @@ export function UserMenu({ username, here, onReply, children }: Props) {
           </>
         )}
         <Items username={username} here={here} />
+        {onHide !== undefined && (
+          <>
+            <DropdownMenu.Separator />
+            <DropdownMenu.Item onSelect={onHide}>Hide in these results</DropdownMenu.Item>
+          </>
+        )}
       </DropdownMenu.Content>
     </DropdownMenu.Root>
   )
@@ -65,12 +71,12 @@ function Items({ username, here }: { username: string; here?: Place }) {
   )
 }
 
-export function UserCell({ username }: { username?: string }) {
+export function UserCell({ username, onHide }: { username?: string; onHide?: () => void }) {
   return (
     <div className="table-cell" title={username}>
       {username !== undefined && (
         <Text size="2">
-          <UserMenu username={username} />
+          <UserMenu username={username} onHide={onHide} />
         </Text>
       )}
     </div>
