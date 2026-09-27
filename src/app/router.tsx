@@ -227,6 +227,15 @@ const systemIndexRoute = createRoute({
   },
 })
 
+// Stock's Data tab only cleared finished transfers, which Clear finished does on the transfer pages.
+const systemDataRoute = createRoute({
+  getParentRoute: () => systemRoute,
+  path: 'data',
+  beforeLoad: () => {
+    throw redirect({ to: '/downloads' })
+  },
+})
+
 const systemInfoRoute = createRoute({
   getParentRoute: () => systemRoute,
   path: 'info',
@@ -298,6 +307,7 @@ export const router = createRouter({
     chatRoute.addChildren([roomsRoute, conversationRoute]),
     systemRoute.addChildren([
       systemIndexRoute,
+      systemDataRoute,
       systemInfoRoute,
       systemOptionsRoute,
       systemSharesRoute,
