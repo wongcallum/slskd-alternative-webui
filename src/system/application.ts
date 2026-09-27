@@ -1,12 +1,13 @@
 import { api } from '../lib/api'
 import { plural, toTime } from '../lib/format'
 import { applicationHub, followHub, useLiveResource, type Via } from '../lib/hubs'
-import { createAtom, createResource, sameItems } from '../lib/store'
+import { createAtom, createResource, sameItems, useResource } from '../lib/store'
 
 // GET /application omits nulls, while the hub keeps them.
 export type RawState = {
   version: {
     current: string
+    full: string
     latest?: string | null
     isUpdateAvailable?: boolean | null
     isCanary: boolean
@@ -21,7 +22,18 @@ export type RawState = {
     isLoggedIn: boolean
     isTransitioning: boolean
   }
-  connectionWatchdog: { isAttemptingConnection: boolean; nextAttemptAt?: string | null }
+  connectionWatchdog: { isAttemptingConnection: boolean; isAwaitingVpn?: boolean; nextAttemptAt?: string | null }
+  vpn?: {
+    isConnected: boolean
+    publicIPAddress?: string | null
+    location?: string | null
+    forwardedPort?: number | null
+  }
+  relay: {
+    mode: string
+    controller: { address?: string | null; state: string }
+    agents: { name: string; ipAddress: string }[]
+  }
   health: { search: { incoming: { latency: number; queueDepth: number; dropRate: number } } }
   user: {
     username?: string | null
@@ -87,7 +99,26 @@ export type Application = {
   childLimit: number
   acceptsChildren: boolean
   rooms: readonly string[]
+  commit?: string
+  awaitingVpn: boolean
+  vpnConnected: boolean
+  vpnAddress?: string
+  vpnLocation?: string
+  vpnPort?: number
+  relayMode: string
+  controllerAddress?: string
+  controllerState: string
+  agents: readonly Agent[]
 }
+
+export type Agent = { name: string; address: string }
+
+const sameAgents = (previous: readonly Agent[] | undefined, next: readonly Agent[]) =>
+  previous !== undefined &&
+  previous.length === next.length &&
+  previous.every((each, i) => each.name === next[i]?.name && each.address === next[i]?.address)
+    ? previous
+    : next
 
 export const applicationPollInterval = 2000
 
@@ -95,7 +126,8 @@ export const applicationPollInterval = 2000
 const trimVersion = (version: string) => version.replace(/^(\d+\.\d+\.\d+)\.0$/, '$1')
 
 function fromState(via: Via, state: RawState): Application {
-  const { version, server, user, distributedNetwork: network, shares } = state
+  const { version, server, user, distributedNetwork: network, shares, vpn, relay } = state
+  const previous = application.getSnapshot().data
   const incoming = state.health.search.incoming
   return {
     via,
@@ -137,7 +169,20 @@ function fromState(via: Via, state: RawState): Application {
     children: network.children.length,
     childLimit: network.childLimit,
     acceptsChildren: network.canAcceptChildren,
-    rooms: sameItems(application.getSnapshot().data?.rooms, state.rooms),
+    rooms: sameItems(previous?.rooms, state.rooms),
+    commit: /\+([0-9a-f]+)/.exec(version.full)?.[1],
+    awaitingVpn: state.connectionWatchdog.isAwaitingVpn === true,
+    vpnConnected: vpn?.isConnected === true,
+    vpnAddress: vpn?.publicIPAddress ?? undefined,
+    vpnLocation: vpn?.location ?? undefined,
+    vpnPort: vpn?.forwardedPort ?? undefined,
+    relayMode: relay.mode,
+    controllerAddress: relay.controller.address ?? undefined,
+    controllerState: relay.controller.state,
+    agents: sameAgents(
+      previous?.agents,
+      relay.agents.map((agent) => ({ name: agent.name, address: agent.ipAddress })),
+    ),
   }
 }
 
@@ -185,6 +230,14 @@ export function pendingItems(data: Application) {
 }
 
 export const useApplication = () => useLiveResource(application, applicationHub, applicationPollInterval)
+
+// An agent only relays its shares and files to its controller, and slskd refuses it everything Soulseek. Until the state
+// arrives it's unknown, and nothing that an agent is refused should start.
+export function useIsAgent() {
+  const { data, error } = useResource(application)
+  if (data !== undefined) return data.relayMode === 'Agent'
+  return error === undefined ? undefined : false
+}
 
 export function describePrivileges(seconds: number) {
   if (seconds <= 0) return 'Not privileged'

@@ -1,4 +1,4 @@
-import { expect, test } from '../fixtures'
+import { contextFor, expect, test } from '../fixtures'
 import { openHub } from '../hub'
 import { timeZone } from '../slskd'
 import * as schemas from './schemas'
@@ -53,4 +53,26 @@ test('logs come over REST, and from the logs hub as a buffer and then one at a t
   } finally {
     await hub.stop()
   }
+})
+
+test.describe('a relay agent', () => {
+  test.use({ config: { agent: true } })
+
+  test('says it is one, connected to its controller, which lists it', async ({ slskd, api }) => {
+    const controllerInstance = slskd.controller!
+    const state = schemas.parse(schemas.state, await (await api.get('application')).json())
+    expect(state.relay).toMatchObject({
+      mode: 'Agent',
+      controller: { address: controllerInstance.base, state: 'Connected' },
+    })
+    const controller = await contextFor(controllerInstance)
+    try {
+      const options = schemas.parse(schemas.options, await (await controller.get('options')).json())
+      expect(options.relay.enabled).toBe(true)
+      const controllerState = schemas.parse(schemas.state, await (await controller.get('application')).json())
+      expect(controllerState.relay).toMatchObject({ mode: 'Controller', agents: [{ name: 'agent' }] })
+    } finally {
+      await controller.dispose()
+    }
+  })
 })

@@ -63,3 +63,18 @@ test('stored searches can be deleted and opened while new searches arrive', asyn
   await expect(page).toHaveTitle('newer search – Search – slskd')
   await expect(page.getByText('This page crashed')).toHaveCount(0)
 })
+
+test.describe('a relay agent', () => {
+  test.use({ config: { agent: true } })
+
+  test('lands on System, with its controller in place of Soulseek', async ({ page, slskd }) => {
+    await page.goto('')
+    await logInPage(page)
+    await expect(page).toHaveURL(/\/system\/info$/)
+    await expect(page.getByRole('link', { name: 'Downloads' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Controller connected' })).toBeVisible()
+    await expect(page.getByText(slskd.controller!.base)).toBeVisible()
+    await page.goto('downloads')
+    await expect(page.getByRole('heading', { name: 'This slskd is a relay agent' })).toBeVisible()
+  })
+})

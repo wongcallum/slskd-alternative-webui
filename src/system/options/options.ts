@@ -8,6 +8,8 @@ export type RawOptions = {
   remoteFileManagement: boolean
   directories: { downloads: string; incomplete: string }
   shares: { directories: string[]; filters: string[] }
+  relay: { enabled: boolean }
+  integrations: { vpn?: { enabled: boolean } }
 }
 
 export type Settings = { readonly [key: string]: unknown }
@@ -20,6 +22,8 @@ export type Options = {
   incomplete: string
   shareDirectories: readonly string[]
   shareFilters: readonly string[]
+  relay: boolean
+  vpn: boolean
   // Everything, without the nulls the hub keeps and REST leaves out.
   settings: Settings
 }
@@ -56,6 +60,8 @@ function fromOptions(via: Via, raw: RawOptions): Options {
     incomplete: raw.directories.incomplete,
     shareDirectories: sameItems(previous?.shareDirectories, raw.shares.directories),
     shareFilters: sameItems(previous?.shareFilters, raw.shares.filters),
+    relay: raw.relay.enabled,
+    vpn: raw.integrations.vpn?.enabled === true,
     settings: sameSettings(raw),
   }
 }

@@ -1,15 +1,20 @@
 import { Badge, Tooltip } from '@radix-ui/themes'
 import { useRouter } from '@tanstack/react-router'
-import { useEffect } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 
 import { plural } from '../lib/format'
-import { useResource } from '../lib/store'
 import { conversations } from './conversations'
 
 export const unreadCount = () => conversations.getSnapshot().data?.unread ?? 0
 
+// Unless polled, the count is whatever the last poll found.
+export function useUnread(poll = true) {
+  const snapshot = useSyncExternalStore(poll ? conversations.subscribe : conversations.watch, conversations.getSnapshot)
+  return snapshot.data?.unread ?? 0
+}
+
 export function ChatBadge() {
-  const unread = useResource(conversations).data?.unread ?? 0
+  const unread = useUnread()
   if (unread === 0) return null
   return (
     <Tooltip content={plural(unread, 'unread private message')}>

@@ -10,6 +10,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { Fragment } from 'react'
 
 import { createAtom, useAtom } from '../lib/store'
+import { useIsAgent } from '../system/application'
 import { useReturnFocus } from '../ui/controls'
 import { displayKey, inOverlay } from '../ui/keys'
 import type { To } from '../ui/nav'
@@ -39,6 +40,7 @@ function focusMainField() {
 // Keys that work anywhere but in a text field, an open menu or a dialog.
 export function useAppKeys() {
   const navigate = useNavigate()
+  const agent = useIsAgent()
   useHotkey(
     '/',
     (event) => {
@@ -54,7 +56,7 @@ export function useAppKeys() {
     { meta: { name: 'Show these keys', group: 'app' } },
   )
   useHotkeySequences(
-    pages.map(([key, to, label]) => ({
+    (agent === false ? pages : pages.filter(([, to]) => to === '/system')).map(([key, to, label]) => ({
       sequence: ['G', key],
       callback: (event) => {
         if (!inOverlay(event)) void navigate({ to })

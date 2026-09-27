@@ -135,6 +135,19 @@ The whole app works from the keyboard, for sighted keyboard users first. `?` lis
 - A privileged account has a star by its name in the bar. How long is left is in the Soulseek popover, since a tooltip
   inside the popover's button couldn't be reached.
 
+### Relay agents
+
+- On a relay agent, slskd refuses everything Soulseek (see the facts), so the nav has only System, the landing page is
+  System's, and the other paths say it's an agent rather than redirecting. The nav and pages wait for the first state,
+  since until then they can't tell whether they'd only get 403s.
+- The Soulseek popover shows the controller's connection instead, and Info leaves out the account, searches and
+  distributed network. A Relay card on Info shows the controller, or on a controller the connected agents, since
+  nothing else shows an agent dropping.
+  - Rejected: stock's Controller button. Connecting hangs forever when already connected, and an agent's UI only
+    exists while it's connected, so disconnecting would cut it off with no reliable way back.
+- The VPN integration's state is in the Soulseek popover, since waiting for the VPN is why slskd isn't connecting.
+  - Rejected: `server.ipEndPoint`, the server's resolved address, which says nothing a user acts on.
+
 ### Responsiveness
 
 **Accepted gaps:**

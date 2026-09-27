@@ -7,6 +7,7 @@ import { formatAge } from '../lib/format'
 import { applicationHub, type HubStatus, metricsHub, searchHub, useHub, useWatchedHub } from '../lib/hubs'
 import { useFreshness } from '../lib/store'
 import { type Application, application, describePrivileges, useApplication } from '../system/application'
+import { useOptions } from '../system/options/options'
 import { type Color, disabledProps } from '../ui/controls'
 import { StatusDot } from '../ui/status'
 import { connect, disconnect, reconnect } from './soulseek'
@@ -21,11 +22,18 @@ const hubStates: Record<HubStatus['state'], string> = {
 const describeHub = ({ state, attempt }: HubStatus) =>
   attempt === 0 ? hubStates[state] : `${hubStates[state]} (retry ${attempt})`
 
+const controllerColors: Record<string, Color> = { Connected: 'green', Disconnected: 'red' }
+
 function describeSoulseek(data: Application | undefined, known: boolean): { color: Color; label: string } {
   if (!data || !known) return { color: 'gray', label: 'Soulseek status unknown' }
+  if (data.relayMode === 'Agent') {
+    const state = data.controllerState
+    return { color: controllerColors[state] ?? 'amber', label: `Controller ${state.toLowerCase()}` }
+  }
   if (data.isLoggedIn) return { color: 'green', label: data.username ? `Connected as ${data.username}` : 'Connected' }
   if (data.state.includes('Disconnecting')) return { color: 'amber', label: 'Disconnecting…' }
   if (data.isTransitioning || data.isConnected) return { color: 'amber', label: 'Connecting…' }
+  if (data.awaitingVpn) return { color: 'amber', label: 'Waiting for the VPN' }
   if (data.retryingAt) {
     return { color: 'amber', label: `Retrying at ${new Date(data.retryingAt).toLocaleTimeString()}` }
   }
@@ -56,6 +64,13 @@ function actionsFor(data: Application | undefined): Action[] {
   if (data.isConnected) return data.pendingReconnect ? ['reconnect', 'disconnect'] : ['disconnect']
   if (data.isTransitioning || data.retryingAt) return ['retry', 'stop']
   return ['connect']
+}
+
+function describeVpn(data: Application) {
+  if (!data.vpnConnected) return 'Disconnected'
+  const parts = [data.vpnAddress, data.vpnLocation, data.vpnPort === undefined ? undefined : `port ${data.vpnPort}`]
+  const details = parts.filter((part) => part !== undefined).join(', ')
+  return details === '' ? 'Connected' : details
 }
 
 function describeSource(data: Application | undefined, known: boolean, age: number | undefined) {
@@ -113,7 +128,9 @@ function SoulseekPanel({ data, error, known }: ReturnType<typeof useApplication>
   const applicationHubStatus = useHub(applicationHub)
   const metricsHubStatus = useHub(metricsHub)
   const searchHubStatus = useWatchedHub(searchHub)
-  const actions = actionsFor(data)
+  const agent = data?.relayMode === 'Agent'
+  const vpn = useOptions()?.vpn === true
+  const actions = agent ? [] : actionsFor(data)
 
   async function run(action: Action) {
     setPending(action)
@@ -129,10 +146,23 @@ function SoulseekPanel({ data, error, known }: ReturnType<typeof useApplication>
   return (
     <Flex direction="column" gap="3">
       <DataList.Root size="1">
-        <DataList.Item>
-          <DataList.Label>State</DataList.Label>
-          <DataList.Value>{data?.state ?? 'Unknown'}</DataList.Value>
-        </DataList.Item>
+        {agent ? (
+          <DataList.Item>
+            <DataList.Label>Controller</DataList.Label>
+            <DataList.Value>{data.controllerAddress ?? 'Unknown'}</DataList.Value>
+          </DataList.Item>
+        ) : (
+          <DataList.Item>
+            <DataList.Label>State</DataList.Label>
+            <DataList.Value>{data?.state ?? 'Unknown'}</DataList.Value>
+          </DataList.Item>
+        )}
+        {data !== undefined && vpn && !agent && (
+          <DataList.Item>
+            <DataList.Label>VPN</DataList.Label>
+            <DataList.Value>{describeVpn(data)}</DataList.Value>
+          </DataList.Item>
+        )}
         {data?.isLoggedIn && (
           <DataList.Item>
             <DataList.Label>Privileges</DataList.Label>

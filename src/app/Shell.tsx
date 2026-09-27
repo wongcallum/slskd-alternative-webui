@@ -6,6 +6,8 @@ import { useEffect } from 'react'
 import { useUnreadInTitle } from '../chat/ChatBadge'
 import { useFrom } from '../lib/media'
 import { SoulseekIndicator } from '../soulseek/SoulseekIndicator'
+import { AgentPage } from '../system/AgentPage'
+import { useIsAgent } from '../system/application'
 import { SystemLink } from '../system/SystemLink'
 import { UpdateNotice } from '../system/UpdateNotice'
 import { TransferSpeeds } from '../transfers/TransferSpeeds'
@@ -48,6 +50,7 @@ export function Shell() {
   const md = useFrom('md')
   const lg = useFrom('lg')
   const section = useSectionLabel()
+  const agent = useIsAgent()
   return (
     <HotkeysProvider defaultOptions={hotkeyDefaults}>
       <Flex direction="column" height="100dvh">
@@ -62,7 +65,9 @@ export function Shell() {
         >
           <header>
             {(md || (!sm && section === undefined)) && <Text weight="bold">slskd</Text>}
-            {sm ? (
+            {agent !== false ? (
+              section !== undefined && <Text weight="bold">{section}</Text>
+            ) : sm ? (
               <NavTabs>
                 {sections.map(({ to, also, label, badge }) => (
                   <NavTab key={to} to={to} also={also}>
@@ -75,7 +80,7 @@ export function Shell() {
               section !== undefined && <Text weight="bold">{section}</Text>
             )}
             <Flex align="center" gap="4" ml="auto" flexShrink="0">
-              {md && <TransferSpeeds />}
+              {md && agent === false && <TransferSpeeds />}
               <SoulseekIndicator compact={!lg} />
               {lg && <UpdateNotice />}
               <SystemLink />
@@ -84,9 +89,7 @@ export function Shell() {
           </header>
         </Flex>
         <Box asChild flexGrow="1" minHeight="0" overflow="auto">
-          <main>
-            <Outlet />
-          </main>
+          <main>{agent === undefined ? null : agent ? <AgentPage /> : <Outlet />}</main>
         </Box>
         <Keys />
       </Flex>

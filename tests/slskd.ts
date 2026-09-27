@@ -36,6 +36,8 @@ export type Instance = {
   // Runs `restart`, which asks slskd to restart, and waits until slskd has started again.
   restartedBy: (restart: () => Promise<unknown>) => Promise<void>
   stop: () => Promise<void>
+  // A relay agent's controller.
+  controller?: Instance
 }
 
 const repo = path.resolve(import.meta.dirname, '..')
@@ -155,7 +157,11 @@ export async function stopGroup(group: number, graceful = true) {
 }
 
 // `extraEnv` is applied last, over the offline defaults.
-export async function start(overrides: Partial<Config> = {}, extraEnv: Record<string, string> = {}): Promise<Instance> {
+export async function start(
+  overrides: Partial<Config> = {},
+  extraEnv: Record<string, string> = {},
+  yaml = configYaml,
+): Promise<Instance> {
   const config = { ...defaultConfig, ...overrides }
   const root = await mkdtemp(path.join(tmpdir(), 'slskd-test-'))
   const dirs = {
@@ -169,7 +175,7 @@ export async function start(overrides: Partial<Config> = {}, extraEnv: Record<st
   await symlink('Album/01 Intro.flac', path.join(dirs.downloads, 'link.flac'))
   await writeFiles(dirs.incomplete, incompleteFiles)
   const configFile = path.join(dirs.appDir, 'slskd.yml')
-  await writeFiles(dirs.appDir, { 'slskd.yml': configYaml })
+  await writeFiles(dirs.appDir, { 'slskd.yml': yaml })
 
   const port = await freePort()
   const executable = binary()
@@ -269,6 +275,53 @@ export async function start(overrides: Partial<Config> = {}, extraEnv: Record<st
     throw error
   }
   return { config, base, api, root, configFile, log, ...dirs, waitUntilUp, relaunch, signal, restartedBy, stop }
+}
+
+const relaySecret = 'relay-secret-0123456789'
+const relayKey = 'relay-key-0123456789'
+
+// A relay agent and the controller it's connected to. The agent's HTTP server only starts once it has reached the
+// controller, so the controller goes first.
+export async function startAgent(overrides: Partial<Config> = {}): Promise<Instance> {
+  const controllerYaml = `${configYaml}relay:
+  agents:
+    agent:
+      instance_name: agent
+      secret: ${relaySecret}
+web:
+  authentication:
+    api_keys:
+      relay:
+        key: ${relayKey}
+        role: readwrite
+`
+  const controller = await start(overrides, { SLSKD_RELAY: 'true', SLSKD_RELAY_MODE: 'controller' }, controllerYaml)
+  try {
+    const agent = await start(
+      overrides,
+      {
+        SLSKD_RELAY: 'true',
+        SLSKD_RELAY_MODE: 'agent',
+        SLSKD_CONTROLLER_ADDRESS: controller.base,
+        SLSKD_CONTROLLER_API_KEY: relayKey,
+        SLSKD_CONTROLLER_SECRET: relaySecret,
+        // The controller refuses shares that were never scanned.
+        SLSKD_NO_SHARE_SCAN: 'false',
+      },
+      'instance_name: agent\n',
+    )
+    return {
+      ...agent,
+      controller,
+      async stop() {
+        await agent.stop()
+        await controller.stop()
+      },
+    }
+  } catch (error) {
+    await controller.stop()
+    throw error
+  }
 }
 
 export async function logIn(instance: Instance) {
