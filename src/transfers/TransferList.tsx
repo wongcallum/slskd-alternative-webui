@@ -1,13 +1,13 @@
 import { ChevronDownIcon, ChevronRightIcon } from '@radix-ui/react-icons'
-import { Button, Flex, SegmentedControl, Text } from '@radix-ui/themes'
+import { Button, DropdownMenu, Flex, SegmentedControl, Text } from '@radix-ui/themes'
 import { defaultRangeExtractor, type Range, useVirtualizer } from '@tanstack/react-virtual'
-import { type ReactNode, useCallback, useMemo, useRef } from 'react'
+import { type ReactNode, useCallback, useMemo, useRef, useState } from 'react'
 
 import { countFiles } from '../lib/files'
 import { formatSpeed, plural } from '../lib/format'
 import { useFrom } from '../lib/media'
 import { useAtom } from '../lib/store'
-import { type Choices, ChoiceSelect, ConfirmButton } from '../ui/controls'
+import { type Choices, ChoiceSelect, ConfirmButton, ConfirmDialog, disabledProps, Tip } from '../ui/controls'
 import { type ListKey, useListKeys } from '../ui/keys'
 import { RowScope, useListNav } from '../ui/listNav'
 import {
@@ -47,6 +47,7 @@ import {
   isFailed,
   isFinished,
   isRetryable,
+  isTransferring,
   type Section,
   type Show,
   type Transfer,
@@ -318,6 +319,59 @@ function ShowControl({ show, onShowChange }: { show: Show; onShowChange: (show: 
   )
 }
 
+type CancelScope = 'all' | 'queued' | 'transferring'
+
+function CancelMenu({ direction, files, gate }: { direction: Direction; files: Transfer[]; gate?: string }) {
+  const { running } = useAtom(actions[direction])
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [scope, setScope] = useState<CancelScope>('all')
+  const [confirming, setConfirming] = useState(false)
+  const transferring = files.filter((file) => isTransferring(file.state))
+  const queued = files.filter((file) => !isTransferring(file.state))
+  const chosen = { all: files, queued, transferring }
+  const progress = running.cancel
+  const disabled = gate !== undefined || progress !== undefined
+  const choose = (next: CancelScope) => {
+    setScope(next)
+    setConfirming(true)
+  }
+  const what = { all: 'active', queued: 'queued', transferring: `${direction}ing` }
+  return (
+    <>
+      <DropdownMenu.Root open={menuOpen} onOpenChange={(open) => setMenuOpen(open && !disabled)}>
+        <Tip content={progress === undefined ? gate : undefined}>
+          <DropdownMenu.Trigger>
+            <Button size="1" variant="soft" color="red" {...disabledProps(disabled)}>
+              {progress === undefined
+                ? 'Cancel'
+                : `Cancelling ${progress.done.toLocaleString()} / ${progress.total.toLocaleString()}`}
+              <DropdownMenu.TriggerIcon />
+            </Button>
+          </DropdownMenu.Trigger>
+        </Tip>
+        <DropdownMenu.Content size="1">
+          <DropdownMenu.Item onSelect={() => choose('all')}>All ({files.length.toLocaleString()})</DropdownMenu.Item>
+          <DropdownMenu.Item disabled={queued.length === 0} onSelect={() => choose('queued')}>
+            Queued ({queued.length.toLocaleString()})
+          </DropdownMenu.Item>
+          <DropdownMenu.Item disabled={transferring.length === 0} onSelect={() => choose('transferring')}>
+            {direction === 'download' ? 'Downloading' : 'Uploading'} ({transferring.length.toLocaleString()})
+          </DropdownMenu.Item>
+        </DropdownMenu.Content>
+      </DropdownMenu.Root>
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        title={`Cancel ${plural(chosen[scope].length, direction)}?`}
+        description={`Every ${what[scope]} ${direction} is cancelled, including any hidden by the filter.`}
+        action={`Cancel ${direction}s`}
+        color="red"
+        onConfirm={() => void cancel(direction, chosen[scope])}
+      />
+    </>
+  )
+}
+
 function SectionHeader({
   direction,
   data,
@@ -378,16 +432,10 @@ function SectionHeader({
   )
   const buttons =
     section === 'active' ? (
-      <ConfirmButton
-        label="Cancel all"
-        busy="Cancelling"
-        color="red"
-        progress={running.cancel}
-        gate={everything.length === 0 ? `Nothing to cancel` : gates.list}
-        title={`Cancel ${plural(everything.length, direction)}?`}
-        description={`Every active ${direction} is cancelled, including any hidden by the filter.`}
-        action={`Cancel ${direction}s`}
-        onConfirm={() => cancel(direction, everything)}
+      <CancelMenu
+        direction={direction}
+        files={everything}
+        gate={everything.length === 0 ? 'Nothing to cancel' : gates.list}
       />
     ) : (
       <>

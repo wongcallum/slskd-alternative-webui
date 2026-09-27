@@ -86,8 +86,8 @@ The one exception is acknowledging private messages while their conversation is 
 
 ### Confirmation
 
-Only Cancel all, Retry failed and Clear finished (which act on the whole section whatever the filter), Restart, Shut
-down and deleting files ask for confirmation.
+Only the Cancel menu, Retry failed and Clear finished (which act on the whole section whatever the filter), Restart,
+Shut down and deleting files ask for confirmation.
 
 ### Keyboard
 
