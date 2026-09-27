@@ -50,7 +50,14 @@ export function MessageLog({ messages, pending = none, ownName, newFrom, note, e
   const ownRef = useRef<HTMLDivElement>(null)
   const scrollRef = useContext(LogScroll) ?? ownRef
   const contentRef = useRef<HTMLDivElement>(null)
-  const nav = useListNav({ name: 'messages', items: messages, itemKey: messageKey, label: 'Messages', start: 'last' })
+  const nav = useListNav({
+    name: 'messages',
+    items: messages,
+    itemKey: messageKey,
+    label: 'Messages',
+    start: 'last',
+    scrollRef,
+  })
   const { containerRef } = nav
   const setContent = useCallback(
     (element: HTMLDivElement | null) => {

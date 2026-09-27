@@ -5,6 +5,7 @@ import {
   type FocusEvent,
   type KeyboardEvent,
   type ReactNode,
+  type RefObject,
   useCallback,
   useContext,
   useEffect,
@@ -48,6 +49,8 @@ export type ListNavOptions<T> = {
   start?: 'first' | 'last'
   role?: Role
   label?: string
+  // The scroll viewport, when it is outside the row container.
+  scrollRef?: RefObject<HTMLElement | null>
   multiselectable?: boolean
   aria?: (item: T) => AriaAttributes
   // → and ← open and close rows with children, and move between parents and children.
@@ -97,7 +100,7 @@ export function useListNav<T>(options: ListNavOptions<T>) {
   // The row the keyboard is on, and where it was, which the row nearest takes over from if it goes.
   const [spot, setSpot] = useState<{ key?: string; index?: number }>(() => {
     const remembered = recall(name)
-    return { key: anchor ?? peekIntent(name) ?? remembered?.key, index: remembered?.index }
+    return { key: peekIntent(name) ?? remembered?.key ?? anchor, index: remembered?.index }
   })
   const [seenAnchor, setSeenAnchor] = useState(anchor)
   if (anchor !== seenAnchor) {
@@ -164,7 +167,8 @@ export function useListNav<T>(options: ListNavOptions<T>) {
     const container = containerRef.current
     const row = container?.querySelector<HTMLElement>(`[data-row="${index}"]`)
     if (container === null || row === null || row === undefined) return 1
-    return Math.max(1, Math.floor(container.clientHeight / Math.max(row.offsetHeight, 1)) - 1)
+    const viewport = options.scrollRef?.current ?? container
+    return Math.max(1, Math.floor(viewport.clientHeight / Math.max(row.offsetHeight, 1)) - 1)
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLElement>) {
@@ -260,8 +264,9 @@ export function useListNav<T>(options: ListNavOptions<T>) {
     if (row === null || !containerRef.current?.contains(row)) return
     const index = Number(row.dataset.row)
     const item = items[index]
-    if (index === stop || item === undefined) return
-    setSpot({ key: itemKey(item), index })
+    if (item === undefined) return
+    const key = itemKey(item)
+    if (spot.key !== key || spot.index !== index) setSpot({ key, index })
   }
 
   return {
