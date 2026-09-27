@@ -40,6 +40,8 @@ has changed. Computed fields aren't mapped, because `elapsedTime` changes on eve
 - Accepted gaps:
   - A token that expires while its hub stays up looks logged in until the next REST call.
   - If auth is turned off across a restart, the tab stays "logged in" until it's reloaded.
+- Rejected: stock's Remember Me, which keeps the token in `sessionStorage` when unticked. That token stays in its own
+  tab, so every other tab would ask to log in again. Stock ticks it by default, so its default matches ours.
 
 ### Soulseek actions
 
@@ -152,10 +154,13 @@ The whole app works from the keyboard, for sighted keyboard users first. `?` lis
 - The errors table shows slskd's groups as they come, cancellations included, since they can't be filtered by state.
   - **Accepted gap:** a message with an IP address and port turns into a fragment (see the facts).
   - Rejected: repairing the fragments, which would be code keyed to one slskd bug.
+  - Rejected: stock's view of both directions' groups together, since the figures keep the directions apart.
 - Bars follow the local calendar. Hours, six hours and days are made of slskd's hourly buckets, and months of its UTC
   days, since a year of hours is megabytes. The totals cover exactly the bars' span.
   - **Accepted gaps:** the edges of months are off by the UTC offset, and in zones with a :30 or :45 offset so are
     the edges of days.
+  - Rejected: stock's 90-day and 180-day ranges. They fit neither unit: days make too many bars, and a span that
+    isn't whole months has ragged ends in months.
 - It loads again when the metrics hub counts a finished transfer, since nothing else changes the reports, at most once
   a minute and not while the tab is hidden. The hub doesn't count a cancelled download, which the figures leave out
   anyway.
@@ -204,6 +209,10 @@ The whole app works from the keyboard, for sighted keyboard users first. `?` lis
 
 - The open room's users are polled every 30 s, since they only change as people join and leave, and a busy room's
   list is hundreds of KB.
+  - Rejected: stock's online-first order and dimming of away users. slskd takes a user's status as they join and never
+    updates it, so it would soon be wrong.
+- Rejected: hiding a conversation with the user `..`, as stock does. slskd can't reach that user through any endpoint
+  (see the facts), and hiding it would be code keyed to one slskd bug.
 - Reply quotes a room message in stock's format, `[user] message --> `, so replies read the same from either UI. The
   quote goes before whatever is in the box, where stock replaces it. A quoted reply nests as it is.
   - Rejected: Reply in conversations, where it's clear what's being answered, and on our own messages.
@@ -231,6 +240,8 @@ The whole app works from the keyboard, for sighted keyboard users first. `?` lis
 
 - Nothing loads the whole table, which slskd never prunes (see the facts). While a filter is on, older pages load from
   a button, so a filter that matches little can't page through the whole table on its own.
+  - Rejected: stock's pager, which can jump to the oldest page. Events are read newest first, and a filter finds
+    older ones.
 - Test events aren't offered: slskd stores them without their data, sends them to webhooks twice, and can't delete them.
 
 ### Options
