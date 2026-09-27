@@ -130,7 +130,7 @@ function Sidebar() {
         {known && rooms.length === 0 && <Hint>No rooms joined.</Hint>}
       </Section>
       <Section title="Messages">
-        <MessageUserField size="1" style={{ margin: '0 var(--space-3) var(--space-1) var(--space-4)' }} />
+        <MessageUserField style={{ margin: '0 var(--space-3) var(--space-1) var(--space-4)' }} />
         {list === undefined && error !== undefined && (
           <Text size="1" color="red" mx="4" my="1">
             Can't load the conversations: {describeError(error)}

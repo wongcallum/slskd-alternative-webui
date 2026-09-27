@@ -4,7 +4,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { type CSSProperties, type SubmitEvent, useState } from 'react'
 
 // Opening a conversation sends nothing: it starts with the first message written in it.
-export function MessageUserField({ size, style }: { size: '1' | '2'; style?: CSSProperties }) {
+export function MessageUserField({ style }: { style?: CSSProperties }) {
   const navigate = useNavigate()
   const [text, setText] = useState('')
 
@@ -19,8 +19,8 @@ export function MessageUserField({ size, style }: { size: '1' | '2'; style?: CSS
   return (
     <form onSubmit={submit} style={style}>
       <TextField.Root
-        size={size}
-        placeholder="Message user…"
+        size="2"
+        placeholder="Message user"
         aria-label="Message user"
         value={text}
         onChange={(event) => setText(event.target.value)}

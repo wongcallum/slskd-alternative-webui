@@ -468,7 +468,7 @@ function SectionHeader({
   return (
     <div className="table-section">
       {twoLines ? (
-        <Flex direction="column" justify="center" px="3" height={`${twoLineBarHeight}px`}>
+        <Flex direction="column" justify="center" px="4" height={`${twoLineBarHeight}px`}>
           <Flex align="center" gap="3" height="36px">
             {title}
             <Flex ml="auto" gap="2" align="center">
@@ -483,7 +483,7 @@ function SectionHeader({
           </Flex>
         </Flex>
       ) : (
-        <Flex align="center" gap="3" px="3" height={`${barHeight}px`}>
+        <Flex align="center" gap="3" px="4" height={`${barHeight}px`}>
           {title}
           {counts}
           <Flex ml="auto" gap="2" align="center">

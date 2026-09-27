@@ -8,9 +8,9 @@ import { describeError } from '../lib/api'
 import { formatBytes, plural } from '../lib/format'
 import { useAtom, useResource } from '../lib/store'
 import { useSoulseekGate } from '../soulseek/soulseek'
-import { ActionButton, Tip } from '../ui/controls'
+import { ActionButton, Tip, ToolbarEnd } from '../ui/controls'
 import { LinkedText } from '../ui/LinkedText'
-import { Ago, Busy, Loading } from '../ui/status'
+import { Ago, Busy, Fetched, Loading } from '../ui/status'
 import { UserPage } from '../ui/UserList'
 import { LookUpBox } from './LookUpBox'
 import { LookupErrorLine, PresenceLabel } from './LookupStatus'
@@ -61,12 +61,15 @@ export function ProfilePage({ username }: { username: string }) {
         <>
           <LookUpBox current={username} />
           {record !== undefined && (
-            <Flex ml="auto" align="center" gap="3" flexShrink="0">
-              <Text size="2" color="gray">
-                Updated <Ago time={lookedUpAt(record)} />
-              </Text>
-              <ActionButton label="Look up again" loading={running} gate={gate} onClick={() => void lookUp(username)} />
-            </Flex>
+            <ToolbarEnd>
+              <Fetched
+                fetchedAt={lookedUpAt(record)}
+                loading={running}
+                label="Look up again"
+                gate={gate}
+                onRefresh={() => void lookUp(username)}
+              />
+            </ToolbarEnd>
           )}
         </>
       }
@@ -96,7 +99,7 @@ function Profile({ record, errors }: { record: UserRecord; errors?: LookupErrors
       <Flex gap="4" align="start">
         {info?.hasPicture && typeof picture === 'string' && <Picture username={username} picture={picture} />}
         <Flex direction="column" gap="2" minWidth="0">
-          <Heading size="5" style={{ overflowWrap: 'anywhere' }}>
+          <Heading size="4" style={{ overflowWrap: 'anywhere' }}>
             {username}
           </Heading>
           {status !== undefined && (

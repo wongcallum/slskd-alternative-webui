@@ -15,7 +15,7 @@ import { nameOf } from '../../lib/files'
 import { plural } from '../../lib/format'
 import { byName } from '../../lib/text'
 import { type Folder, type Item, type Matches, matchesUnder, relativePath, type Tree } from '../../lib/tree'
-import { SelectionActions, toolbarStyle } from '../controls'
+import { barHeight, SelectionActions, toolbarStyle } from '../controls'
 import { useListKeys } from '../keys'
 import { useListNav } from '../listNav'
 import { Ago, Empty } from '../status'
@@ -145,7 +145,7 @@ export function FolderPane({
         px="4"
         py="2"
         flexShrink="0"
-        minHeight="48px"
+        minHeight={barHeight}
         style={toolbarStyle}
       >
         <Flex align="center" gap="3" minWidth="0" style={{ overflow: 'hidden' }}>
@@ -180,7 +180,7 @@ export function FolderPane({
             </Text>
           )}
         </Flex>
-        <Flex ml="auto" align="center" gap="3" flexShrink="0">
+        <Flex className="toolbar-end" ml="auto" align="center" gap="3" flexShrink="0">
           {status}
           {selected.length > 0 && actions !== undefined && (
             <SelectionActions onClear={clear}>{actions({ tree, folder, items: selected, clear })}</SelectionActions>

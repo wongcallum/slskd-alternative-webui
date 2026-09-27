@@ -12,8 +12,10 @@ export function AgentPage() {
   if (isActive('/system')) return <Outlet />
   if (isActive('/dashboard')) return <Navigate to="/system/info" replace />
   return (
-    <Box p="5">
-      <Heading mb="2">This slskd is a relay agent</Heading>
+    <Box p="4">
+      <Heading size="4" mb="2">
+        This slskd is a relay agent
+      </Heading>
       <Text as="p" color="gray" mb="3">
         Searching, transfers and chat happen on its controller{controller === undefined ? '' : `, ${controller}`}.
       </Text>

@@ -40,18 +40,22 @@ export type Color = NonNullable<TextProps['color']>
 
 export const toolbarStyle = { boxShadow: 'inset 0 -1px 0 0 var(--gray-a5)' }
 
+export const barHeight = '48px'
+
 // Below sm, selection actions take a line of their own under the rest.
-export function Toolbar({
-  gap = '3',
-  py = '2',
-  children,
-}: {
-  gap?: FlexProps['gap']
-  py?: FlexProps['py']
-  children: ReactNode
-}) {
+export function Toolbar({ gap = '3', children }: { gap?: FlexProps['gap']; children: ReactNode }) {
   return (
-    <Flex className="toolbar" align="center" gap={gap} wrap="wrap" px="4" py={py} flexShrink="0" style={toolbarStyle}>
+    <Flex
+      className="toolbar"
+      align="center"
+      gap={gap}
+      wrap="wrap"
+      px="4"
+      py="2"
+      flexShrink="0"
+      minHeight={barHeight}
+      style={toolbarStyle}
+    >
       {children}
     </Flex>
   )

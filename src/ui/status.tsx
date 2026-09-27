@@ -87,8 +87,10 @@ export function ErrorCallout({ onRetry, children }: { onRetry?: () => void; chil
 // The link isn't active on a search's own page, which is under /searches.
 export function Missing({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <Box p="5">
-      <Heading mb="2">{title}</Heading>
+    <Box p="4">
+      <Heading size="4" mb="2">
+        {title}
+      </Heading>
       <Text as="p" color="gray" mb="3">
         {children}
       </Text>
@@ -103,7 +105,7 @@ export function Missing({ title, children }: { title: string; children: ReactNod
 
 export function Empty({ children, actions }: { children: ReactNode; actions?: ReactNode }) {
   return (
-    <Flex align="center" gap="3" p="5" wrap="wrap">
+    <Flex align="center" gap="3" p="4" wrap="wrap">
       <Text color="gray">{children}</Text>
       {actions}
     </Flex>
@@ -223,7 +225,7 @@ export function Fetched({
   onRefresh,
 }: {
   fetchedAt?: number
-  error: unknown
+  error?: unknown
   loading: boolean
   label?: string
   gate?: string

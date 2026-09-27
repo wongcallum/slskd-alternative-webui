@@ -7,7 +7,7 @@ import type { SearchProps } from '../../lib/params'
 import { useAtom } from '../../lib/store'
 import { useRun } from '../../lib/useRun'
 import { useSoulseekGate } from '../../soulseek/soulseek'
-import { ActionButton, toolbarStyle } from '../../ui/controls'
+import { ActionButton, barHeight, toolbarStyle } from '../../ui/controls'
 import { BackLink } from '../../ui/nav'
 import { Ago, Empty, Fetching, Freshness, Missing, Polling } from '../../ui/status'
 import {
@@ -92,8 +92,9 @@ function Header({ search, known, live }: { search: Search; known: boolean; live:
       gap="3"
       wrap={{ initial: 'wrap', md: 'nowrap' }}
       px="4"
-      py="3"
+      py="2"
       flexShrink="0"
+      minHeight={barHeight}
       style={toolbarStyle}
     >
       <Flex align="center" gap="3" minWidth="0" flexBasis={{ initial: '100%', md: 'auto' }}>

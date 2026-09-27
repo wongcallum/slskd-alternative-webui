@@ -1,5 +1,5 @@
 import './dashboard.css'
-import { Box, Card, Flex, Grid, Heading, Link, SegmentedControl, Text } from '@radix-ui/themes'
+import { Box, Card, Flex, Grid, Heading, Inset, Link, SegmentedControl, Text } from '@radix-ui/themes'
 import { Link as RouterLink } from '@tanstack/react-router'
 import { lazy, type ReactNode, Suspense, useId } from 'react'
 
@@ -227,7 +227,7 @@ function Rows<T>({
     )
   }
   return (
-    <Box>
+    <Inset side="x">
       <HeaderRow template={template} stacked={stacked}>
         {!stacked && <ColumnHeader label={label} />}
         {columns}
@@ -247,7 +247,7 @@ function Rows<T>({
           </div>
         )
       })}
-    </Box>
+    </Inset>
   )
 }
 

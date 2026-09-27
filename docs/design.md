@@ -118,6 +118,17 @@ The whole app works from the keyboard, for sighted keyboard users first. `?` lis
 - **Accepted gap:** nothing is tested with a screen reader. Lists are grids, treegrids and a tree made of rows, but
   their cells have no roles, since the linter wants table elements there.
 
+### Layout
+
+- Toolbars are 48px high, whatever they hold, and tab bars keep their tabs' 40px. A field in a toolbar is size 2, as
+  is the button that submits it, and every other control in a toolbar is size 1.
+- Toolbars, lists and empty states share a 16px inset, so a list's checkboxes and first column line up with the field
+  above them.
+- The title of what's open (a search, a room, a conversation or a user) is a size 4 heading. Freshness is size 1 and
+  counts are size 2.
+- Rejected: a larger search box on Dashboard and Search. It was the only control of its size, and it moved the line
+  under the first bar from page to page.
+
 ## Features
 
 ### Shell

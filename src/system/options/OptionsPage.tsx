@@ -4,7 +4,7 @@ import { lazy, type ReactNode, Suspense, useEffect, useMemo, useState } from 're
 import { describeError } from '../../lib/api'
 import type { SearchProps } from '../../lib/params'
 import { useAtom, useResource } from '../../lib/store'
-import { ActionButton, disabledProps, Tip, toolbarStyle } from '../../ui/controls'
+import { ActionButton, barHeight, disabledProps, Tip, toolbarStyle } from '../../ui/controls'
 import { Preformatted } from '../../ui/details'
 import { Fetched, FetchedResource, Freshness, Loading, Polling } from '../../ui/status'
 import { YamlView } from '../../ui/YamlView'
@@ -90,6 +90,7 @@ function ViewControl({
 }) {
   return (
     <SegmentedControl.Root
+      size="1"
       value={view}
       onValueChange={(next) => {
         const chosen = next as OptionView
@@ -122,7 +123,7 @@ function Toolbar({ control, children }: { control: ReactNode; children?: ReactNo
   const { data, known } = useApplication()
   return (
     <>
-      <Flex align="center" gap="3" px="4" py="2" flexShrink="0" wrap="wrap" style={toolbarStyle}>
+      <Flex align="center" gap="3" px="4" py="2" flexShrink="0" minHeight={barHeight} wrap="wrap" style={toolbarStyle}>
         {control}
         <Flex ml="auto" align="center" gap="3" minWidth="0">
           {children}

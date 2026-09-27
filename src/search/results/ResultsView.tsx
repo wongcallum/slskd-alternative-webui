@@ -158,7 +158,7 @@ export function ResultsView({ searchId, results, folders, params, onSearchChange
         )}
         <ToolbarEnd>
           <OutcomeLine atom={downloadsOf(searchId)} />
-          <Text size="1" color="gray">
+          <Text size="2" color="gray">
             {shown === total
               ? `${total.toLocaleString()} files in ${groups.length.toLocaleString()} folders`
               : `${shown.toLocaleString()} of ${total.toLocaleString()} files`}

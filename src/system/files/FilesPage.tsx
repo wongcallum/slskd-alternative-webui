@@ -171,7 +171,7 @@ function DeleteKey({ target, tree, selection }: KeysProps) {
 function FilesStatus() {
   const options = useOptions()
   return (
-    <Flex align="center" gap="3">
+    <>
       <OutcomeLine atom={fileActions} />
       <SharedHint />
       {options?.remoteFileManagement !== true && (
@@ -185,7 +185,7 @@ function FilesStatus() {
           onClick={() => {}}
         />
       )}
-    </Flex>
+    </>
   )
 }
 
