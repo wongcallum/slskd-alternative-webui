@@ -167,7 +167,7 @@ function TypesMenu({
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger>
-        <Button variant="soft" color="gray">
+        <Button size="1" variant="soft" color="gray">
           {hidden.size === 0 ? 'All types' : `${plural(hidden.size, 'type')} hidden`}
           <DropdownMenu.TriggerIcon />
         </Button>

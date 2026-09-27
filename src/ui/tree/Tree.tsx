@@ -133,7 +133,7 @@ export function Tree({ tree, selected, matches, onOpen, onUp, reveal, Keys }: Tr
 
   if (rows.length === 0) {
     return (
-      <Box p="3">
+      <Box p="4">
         <Text size="2" color="gray">
           Nothing matches.
         </Text>
@@ -207,7 +207,7 @@ const TreeRow = memo(function TreeRow({
       className="tree-row"
       data-selected={selected || undefined}
       data-dimmed={folder.locked || folder.hidden || undefined}
-      style={{ paddingLeft: 8 + depth * 16 }}
+      style={{ paddingLeft: 12 + depth * 16 }}
       title={folder.name}
       onClick={() => onOpen(folder)}
     >

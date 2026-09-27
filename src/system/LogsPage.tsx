@@ -122,7 +122,7 @@ function LevelSelect({ value, onChange }: { value: MinimumLevel; onChange: (leve
       <Text as="label" size="2" color="gray" htmlFor={id}>
         Level at least
       </Text>
-      <ChoiceSelect id={id} choices={minimumChoices} value={value} onChange={onChange} />
+      <ChoiceSelect id={id} size="1" soft choices={minimumChoices} value={value} onChange={onChange} />
     </Flex>
   )
 }

@@ -8,13 +8,13 @@ import { MessageUserField } from './MessageUserField'
 export function ChatEmpty() {
   const gate = useSoulseekGate()
   return (
-    <Flex direction="column" align="start" gap="3" p="5">
+    <Flex direction="column" align="start" gap="3" p="4">
       <Text color="gray">Join a room or message someone.</Text>
       <Flex gap="3" align="center">
         <JoinRoomDialog gate={gate}>
           <Button {...disabledProps(gate !== undefined)}>Join a room</Button>
         </JoinRoomDialog>
-        <MessageUserField size="2" style={{ width: 240 }} />
+        <MessageUserField style={{ width: 240 }} />
       </Flex>
     </Flex>
   )

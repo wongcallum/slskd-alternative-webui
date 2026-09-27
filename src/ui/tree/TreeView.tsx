@@ -6,7 +6,7 @@ import { type Criteria, unjudged } from '../../lib/criteria'
 import { useFrom } from '../../lib/media'
 import { type SearchProps, useSortParam } from '../../lib/params'
 import { type Folder, matchTree, nearestFolder, type Tree as FolderTree } from '../../lib/tree'
-import { FilterField, GatedIconButton, toolbarStyle, useFilterText } from '../controls'
+import { barHeight, FilterField, GatedIconButton, toolbarStyle, useFilterText } from '../controls'
 import { intendFocus } from '../focus'
 import { FolderPane, type TreeConfig } from './FolderPane'
 import { expandTo, Tree, updateExpansion } from './Tree'
@@ -66,7 +66,7 @@ export function TreeView<S extends string>({
   const treeWidth = lg ? '380px' : md ? '300px' : '260px'
 
   const toolbar = (
-    <Flex align="center" gap="2" px="3" py="2" flexShrink="0" style={toolbarStyle}>
+    <Flex align="center" gap="2" px="4" py="2" flexShrink="0" minHeight={barHeight} style={toolbarStyle}>
       <FilterField
         placeholder="Filter, -word to exclude"
         value={filter.text}

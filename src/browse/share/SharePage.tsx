@@ -67,7 +67,7 @@ export function SharePage({ search, onSearchChange }: Props) {
     )
   } else if (loaded?.status === 'missing') {
     content = (
-      <Flex direction="column" align="start" gap="3" p="5">
+      <Flex direction="column" align="start" gap="3" p="4">
         <Heading size="4">Not browsed yet</Heading>
         <Text color="gray">Browsing fetches {username}'s whole share.</Text>
         <ActionButton label={`Browse ${username}`} gate={gate} onClick={() => void browse(username)} />
@@ -106,13 +106,13 @@ export function SharePage({ search, onSearchChange }: Props) {
             <Flex ml="auto" align="center" gap="3" flexShrink="0">
               {ready?.notCached !== undefined && (
                 <Tip content={ready.notCached}>
-                  <Text size="2" color="amber">
+                  <Text size="1" color="amber">
                     Not cached
                   </Text>
                 </Tip>
               )}
               {sm && ready !== undefined && (
-                <Text size="2" color="gray">
+                <Text size="1" color="gray">
                   Browsed <Ago time={ready.fetchedAt} />
                 </Text>
               )}

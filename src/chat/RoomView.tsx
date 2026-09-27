@@ -55,7 +55,7 @@ function NotJoined({ room }: { room: string }) {
   return (
     <Flex direction="column" flexGrow="1">
       <ChatToolbar title={room} />
-      <Flex direction="column" align="start" gap="3" p="5">
+      <Flex direction="column" align="start" gap="3" p="4">
         <Text color="gray">You're not in this room.</Text>
         <Button
           loading={running}

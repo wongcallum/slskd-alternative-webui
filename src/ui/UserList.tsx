@@ -32,9 +32,7 @@ const entryKey = (entry: { username: string }) => entry.username
 export function UserPage({ toolbar, children }: { toolbar: ReactNode; children: ReactNode }) {
   return (
     <Flex direction="column" height="100%">
-      <Toolbar gap="4" py="3">
-        {toolbar}
-      </Toolbar>
+      <Toolbar gap="4">{toolbar}</Toolbar>
       {children}
     </Flex>
   )

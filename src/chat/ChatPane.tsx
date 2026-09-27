@@ -1,9 +1,9 @@
-import { Flex, Text } from '@radix-ui/themes'
+import { Flex, Heading } from '@radix-ui/themes'
 import { type ReactNode, type Ref, useRef } from 'react'
 
 import { useFrom } from '../lib/media'
 import type { Resource } from '../lib/store'
-import { toolbarStyle } from '../ui/controls'
+import { barHeight, toolbarStyle } from '../ui/controls'
 import { BackLink } from '../ui/nav'
 import { Freshness, Polling } from '../ui/status'
 import { Composer } from './Composer'
@@ -13,11 +13,11 @@ import { type Target, targetKey } from './messages'
 export function ChatToolbar({ title, children }: { title: ReactNode; children?: ReactNode }) {
   const sm = useFrom('sm')
   return (
-    <Flex align="center" gap="3" px="4" py="2" flexShrink="0" minHeight="45px" style={toolbarStyle}>
+    <Flex align="center" gap="3" px="4" py="2" flexShrink="0" minHeight={barHeight} style={toolbarStyle}>
       {!sm && <BackLink to="/chat" label="Back to chats" />}
-      <Text weight="bold" truncate>
+      <Heading size="4" truncate>
         {title}
-      </Text>
+      </Heading>
       {children}
     </Flex>
   )

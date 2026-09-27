@@ -8,6 +8,7 @@
   display: grid;
   align-items: center;
   height: 100%;
+  padding: 0 var(--space-2);
   box-shadow: inset 0 -1px 0 0 var(--gray-a3);
 }
 
@@ -98,7 +99,7 @@
   align-items: center;
   gap: var(--space-1);
   height: 100%;
-  padding-right: var(--space-3);
+  padding-right: var(--space-4);
   white-space: nowrap;
   cursor: pointer;
 }
@@ -142,7 +143,7 @@
     'last actions';
   align-content: center;
   row-gap: 2px;
-  padding: 0 var(--space-3);
+  padding: 0 var(--space-4);
 }
 
 .table-stacked-check {
@@ -150,7 +151,7 @@
   grid-template-areas:
     'check title title'
     'check last actions';
-  padding-left: 0;
+  padding-left: var(--space-2);
 }
 
 .table-stacked-3 {
@@ -233,9 +234,13 @@
   align-items: center;
   gap: var(--space-4);
   min-width: 0;
-  padding: 0 var(--space-3);
+  padding: 0 var(--space-2);
   overflow-x: auto;
   scrollbar-width: none;
+}
+
+.table-check + .table-sorts {
+  padding-left: 0;
 }
 
 .table-sorts > .table-cell {

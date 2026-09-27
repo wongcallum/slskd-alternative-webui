@@ -5,6 +5,11 @@
   }
 }
 
+/* Left in the bar while empty, it would wrap to a line of its own under a long title. */
+.toolbar-end:empty {
+  display: none;
+}
+
 /* SegmentedControl draws each label twice, a bold copy that's named and a regular one that's aria-hidden, and shows one
    at a time. A disabled item's label can be focused to say why, which would make two tab stops, so it keeps only the
    named copy, in the regular weight while it's off. */

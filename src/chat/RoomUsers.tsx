@@ -67,10 +67,12 @@ export function RoomUsers({ room, fill }: { room: string; fill?: boolean }) {
       minHeight="0"
       style={fill ? undefined : { boxShadow: 'inset 1px 0 0 0 var(--gray-a5)' }}
     >
-      <Flex direction="column" gap="2" px="3" py="2" flexShrink="0">
-        <Text size="2" color="gray">
-          {users === undefined ? 'Users' : plural(users.length, 'user')}
-        </Text>
+      <Flex direction="column" px="4" py="2" flexShrink="0">
+        <Flex align="center" minHeight="24px" py="1">
+          <Text size="1" weight="medium" color="gray">
+            {users === undefined ? 'Users' : plural(users.length, 'user')}
+          </Text>
+        </Flex>
         <FilterField
           placeholder="Filter users"
           value={filter}

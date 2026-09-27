@@ -4,7 +4,7 @@ import { type SubmitEvent, useState } from 'react'
 
 import { useTouch } from '../lib/media'
 import { useSoulseekGate } from '../soulseek/soulseek'
-import { disabledProps, mainField, toList } from '../ui/controls'
+import { disabledProps, mainField, toList, Toolbar } from '../ui/controls'
 import { ActionNote } from '../ui/status'
 import { useCreateSearch } from './useCreateSearch'
 
@@ -22,34 +22,36 @@ export function NewSearch() {
   }
 
   return (
-    <Box px="4" pt="4" pb="3" flexShrink="0">
-      <form onSubmit={submit}>
-        <Flex gap="2" align="center">
-          <TextField.Root
-            size="3"
-            placeholder="Search Soulseek"
-            autoFocus={!touch}
-            value={text}
-            onChange={(event) => setText(event.target.value)}
-            onKeyDown={toList('searches')}
-            {...mainField(true)}
-            style={{ flexGrow: 1, maxWidth: 520 }}
-          >
-            <TextField.Slot>
-              <MagnifyingGlassIcon />
-            </TextField.Slot>
-            {busy && (
+    <Toolbar>
+      <Box asChild flexGrow="1" maxWidth="600px">
+        <form onSubmit={submit}>
+          <Flex gap="2" align="center">
+            <TextField.Root
+              size="2"
+              placeholder="Search Soulseek"
+              autoFocus={!touch}
+              value={text}
+              onChange={(event) => setText(event.target.value)}
+              onKeyDown={toList('searches')}
+              {...mainField(true)}
+              style={{ flexGrow: 1 }}
+            >
               <TextField.Slot>
-                <Spinner />
+                <MagnifyingGlassIcon />
               </TextField.Slot>
-            )}
-          </TextField.Root>
-          <Button size="3" type="submit" {...disabledProps(gate !== undefined || busy)}>
-            Search
-          </Button>
-        </Flex>
-      </form>
-      <ActionNote error={error} gate={gate} size="2" mt="2" />
-    </Box>
+              {busy && (
+                <TextField.Slot>
+                  <Spinner />
+                </TextField.Slot>
+              )}
+            </TextField.Root>
+            <Button size="2" type="submit" {...disabledProps(gate !== undefined || busy)}>
+              Search
+            </Button>
+          </Flex>
+        </form>
+      </Box>
+      <ActionNote error={error} gate={gate} size="2" />
+    </Toolbar>
   )
 }

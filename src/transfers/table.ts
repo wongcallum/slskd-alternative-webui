@@ -83,7 +83,7 @@ export const minWidths: Record<Layout, number> = { stacked: 0, wide: 1176, mediu
 export const columnsOf = (section: Section, layout: Layout) =>
   layout === 'medium' ? columnIds[section].filter((id) => id !== 'time') : columnIds[section]
 
-export const barHeight = 44
+export const barHeight = 48
 
 // Below sm, a section's title and actions take one line and its summary and filter the next.
 export const twoLineBarHeight = 72
