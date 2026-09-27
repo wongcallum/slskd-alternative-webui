@@ -2,7 +2,8 @@
 
 A drop-in replacement web UI for [slskd](https://github.com/slskd/slskd).
 
-![The dashboard, with transfer totals and a chart of the last 30 days](docs/screenshots/dashboard.png)
+| ![The dashboard, with transfer totals and a chart of the last 30 days](docs/screenshots/dashboard.png) | ![Search results grouped by folder, with one folder open](docs/screenshots/search.png) | ![A browsed share, with its folder tree and the open folder's files](docs/screenshots/browse.png) |
+| ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
 
 ## Features
 
@@ -13,10 +14,6 @@ A drop-in replacement web UI for [slskd](https://github.com/slskd/slskd).
 - Downloading a folder from Browse or a search result keeps its subfolders.
 - Files shows each directory's whole tree, with folder sizes and a filter.
 - Everything works from the keyboard. Press `?` to show keybinds.
-
-![Search results grouped by folder, with one folder open](docs/screenshots/search.png)
-
-![A browsed share, with its folder tree and the open folder's files](docs/screenshots/browse.png)
 
 ## Install
 
