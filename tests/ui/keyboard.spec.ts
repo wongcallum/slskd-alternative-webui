@@ -37,6 +37,8 @@ test('Files is used from the keyboard alone', async ({ page, slskd }) => {
   const pane = page.getByRole('grid', { name: 'Contents' })
   await expect(pane.getByRole('row', { name: /Delete me\.flac/ })).toBeFocused()
 
+  // Selecting and deleting wait for slskd's options, which can arrive after the listing.
+  await expect(pane.getByRole('checkbox', { name: 'Select all' })).toBeVisible()
   await page.keyboard.press('Space')
   await page.keyboard.press('Delete')
   const dialog = page.getByRole('alertdialog')
