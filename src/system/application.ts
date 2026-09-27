@@ -1,5 +1,5 @@
 import { api } from '../lib/api'
-import { toTime } from '../lib/format'
+import { plural, toTime } from '../lib/format'
 import { applicationHub, followHub, useLiveResource, type Via } from '../lib/hubs'
 import { createAtom, createResource, sameItems } from '../lib/store'
 
@@ -185,3 +185,10 @@ export function pendingItems(data: Application) {
 }
 
 export const useApplication = () => useLiveResource(application, applicationHub, applicationPollInterval)
+
+export function describePrivileges(seconds: number) {
+  if (seconds <= 0) return 'Not privileged'
+  const days = Math.round(seconds / 86_400)
+  if (days >= 1) return `About ${plural(days, 'day')} left`
+  return `About ${plural(Math.max(1, Math.round(seconds / 3600)), 'hour')} left`
+}

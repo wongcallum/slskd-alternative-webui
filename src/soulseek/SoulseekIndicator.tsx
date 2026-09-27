@@ -1,11 +1,12 @@
-import { Button, DataList, Flex, IconButton, Popover, Text } from '@radix-ui/themes'
+import { StarFilledIcon } from '@radix-ui/react-icons'
+import { Button, DataList, Flex, IconButton, Popover, Text, VisuallyHidden } from '@radix-ui/themes'
 import { useState } from 'react'
 
 import { describeError } from '../lib/api'
 import { formatAge } from '../lib/format'
 import { applicationHub, type HubStatus, metricsHub, searchHub, useHub, useWatchedHub } from '../lib/hubs'
 import { useFreshness } from '../lib/store'
-import { type Application, application, useApplication } from '../system/application'
+import { type Application, application, describePrivileges, useApplication } from '../system/application'
 import { type Color, disabledProps } from '../ui/controls'
 import { StatusDot } from '../ui/status'
 import { connect, disconnect, reconnect } from './soulseek'
@@ -65,6 +66,14 @@ function describeSource(data: Application | undefined, known: boolean, age: numb
 export function SoulseekIndicator({ compact }: { compact: boolean }) {
   const soulseek = useApplication()
   const { color, label } = describeSoulseek(soulseek.data, soulseek.known)
+  const privileged = soulseek.data?.isLoggedIn === true && soulseek.data.privilegeSeconds > 0
+  // The popover says how long the privileges last, since a tooltip inside the button couldn't be reached.
+  const star = privileged && (
+    <>
+      <StarFilledIcon aria-hidden color="var(--amber-9)" />
+      <VisuallyHidden>, privileged</VisuallyHidden>
+    </>
+  )
   return (
     <Popover.Root>
       <Popover.Trigger>
@@ -76,6 +85,7 @@ export function SoulseekIndicator({ compact }: { compact: boolean }) {
           <Button variant="ghost" color="gray">
             <StatusDot color={color} />
             {label}
+            {star}
           </Button>
         )}
       </Popover.Trigger>
@@ -86,6 +96,7 @@ export function SoulseekIndicator({ compact }: { compact: boolean }) {
             <Text size="2" weight="medium">
               {label}
             </Text>
+            {star}
           </Flex>
         )}
         <SoulseekPanel {...soulseek} />
@@ -122,6 +133,12 @@ function SoulseekPanel({ data, error, known }: ReturnType<typeof useApplication>
           <DataList.Label>State</DataList.Label>
           <DataList.Value>{data?.state ?? 'Unknown'}</DataList.Value>
         </DataList.Item>
+        {data?.isLoggedIn && (
+          <DataList.Item>
+            <DataList.Label>Privileges</DataList.Label>
+            <DataList.Value>{describePrivileges(data.privilegeSeconds)}</DataList.Value>
+          </DataList.Item>
+        )}
         {data?.address && (
           <DataList.Item>
             <DataList.Label>Server</DataList.Label>

@@ -3,12 +3,19 @@ import type { ReactNode } from 'react'
 
 import { version } from '../../package.json'
 import { api, describeError } from '../lib/api'
-import { formatAge, formatBytes, formatSpeed, plural } from '../lib/format'
+import { formatAge, formatBytes, formatSpeed } from '../lib/format'
 import { useAtom, useClock, useResource } from '../lib/store'
 import { useRun } from '../lib/useRun'
 import { ActionButton, ConfirmButton, type Detail, DetailList } from '../ui/controls'
 import { Freshness, Polling } from '../ui/status'
-import { type Application, application, applicationPollInterval, releaseNotes, useApplication } from './application'
+import {
+  type Application,
+  application,
+  applicationPollInterval,
+  describePrivileges,
+  releaseNotes,
+  useApplication,
+} from './application'
 import { lifecycle, restartPatience, shutDown } from './lifecycle'
 import { PendingCallouts, RestartButton, useLifecycleGate } from './PendingCallouts'
 import { processInfo } from './process'
@@ -143,13 +150,6 @@ function LifecycleLine() {
       {state.error}
     </Text>
   )
-}
-
-function describePrivileges(seconds: number) {
-  if (seconds <= 0) return 'Not privileged'
-  const days = Math.round(seconds / 86_400)
-  if (days >= 1) return `About ${plural(days, 'day')} left`
-  return `About ${plural(Math.max(1, Math.round(seconds / 3600)), 'hour')} left`
 }
 
 function AccountCard({ data }: { data: Application }) {

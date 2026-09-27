@@ -132,6 +132,8 @@ The whole app works from the keyboard, for sighted keyboard users first. `?` lis
 - **Accepted gap:** while no list is polled, the speed comes from the metrics hub, which during an album of short files
   shows about a quarter of the real rate. Only the Downloads or Uploads page is exact.
 - Speeds stay out of the page title, since one that changes every second is noise in the tab strip.
+- A privileged account has a star by its name in the bar. How long is left is in the Soulseek popover, since a tooltip
+  inside the popover's button couldn't be reached.
 
 ### Responsiveness
 
