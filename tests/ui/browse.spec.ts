@@ -6,12 +6,24 @@ import { expect, logInPage, test } from '../fixtures'
 // The page polls a browse's status, which is a 404 until the peer starts replying.
 test.use({ config: { soulseek: true }, failedRequests: true })
 
-test('a folder downloaded from Browse keeps its subfolders', async ({ page, slskd, peers: { fast } }) => {
+test('a share filters by quality, and a folder downloaded from it keeps its subfolders', async ({
+  page,
+  slskd,
+  peers: { fast },
+}) => {
   const album = path.join(slskd.downloads, 'Artist - Album')
   await rm(album, { recursive: true, force: true })
   await page.goto(`browse?user=${encodeURIComponent(fast.username)}`)
   await logInPage(page)
   await page.getByRole('button', { name: `Browse ${fast.username}` }).click()
+  // Only 01 Intro.flac has attributes to judge, and 02 Outro.flac, which has none, rides along in its folder.
+  await page.getByRole('button', { name: 'Filters' }).click()
+  await page.getByLabel('Quality at least').click()
+  await page.getByRole('option', { name: 'Lossless', exact: true }).click()
+  const pane = page.getByRole('grid', { name: 'Contents' })
+  await expect(pane.getByRole('row', { name: /\.(flac|mp3|jpg)/ })).toHaveText([/01 Intro\.flac/, /02 Outro\.flac/])
+  await page.getByRole('button', { name: 'Clear' }).click()
+  await page.keyboard.press('Escape')
   await page.getByRole('treeitem', { name: /Artist - Album 4$/ }).click()
   await page.getByRole('checkbox', { name: 'Select all' }).click()
   await page.getByRole('button', { name: /^Download 4 / }).click()
