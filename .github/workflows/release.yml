@@ -1,0 +1,25 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  dist:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: cachix/install-nix-action@v31
+      - run: nix profile add nixpkgs#devenv
+
+      - run: devenv shell -- bash -e -c 'pnpm install --frozen-lockfile && pnpm build'
+
+      - name: Attach the build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp LICENSE dist
+          (cd dist && zip -qr ../slskd-alternative-webui.zip .)
+          gh release upload "$GITHUB_REF_NAME" slskd-alternative-webui.zip --clobber

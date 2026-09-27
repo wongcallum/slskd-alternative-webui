@@ -14,27 +14,31 @@ A drop-in replacement web UI for [slskd](https://github.com/slskd/slskd).
 
 ## Install
 
+Download `slskd-alternative-webui.zip` from the
+[latest release](https://github.com/wongcallum/slskd-alternative-webui/releases/latest) and unzip it into a directory:
+
 ```sh
-git clone https://github.com/wongcallum/slskd-alternative-webui.git
-cd slskd-alternative-webui
-pnpm install
-pnpm build
+curl -LO https://github.com/wongcallum/slskd-alternative-webui/releases/latest/download/slskd-alternative-webui.zip
+unzip slskd-alternative-webui.zip -d slskd-alternative-webui
 ```
 
-This writes the UI to `dist`. Install it in one of these ways:
+To build it from source instead, run `pnpm install` and `pnpm build` in a clone of this repository, which writes it to
+`dist`. Install the directory in one of these ways:
 
-- Set `web.content_path` in `slskd.yml` (or `SLSKD_CONTENT_PATH`, or `--content-path`) to `dist`, and restart slskd.
+- Set `web.content_path` in `slskd.yml` (or `SLSKD_CONTENT_PATH`, or `--content-path`) to it, and restart slskd.
   The path must be relative to the directory the slskd binary is in, and slskd refuses to start with an absolute
   path:
 
   ```yaml
   web:
-    content_path: ../slskd-alternative-webui/dist
+    content_path: ../slskd-alternative-webui
   ```
 
-- In Docker, mount `dist` over the image's `wwwroot`, for example `-v /path/to/dist:/slskd/wwwroot:ro`, and recreate
-  the container.
-- Replace the contents of the `wwwroot` directory beside the slskd binary with the contents of `dist`.
+- In Docker, mount it over the image's `wwwroot`, for example `-v /path/to/slskd-alternative-webui:/slskd/wwwroot:ro`,
+  and recreate the container.
+- Replace the contents of the `wwwroot` directory beside the slskd binary with its contents.
+
+To update, replace the directory's contents with the new release's and reload the page. slskd doesn't need a restart.
 
 ## Uninstall
 
@@ -78,7 +82,6 @@ reaches the real Soulseek network.
 
 ## Roadmap
 
-- A prebuilt `dist` attached to each GitHub release
 - Keyboard handling (weigh `@headless-tree` for Browse's tree)
 - Filter criteria (quality, size) for Browse.
 - Dashboard

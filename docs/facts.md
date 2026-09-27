@@ -660,6 +660,8 @@ dashboard yet.
 
 - slskd serves `web.content_path` (default `wwwroot`), relative to the slskd binary's directory
   (`AppContext.BaseDirectory`). An absolute path fails validation at startup, and so does a missing directory.
+- Files are read from `content_path` on each request, and `index.html` is sent with `Cache-Control: no-cache`, so
+  replacing the directory's contents takes effect on the next load without a restart (observed).
 - For a GET that returns 200, slskd checks the `Accept` header: split on commas, it must contain an exact
   `text/html` token (`application/json, text/html`, with the space, doesn't match). If it does, slskd:
   - regex-rewrites `./static` and `/static` to `{urlBase}/static`, and `./favicon.ico` and
