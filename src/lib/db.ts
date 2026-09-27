@@ -20,11 +20,9 @@ let opening: Promise<Database> | undefined
 const open = () =>
   new Promise<Database>((resolve, reject) => {
     openDB<Schema>('slskd-alt', 2, {
-      upgrade(database, oldVersion) {
-        if (oldVersion < 1) {
-          database.createObjectStore('shares', { keyPath: 'username' })
-          database.createObjectStore('trees')
-        }
+      upgrade(database) {
+        database.createObjectStore('shares', { keyPath: 'username' })
+        database.createObjectStore('trees')
         database.createObjectStore('users', { keyPath: 'username' })
         database.createObjectStore('pictures')
       },
