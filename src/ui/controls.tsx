@@ -361,8 +361,10 @@ export function FilterField({
   list?: string
   onEnter?: () => void
 }) {
+  const input = useRef<HTMLInputElement>(null)
   const field = (
     <TextField.Root
+      ref={input}
       size="2"
       placeholder={placeholder}
       value={value}
@@ -380,6 +382,22 @@ export function FilterField({
       <TextField.Slot>
         <MagnifyingGlassIcon />
       </TextField.Slot>
+      {value !== '' && (
+        <TextField.Slot side="right">
+          <IconButton
+            size="1"
+            variant="ghost"
+            color="gray"
+            aria-label="Clear filter"
+            onClick={() => {
+              onChange('')
+              input.current?.focus()
+            }}
+          >
+            <Cross2Icon />
+          </IconButton>
+        </TextField.Slot>
+      )}
     </TextField.Root>
   )
   if (width === undefined) return field
