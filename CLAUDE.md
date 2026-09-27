@@ -1,4 +1,4 @@
-- This is a solo project, so don't preserve backward compatibility. Don't write i18n or accommodate for legacy clients either.
+- Support every slskd version from the minimum in README.md onwards. Don't write i18n or accommodate for legacy clients.
 - Prefer using established dependencies over writing your own implementation.
 - Tests run offline against real slskd instances the harness starts. What needs a Soulseek login runs against Soulfind,
   a local Soulseek server, with slskd instances as the peers. `tests/contract` checks the slskd behaviour the UI relies
