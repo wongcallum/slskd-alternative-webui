@@ -125,19 +125,20 @@ function UpdateFailed({ error }: { error: unknown }) {
   )
 }
 
-// Until the first data arrives, the page says why it's missing.
+// Until the first data arrives, the page says why it's missing. Without an interval, it's read again only when it
+// changes, so it's never stale.
 export function Freshness({
   resource,
   interval,
   live,
 }: {
   resource: Resource<unknown>
-  interval: number
+  interval?: number
   live?: boolean
 }) {
   const { data, error } = useWatchedResource(resource)
   const age = useFreshness(resource)
-  const stale = isStale(age, resource.getInterval() ?? interval)
+  const stale = interval !== undefined && isStale(age, resource.getInterval() ?? interval)
   return (
     <Flex align="center" gap="2">
       {data !== undefined && <UpdateFailed error={error} />}

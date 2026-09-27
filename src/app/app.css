@@ -42,3 +42,10 @@
     content: '';
   }
 }
+
+/* Below lg, the seven tabs fit beside the bar's controls, badges included, only with less space around each. */
+@media (max-width: 1279px) {
+  header .rt-BaseTabList {
+    --tab-padding-x: var(--space-1);
+  }
+}

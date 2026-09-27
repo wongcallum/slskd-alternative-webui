@@ -19,6 +19,8 @@ import { ChatPage } from '../chat/ChatPage'
 import { ConversationView } from '../chat/ConversationView'
 import { chatSearch, chatSearchDefaults, roomsSearch, roomsSearchDefaults } from '../chat/params'
 import { RoomView } from '../chat/RoomView'
+import { DashboardPage, loadChart } from '../dashboard/DashboardPage'
+import { dashboardSearch, dashboardSearchDefaults } from '../dashboard/params'
 import { useResource } from '../lib/store'
 import { searchesSearch, searchesSearchDefaults } from '../search/params'
 import { resultsSearch, resultsSearchDefaults } from '../search/results/params'
@@ -46,9 +48,12 @@ import { Shell } from './Shell'
 
 const loadYamlPages = () => import('./yamlPages')
 
-// Loaded soon after the app starts rather than on first use, when a browser that failed to load it once never tries
-// again, and slskd may be restarting or have replaced it with a newer build.
-setTimeout(() => void loadYamlPages().catch(() => {}), 3000)
+// Loaded soon after the app starts rather than on first use, when a browser that failed to load them once never tries
+// again, and slskd may be restarting or have replaced them with a newer build.
+setTimeout(() => {
+  void loadYamlPages().catch(() => {})
+  void loadChart().catch(() => {})
+}, 3000)
 
 function title(name: string) {
   const unread = unreadCount()
@@ -76,7 +81,18 @@ const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
   beforeLoad: () => {
-    throw redirect({ to: '/searches' })
+    throw redirect({ to: '/dashboard' })
+  },
+})
+
+const dashboardRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'dashboard',
+  head: () => title('Dashboard'),
+  validateSearch: dashboardSearch,
+  search: { middlewares: [stripSearchParams(dashboardSearchDefaults)] },
+  component: function Dashboard() {
+    return <DashboardPage {...useSearchProps(dashboardRoute.useSearch(), dashboardRoute.useNavigate())} />
   },
 })
 
@@ -271,6 +287,7 @@ const systemLogsRoute = createRoute({
 export const router = createRouter({
   routeTree: rootRoute.addChildren([
     indexRoute,
+    dashboardRoute,
     searchesRoute,
     searchRoute,
     downloadsRoute,

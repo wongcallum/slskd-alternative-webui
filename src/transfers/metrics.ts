@@ -5,6 +5,7 @@ import { type Direction, perDirection } from './transfers'
 type RawDirection = {
   inProgress: { files: number; averageSpeed: number; totalSpeed: number }
   queued: { files: number }
+  completed: { succeeded: number; failed: number }
 }
 
 export type RawMetrics = { downloads: RawDirection; uploads: RawDirection }

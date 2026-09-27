@@ -10,6 +10,9 @@ export const formatSpeed = (bytesPerSecond: number) => `${formatBytes(bytesPerSe
 
 const exponentOf = partial({ ...options, output: 'exponent' })
 
+// In the unit of 1024 to the given power, so a chart's axis labels all share one.
+export const formatBytesIn = (bytes: number, exponent: number) => filesize(bytes, { ...options, exponent })
+
 export function formatProgress(transferred: number, total: number) {
   const exponent = exponentOf(total)
   const [value] = filesize(transferred, { ...options, exponent, output: 'array' })

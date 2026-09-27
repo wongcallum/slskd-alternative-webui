@@ -1,0 +1,5 @@
+/* The ellipsis goes on the left, and the bdi keeps the path itself reading left to right. */
+.dashboard-path {
+  direction: rtl;
+  text-align: left;
+}

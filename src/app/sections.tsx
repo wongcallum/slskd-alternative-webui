@@ -8,6 +8,7 @@ import { type To, useIsActive } from '../ui/nav'
 type Section = { to: To; also?: To[]; label: string; badge?: ReactNode; direction?: Direction }
 
 export const sections: Section[] = [
+  { to: '/dashboard', label: 'Dashboard' },
   { to: '/searches', label: 'Search' },
   { to: '/downloads', label: 'Downloads', badge: <DownloadsBadge />, direction: 'download' },
   { to: '/uploads', label: 'Uploads', direction: 'upload' },
