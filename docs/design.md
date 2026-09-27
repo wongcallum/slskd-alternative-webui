@@ -180,8 +180,9 @@ The whole app works from the keyboard, for sighted keyboard users first. `?` lis
   a minute and not while the tab is hidden. The hub doesn't count a cancelled download, which the figures leave out
   anyway.
 - The chart library loads with the chart, since it's about 100 kB gzipped.
-- Rejected: stock's tabs, its list of recent errors (the transfer lists filter to failures), its 12 chart series, and
-  custom date ranges.
+- Rejected: stock's tabs, its list of recent errors (the transfer lists filter to failures), its 12 chart series,
+  custom date ranges, the share ratio's colours, whose thresholds are arbitrary, and rank columns, since the order is
+  the rank.
 
 ### Transfers
 
@@ -196,6 +197,9 @@ The whole app works from the keyboard, for sighted keyboard users first. `?` lis
   because its keywords collide with path text and can't be discovered.
   - Rejected: stock's VBR and CBR filters. Many files don't say whether they're VBR (see the facts), so either filter
     would hide files that match it.
+- Starting a search opens its results, from the Search page too.
+  - Rejected: stock's Enter, which starts a search and stays on the list while the button opens it. The difference
+    can't be seen, and queueing several searches is rare.
 - The results page never reads the downloads list. Rows show Enqueued or Failed from the batch responses.
 - **A folder's full contents come from the user's whole share**, the one Browse caches, rather than a request for
   the folder. slskd peers answer that request with files from other folders under bare names, so some listed paths
@@ -215,12 +219,15 @@ The whole app works from the keyboard, for sighted keyboard users first. `?` lis
 - `d` on a folder in the filtered tree still downloads all it holds. Selecting in the filtered pane downloads only
   what's shown.
 - Filters is an icon in the tree's toolbar, since a labelled button leaves the text filter too narrow below lg.
+- Rejected: stock's folder counts on each tree row, which crowd the file counts, and its icons for each file type,
+  which the Quality column makes redundant.
 
 ### Users
 
 - Profile in a name's menu always looks the user up, unlike Browse, which opens a cached share. A lookup is one server
   request and one small message to the peer, and a stale presence or queue length is what would mislead.
 - Names have a menu (Profile, Message, Browse) wherever they appear, leaving out the page it's on.
+- Rejected: stock's placeholder for a profile without a picture, which the layout doesn't need.
 
 ### Chat
 
