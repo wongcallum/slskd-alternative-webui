@@ -1,25 +1,52 @@
 import { MixerHorizontalIcon } from '@radix-ui/react-icons'
-import { Button, Flex, Grid, Popover, Text, TextField } from '@radix-ui/themes'
+import { Button, Flex, Grid, IconButton, Popover, Text, TextField } from '@radix-ui/themes'
 import { type ReactNode, useId, useState } from 'react'
 import * as v from 'valibot'
 
-import { positiveDecimal, positiveInteger } from '../../lib/params'
-import { CheckboxField, ChoiceSelect } from '../../ui/controls'
-import { countFilters, type FilterSearch, noFilters, qualities } from './params'
+import { countCriteria, type CriteriaSearch, noCriteria, qualities } from '../lib/criteria'
+import { positiveDecimal, positiveInteger } from '../lib/params'
+import { ChoiceSelect, Tip } from './controls'
 
-type FiltersProps = { filters: FilterSearch; onChange: (patch: Partial<FilterSearch>) => void; children?: ReactNode }
+type FiltersProps = {
+  filters: CriteriaSearch
+  onChange: (patch: Partial<CriteriaSearch>) => void
+  active?: number
+  onClear?: () => void
+  fields?: ReactNode
+  children?: ReactNode
+  compact?: boolean
+}
 
-export function FiltersButton({ filters, onChange, children }: FiltersProps) {
-  const active = countFilters(filters)
+export function FiltersButton({
+  filters,
+  onChange,
+  active = countCriteria(filters),
+  onClear,
+  fields,
+  children,
+  compact = false,
+}: FiltersProps) {
   const qualityId = useId()
+  const label = active > 0 ? `Filters (${active})` : 'Filters'
+  const color = active > 0 ? undefined : 'gray'
   return (
     <Popover.Root>
-      <Popover.Trigger>
-        <Button size="1" variant="soft" color={active > 0 ? undefined : 'gray'}>
-          <MixerHorizontalIcon />
-          {active > 0 ? `Filters (${active})` : 'Filters'}
-        </Button>
-      </Popover.Trigger>
+      {compact ? (
+        <Tip content={label} tap={false}>
+          <Popover.Trigger>
+            <IconButton size="1" variant={active > 0 ? 'soft' : 'ghost'} color={color} aria-label={label}>
+              <MixerHorizontalIcon />
+            </IconButton>
+          </Popover.Trigger>
+        </Tip>
+      ) : (
+        <Popover.Trigger>
+          <Button size="1" variant="soft" color={color}>
+            <MixerHorizontalIcon />
+            {label}
+          </Button>
+        </Popover.Trigger>
+      )}
       <Popover.Content width="320px">
         <Grid columns="auto 1fr" gap="3" align="center">
           <Text as="label" size="2" htmlFor={qualityId}>
@@ -46,24 +73,19 @@ export function FiltersButton({ filters, onChange, children }: FiltersProps) {
             schema={positiveDecimal}
             onChange={(length) => onChange({ length })}
           />
-          <AmountField
-            label="Min files per folder"
-            value={filters.files}
-            schema={positiveInteger}
-            onChange={(files) => onChange({ files })}
-          />
+          {fields}
         </Grid>
         <Flex justify="between" align="center" gap="3" mt="4">
           <Flex direction="column" gap="3">
-            <CheckboxField
-              checked={filters.free === 'only'}
-              onChange={(checked) => onChange({ free: checked ? 'only' : 'all' })}
-            >
-              Free slot only
-            </CheckboxField>
             {children}
           </Flex>
-          <Button size="1" variant="soft" color="gray" disabled={active === 0} onClick={() => onChange(noFilters)}>
+          <Button
+            size="1"
+            variant="soft"
+            color="gray"
+            disabled={active === 0}
+            onClick={onClear ?? (() => onChange(noCriteria))}
+          >
             Clear
           </Button>
         </Flex>
@@ -82,7 +104,7 @@ type AmountProps = {
 
 // While focused, the field shows what's typed rather than the URL, which the router updates a little after each
 // keystroke. Following it would put stale values back into the field.
-function AmountField({ label, unit, value, schema, onChange }: AmountProps) {
+export function AmountField({ label, unit, value, schema, onChange }: AmountProps) {
   const id = useId()
   const [draft, setDraft] = useState<string>()
   const text = draft ?? value

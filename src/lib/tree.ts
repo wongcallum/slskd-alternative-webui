@@ -1,3 +1,4 @@
+import { type Criteria, hasAttributes, judging, passes } from './criteria'
 import { describeRange, qualityOf, type RawFile, widenRange } from './files'
 import { byName, queryMatcher } from './text'
 
@@ -201,14 +202,22 @@ export function nearestFolder(tree: Tree, path: string) {
 // Matching files per folder, and the recursive count of matches for every folder that leads to one.
 export type Matches = { own: ReadonlyMap<Folder, TreeFile[]>; counts: ReadonlyMap<Folder, number> }
 
-export function matchTree(tree: Tree, query: string): Matches | undefined {
+export function matchTree(tree: Tree, query: string, criteria: Criteria): Matches | undefined {
   const matches = queryMatcher(query)
-  if (matches === undefined) return undefined
+  const judged = judging(criteria)
+  if (matches === undefined && !judged) return undefined
   const own = new Map<Folder, TreeFile[]>()
   const counts = new Map<Folder, number>()
   const visit = (folder: Folder): number => {
     let count = 0
-    const matched = folder.files.filter((file) => matches(folder.search + tree.separator + file.name.toLowerCase()))
+    let matched =
+      matches === undefined
+        ? folder.files
+        : folder.files.filter((file) => matches(folder.search + tree.separator + file.name.toLowerCase()))
+    if (judged) {
+      matched = matched.filter((file) => passes(criteria, file))
+      if (!matched.some(hasAttributes)) matched = []
+    }
     if (matched.length > 0) {
       own.set(folder, matched.sort(byName))
       count += matched.length

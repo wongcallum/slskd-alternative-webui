@@ -9,7 +9,8 @@ A drop-in replacement web UI for [slskd](https://github.com/slskd/slskd).
 - Page state, such as the open user, room or conversation and filters and sorts, is stored in the URL.
 - Transfers and search results are sortable, filterable tables.
 - Downloading a folder from Browse or a search result keeps its subfolders.
-- Search results filter by quality, size, length, files per folder and free upload slot.
+- Search results filter by quality, size, length, files per folder and free upload slot, and browsed shares by
+  quality, size and length.
 - Files shows each directory's whole tree, with folder sizes and a filter.
 - The dashboard charts what was transferred and what failed by hour, day or month, and lists the top users, your most
   downloaded folders and the errors, counting successes and failures apart.
@@ -86,7 +87,6 @@ reaches the real Soulseek network.
 
 ## Roadmap
 
-- Filter criteria (quality, size) for Browse.
 - Reply to a room message, quoting it in the message box.
 - Audit the stock UI for complete feature parity
 

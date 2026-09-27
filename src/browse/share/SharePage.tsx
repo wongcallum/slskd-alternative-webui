@@ -3,12 +3,14 @@ import { Flex, Heading, IconButton, Text } from '@radix-ui/themes'
 import { type ReactNode, useEffect, useMemo } from 'react'
 
 import { describeError } from '../../lib/api'
+import { useCriteria } from '../../lib/criteria'
 import { formatBytes, plural } from '../../lib/format'
 import { useFrom } from '../../lib/media'
 import type { SearchProps } from '../../lib/params'
 import { useAtom } from '../../lib/store'
 import { useSoulseekGate } from '../../soulseek/soulseek'
 import { ActionButton, Tip, toolbarStyle } from '../../ui/controls'
+import { FiltersButton } from '../../ui/Filters'
 import { Ago, Empty, ErrorCallout, Loading } from '../../ui/status'
 import { TreeView } from '../../ui/tree/TreeView'
 import { UserPage } from '../../ui/UserList'
@@ -32,6 +34,7 @@ export function SharePage({ search, onSearchChange }: Props) {
   const ready = loaded?.status === 'ready' ? loaded : undefined
   const top = ready?.share.top
   const config = useMemo(() => shareConfig(username), [username])
+  const criteria = useCriteria(search)
   const sm = useFrom('sm')
 
   let content: ReactNode
@@ -46,6 +49,8 @@ export function SharePage({ search, onSearchChange }: Props) {
           search={search}
           onSearchChange={onSearchChange}
           config={config}
+          criteria={criteria}
+          filters={<FiltersButton filters={search} onChange={onSearchChange} compact />}
         />
       )
   } else if (loaded?.status === 'failed') {
