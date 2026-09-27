@@ -1,9 +1,11 @@
+import { Cross2Icon } from '@radix-ui/react-icons'
 import { Button, Text } from '@radix-ui/themes'
 import { type RowSelectionState, useTable } from '@tanstack/react-table'
-import { useDeferredValue, useMemo, useState } from 'react'
+import { useCallback, useDeferredValue, useMemo, useState } from 'react'
 
 import { useCriteria } from '../../lib/criteria'
 import { countFiles } from '../../lib/files'
+import { plural } from '../../lib/format'
 import { useFrom } from '../../lib/media'
 import { positiveInteger, useSortParam } from '../../lib/params'
 import { useAtom } from '../../lib/store'
@@ -14,6 +16,7 @@ import {
   FilterField,
   OutcomeLine,
   SelectionActions,
+  Tip,
   Toolbar,
   ToolbarEnd,
   useFilterText,
@@ -21,7 +24,7 @@ import {
 import { AmountField, FiltersButton } from '../../ui/Filters'
 import { Empty } from '../../ui/status'
 import { collapsed, expandedState, groupFeatures } from '../../ui/table'
-import { countFilters, noFilters, type ResultsSearch } from './params'
+import { countFilters, hiddenUsers, noFilters, type ResultsSearch } from './params'
 import { ResultList } from './ResultList'
 import { download, downloadsOf, type FolderFetch, type Results, unfiltered, viewGroups } from './results'
 import { canSelect, columns, expansions, selectedFiles } from './table'
@@ -41,9 +44,14 @@ export function ResultsView({ searchId, results, folders, params, onSearchChange
   const free = params.free === 'only'
   const criteria = useCriteria(params)
   const files = useDeferredValue(Number(params.files))
+  const hidden = useMemo(() => hiddenUsers(params.hide), [params.hide])
   const groups = useMemo(
-    () => viewGroups(results, folders, { ...criteria, query, locked, free, files }),
-    [results, folders, criteria, query, locked, free, files],
+    () => viewGroups(results, folders, { ...criteria, query, locked, free, files, hidden }),
+    [results, folders, criteria, query, locked, free, files, hidden],
+  )
+  const onHide = useCallback(
+    (username: string) => onSearchChange({ hide: [...hidden, username].join('\n') }),
+    [hidden, onSearchChange],
   )
   const total = useMemo(
     () => countFiles(viewGroups(results, folders, { ...unfiltered, locked })),
@@ -120,6 +128,14 @@ export function ResultsView({ searchId, results, folders, params, onSearchChange
           {!sm && lockedField}
         </FiltersButton>
         {sm && lockedField}
+        {hidden.size > 0 && (
+          <Tip content={[...hidden].join('\n')} tap={false}>
+            <Button size="1" variant="soft" onClick={() => onSearchChange({ hide: '' })}>
+              {plural(hidden.size, 'user')} hidden
+              <Cross2Icon />
+            </Button>
+          </Tip>
+        )}
         <Button
           size="1"
           variant="soft"
@@ -165,6 +181,7 @@ export function ResultsView({ searchId, results, folders, params, onSearchChange
           folders={folders}
           gate={downloads.running.download ? 'Wait for the current download to be enqueued' : soulseekGate}
           folderGate={soulseekGate}
+          onHide={onHide}
         />
       )}
     </>
@@ -198,6 +215,11 @@ function NothingShown({ total, locked, params, text, onClearText, onSearchChange
     <Empty
       actions={
         <>
+          {params.hide !== '' && (
+            <Button size="1" variant="soft" onClick={() => onSearchChange({ hide: '' })}>
+              Show hidden users
+            </Button>
+          )}
           {countFilters(params) > 0 && (
             <Button size="1" variant="soft" onClick={() => onSearchChange(noFilters)}>
               Clear filters

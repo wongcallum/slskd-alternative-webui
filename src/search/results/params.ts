@@ -11,6 +11,7 @@ export const resultsSearch = v.object({
   free: oneOf(['all', 'only'], 'all'),
   ...criteriaSearch.entries,
   files: integerParam,
+  hide: textParam,
 })
 
 export type ResultsSearch = v.InferOutput<typeof resultsSearch>
@@ -21,6 +22,9 @@ export type FilterSearch = Pick<ResultsSearch, (typeof filterKeys)[number]>
 
 export const noFilters: FilterSearch = { ...noCriteria, files: '', free: 'all' }
 
-export const resultsSearchDefaults = { q: '', locked: 'hide', ...noFilters } as const
+export const resultsSearchDefaults = { q: '', locked: 'hide', hide: '', ...noFilters } as const
+
+// Usernames can't hold a line break.
+export const hiddenUsers = (hide: string): ReadonlySet<string> => new Set(hide === '' ? [] : hide.split('\n'))
 
 export const countFilters = (search: FilterSearch) => filterKeys.filter((key) => search[key] !== noFilters[key]).length

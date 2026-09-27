@@ -39,9 +39,10 @@ type Props = {
   folders: ReadonlyMap<string, FolderFetch>
   gate?: string
   folderGate?: string
+  onHide: (username: string) => void
 }
 
-export function ResultList({ searchId, table, folders, gate, folderGate }: Props) {
+export function ResultList({ searchId, table, folders, gate, folderGate, onHide }: Props) {
   const { pending, marks } = useAtom(downloadsOf(searchId))
   const { records } = useShareList()
   const memory = useAtom(loadedShares)
@@ -119,6 +120,7 @@ export function ResultList({ searchId, table, folders, gate, folderGate }: Props
           folderGate={folderGate}
           onSelect={onSelect}
           onToggle={onToggle}
+          onHide={onHide}
         />
       )
     }

@@ -193,9 +193,15 @@ export type FolderFetch = {
   failedAt?: number
 }
 
-type ResultFilter = Criteria & { query: string; locked: boolean; free: boolean; files: number }
+type ResultFilter = Criteria & {
+  query: string
+  locked: boolean
+  free: boolean
+  files: number
+  hidden: ReadonlySet<string>
+}
 
-export const unfiltered = { ...unjudged, query: '', free: false, files: 0 }
+export const unfiltered = { ...unjudged, query: '', free: false, files: 0, hidden: new Set<string>() }
 
 const countAttributed = (files: ResultFile[]) => files.reduce((count, file) => count + (hasAttributes(file) ? 1 : 0), 0)
 
@@ -205,10 +211,19 @@ export function viewGroups(results: Results, folders: ReadonlyMap<string, Folder
   const base = filter.locked ? results.all : results.unlocked
   const matches = queryMatcher(filter.query)
   const judged = judging(filter)
-  if (matches === undefined && !judged && filter.files === 0 && !filter.free && folders.size === 0) return base
+  if (
+    matches === undefined &&
+    !judged &&
+    filter.files === 0 &&
+    !filter.free &&
+    filter.hidden.size === 0 &&
+    folders.size === 0
+  ) {
+    return base
+  }
   const view: ResultGroup[] = []
   for (const group of base) {
-    if (filter.free && !group.peer.free) continue
+    if ((filter.free && !group.peer.free) || filter.hidden.has(group.username)) continue
     const fetched = folders.get(group.id)?.files ?? []
     const extras = filter.locked ? fetched : fetched.filter((file) => !file.locked)
     let files = matches === undefined ? group.files : group.files.filter((file) => matches(file.search))
