@@ -91,11 +91,12 @@ export function SharePage({ search, onSearchChange }: Props) {
           </UserMenu>
           {/* Below sm the summary, its age and Browse again share the line under the box. */}
           <Flex align="center" gap="3" minWidth="0" flexGrow="1" flexBasis={{ initial: '100%', sm: '0' }}>
-            {top !== undefined && (
+            {ready !== undefined && top !== undefined && (
               <Text size="2" color="gray" truncate>
                 {plural(top.fileCount, 'file')}
-                {top.lockedCount > 0 && ` (${top.lockedCount.toLocaleString()} locked)`}, {formatBytes(top.size)}
-                {!sm && ready !== undefined && (
+                {top.lockedCount > 0 && ` (${top.lockedCount.toLocaleString()} locked)`} in{' '}
+                {plural(ready.share.folderCount, 'folder')}, {formatBytes(top.size)}
+                {!sm && (
                   <>
                     , browsed <Ago time={ready.fetchedAt} />
                   </>
