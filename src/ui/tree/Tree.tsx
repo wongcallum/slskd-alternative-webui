@@ -7,12 +7,16 @@ import {
   tableFeatures,
   useTable,
 } from '@tanstack/react-table'
-import { memo, useCallback, useMemo } from 'react'
+import { type ComponentType, memo, useCallback, useMemo } from 'react'
 
 import { useFrom, useTouch } from '../../lib/media'
 import { createAtom, useAtom } from '../../lib/store'
 import type { Folder, Matches, Tree as FolderTree } from '../../lib/tree'
+import { focusList } from '../focus'
+import { useListKeys } from '../keys'
+import { useListNav } from '../listNav'
 import { type Expansion, expandedState, isExpanded, rowId, stop, toggleExpanded, VirtualTable } from '../table'
+import { type KeysProps, upKeys } from './keys'
 
 const treeFeatures = tableFeatures({ rowExpandingFeature, expandedRowModel: createExpandedRowModel() })
 
@@ -55,9 +59,18 @@ export function expandTo(tree: FolderTree, folder: Folder, self: boolean) {
   })
 }
 
-type TreeProps = { tree: FolderTree; selected: Folder; matches?: Matches; onOpen: (folder: Folder) => void }
+type TreeProps = {
+  tree: FolderTree
+  selected: Folder
+  matches?: Matches
+  onOpen: (folder: Folder) => void
+  onUp: () => void
+  Keys?: ComponentType<KeysProps>
+}
 
-export function Tree({ tree, selected, matches, onOpen }: TreeProps) {
+const noop = () => {}
+
+export function Tree({ tree, selected, matches, onOpen, onUp, Keys }: TreeProps) {
   const sm = useFrom('sm')
   const touch = useTouch()
   const stored = useAtom(expansions).get(tree.key)
@@ -85,6 +98,30 @@ export function Tree({ tree, selected, matches, onOpen }: TreeProps) {
     (folder: Folder) => updateExpansion(tree, (current) => toggleExpanded(current, folder.id)),
     [tree],
   )
+  const filtered = matches !== undefined
+  const nav = useListNav({
+    name: 'tree',
+    items: rows,
+    itemKey: rowId,
+    rank: 2,
+    anchor: selected.id,
+    role: 'tree',
+    label: 'Folders',
+    depth: (row) => row.depth,
+    canToggle: (row) => !filtered && row.original.folders.length > 0,
+    isOpen: (row) => row.getIsExpanded(),
+    onToggle: (row) => onToggle(row.original),
+    // Enter opens a folder, and on the open one goes into it.
+    onEnter: (row) => (row.original === selected ? focusList('pane') : onOpen(row.original)),
+    aria: (row) => ({
+      'aria-level': row.depth + 1,
+      'aria-setsize': (row.getParentRow()?.subRows ?? roots).length,
+      'aria-posinset': row.index + 1,
+      'aria-expanded': row.subRows.length > 0 ? row.getIsExpanded() : undefined,
+      'aria-selected': row.original === selected,
+    }),
+  })
+  useListKeys(nav.containerRef, upKeys(onUp))
   const selectedIndex = rows.findIndex((row) => row.id === selected.id)
 
   if (rows.length === 0) {
@@ -98,30 +135,41 @@ export function Tree({ tree, selected, matches, onOpen }: TreeProps) {
   }
 
   return (
-    <VirtualTable
-      minWidth={0}
-      items={rows}
-      itemKey={rowId}
-      rowSize={!sm ? 40 : touch ? 36 : 30}
-      reveal={{ key: `${selected.id}\n${matches === undefined}`, index: selectedIndex }}
-      role="tree"
-      label="Folders"
-      renderItem={(row) => {
-        const folder = row.original
-        return (
-          <TreeRow
-            folder={folder}
-            depth={row.depth}
-            expanded={matches !== undefined || isExpanded(expansion, folder.id)}
-            selected={folder === selected}
-            count={matches?.counts.get(folder) ?? folder.fileCount}
-            filtered={matches !== undefined}
-            onOpen={onOpen}
-            onToggle={onToggle}
-          />
-        )
-      }}
-    />
+    <>
+      {Keys !== undefined && (
+        <Keys
+          target={nav.containerRef}
+          tree
+          selection={() => {
+            const folder = nav.focused()?.original
+            return folder && { tree, folder, items: [folder], clear: noop }
+          }}
+        />
+      )}
+      <VirtualTable
+        minWidth={0}
+        items={rows}
+        itemKey={rowId}
+        rowSize={!sm ? 40 : touch ? 36 : 30}
+        reveal={{ key: `${selected.id}\n${matches === undefined}`, index: selectedIndex }}
+        nav={nav}
+        renderItem={(row) => {
+          const folder = row.original
+          return (
+            <TreeRow
+              folder={folder}
+              depth={row.depth}
+              expanded={matches !== undefined || isExpanded(expansion, folder.id)}
+              selected={folder === selected}
+              count={matches?.counts.get(folder) ?? folder.fileCount}
+              filtered={matches !== undefined}
+              onOpen={onOpen}
+              onToggle={onToggle}
+            />
+          )
+        }}
+      />
+    </>
   )
 }
 
@@ -148,14 +196,8 @@ const TreeRow = memo(function TreeRow({
 }: TreeRowProps) {
   const parent = folder.folders.length > 0
   return (
-    // TODO: keyboard handling (README roadmap) makes tree items focusable.
-    // oxlint-disable-next-line jsx-a11y/interactive-supports-focus
     <div
       className="tree-row"
-      role="treeitem"
-      aria-level={depth + 1}
-      aria-expanded={parent ? expanded : undefined}
-      aria-selected={selected}
       data-selected={selected || undefined}
       data-dimmed={folder.locked || folder.hidden || undefined}
       style={{ paddingLeft: 8 + depth * 16 }}
@@ -166,7 +208,8 @@ const TreeRow = memo(function TreeRow({
         <button
           type="button"
           className="tree-toggle"
-          aria-label={expanded ? 'Collapse' : 'Expand'}
+          tabIndex={-1}
+          aria-hidden
           onClick={(event) => {
             stop(event)
             onToggle(folder)

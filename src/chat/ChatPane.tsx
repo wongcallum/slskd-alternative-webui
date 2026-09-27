@@ -1,5 +1,5 @@
 import { Flex, Text } from '@radix-ui/themes'
-import type { ReactNode } from 'react'
+import { type ReactNode, useRef } from 'react'
 
 import { useFrom } from '../lib/media'
 import type { Resource } from '../lib/store'
@@ -7,6 +7,7 @@ import { toolbarStyle } from '../ui/controls'
 import { BackLink } from '../ui/nav'
 import { Freshness, Polling } from '../ui/status'
 import { Composer } from './Composer'
+import { LogScroll } from './MessageLog'
 import { type Target, targetKey } from './messages'
 
 export function ChatToolbar({ title, children }: { title: ReactNode; children?: ReactNode }) {
@@ -47,6 +48,7 @@ export function ChatPane({
   send,
   log,
 }: Props) {
+  const logScroll = useRef<HTMLDivElement>(null)
   return (
     <Flex direction="column" flexGrow="1" minWidth="0">
       <ChatToolbar title={title}>
@@ -56,14 +58,14 @@ export function ChatPane({
         </Flex>
       </ChatToolbar>
       {instead ?? (
-        <>
+        <LogScroll value={logScroll}>
           {log ?? (
             <Flex flexGrow="1">
               <Polling what={target.kind === 'room' ? 'the room' : 'the conversation'} error={error} />
             </Flex>
           )}
           <Composer draftKey={targetKey(target)} placeholder={`Message ${target.name}`} send={send} />
-        </>
+        </LogScroll>
       )}
     </Flex>
   )

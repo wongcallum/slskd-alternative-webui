@@ -15,6 +15,7 @@ export function DownloadButton({ downloads, count, size, onClick }: Props) {
       busy="Enqueueing"
       progress={running.download}
       gate={gate}
+      shortcut={{ key: 'D', name: 'Download' }}
       onClick={onClick}
     />
   )

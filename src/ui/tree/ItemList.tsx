@@ -4,6 +4,7 @@ import { type ComponentType, memo, type ReactNode } from 'react'
 
 import { formatBytes, plural } from '../../lib/format'
 import type { Folder, Item, TreeFile } from '../../lib/tree'
+import type { ListNav } from '../listNav'
 import {
   Cell,
   CheckCell,
@@ -12,7 +13,6 @@ import {
   HeaderRow,
   Parts,
   rowHeight,
-  RowButton,
   rowId,
   StackedRow,
   stackedHeight,
@@ -25,6 +25,7 @@ export type FileBadge = ComponentType<{ file: TreeFile }>
 
 type Props = {
   table: PaneTable
+  nav: ListNav<PaneRow>
   layout: Layout
   stacked: boolean
   selectable: boolean
@@ -35,7 +36,18 @@ type Props = {
   onOpen: (folder: Folder) => void
 }
 
-export function ItemList({ table, layout, stacked, selectable, filtered, separator, folderOf, Badge, onOpen }: Props) {
+export function ItemList({
+  table,
+  nav,
+  layout,
+  stacked,
+  selectable,
+  filtered,
+  separator,
+  folderOf,
+  Badge,
+  onOpen,
+}: Props) {
   const rows = table.getRowModel().rows
   const onSelect = useRowToggle(table)
   const { template, minWidth, counted, extras } = layout
@@ -104,6 +116,7 @@ export function ItemList({ table, layout, stacked, selectable, filtered, separat
       items={rows}
       itemKey={rowId}
       rowSize={stacked ? stackedHeight : rowHeight}
+      nav={nav}
       renderItem={render}
     />
   )
@@ -220,11 +233,9 @@ const SubfolderRow = memo(function SubfolderRow({
         folder.locked ? <LockClosedIcon style={{ flexShrink: 0 }} /> : <ChevronRightIcon style={{ flexShrink: 0 }} />
       }
       name={
-        <RowButton>
-          <Text size="2" weight="medium" truncate>
-            {folder.name}
-          </Text>
-        </RowButton>
+        <Text size="2" weight="medium" truncate>
+          {folder.name}
+        </Text>
       }
       count={plural(folder.fileCount, 'file')}
       countCell={<Cell end>{folder.fileCount.toLocaleString()}</Cell>}

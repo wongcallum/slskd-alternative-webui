@@ -13,6 +13,8 @@ A drop-in replacement web UI for [slskd](https://github.com/slskd/slskd).
 - Files shows each directory's whole tree, with folder sizes and a filter.
 - The dashboard charts what was transferred and what failed by hour, day or month, and lists the top users, your most
   downloaded folders and the errors, counting successes and failures apart.
+- Everything works from the keyboard. Arrow keys move through lists and the folder tree, `/` goes to the page's
+  filter, `g` and a letter switch pages, and `?` lists the keys.
 
 ## Install
 
@@ -84,7 +86,6 @@ reaches the real Soulseek network.
 
 ## Roadmap
 
-- Keyboard handling (weigh `@headless-tree` for Browse's tree)
 - Filter criteria (quality, size) for Browse.
 - Reply to a room message, quoting it in the message box.
 - Audit the stock UI for complete feature parity

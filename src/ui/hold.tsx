@@ -4,6 +4,7 @@ import { type Key, type ReactNode, type UIEvent, useCallback, useRef, useState }
 
 import { formatFullPreciseTime, usePreciseTime } from '../lib/format'
 import { FilterField, Toolbar, ToolbarEnd } from './controls'
+import { useListNav } from './listNav'
 import {
   Cell,
   ColumnHeader,
@@ -11,7 +12,6 @@ import {
   HeaderRow,
   type Layout,
   Parts,
-  RowButton,
   rowHeight,
   StackedRow,
   stackedHeight,
@@ -86,7 +86,14 @@ export function HeldToolbar({
 }) {
   return (
     <Toolbar>
-      <FilterField placeholder={placeholder} value={filter.text} onChange={filter.change} width="280px" />
+      <FilterField
+        placeholder={placeholder}
+        value={filter.text}
+        onChange={filter.change}
+        width="280px"
+        main
+        list="held"
+      />
       {children}
       <ToolbarEnd>
         <HoldButton hold={hold} unseen={unseen} />
@@ -122,7 +129,7 @@ export function HeldRow({
       <StackedRow
         selected={selected}
         dimmed={dimmed}
-        title={<RowButton>{title}</RowButton>}
+        title={title}
         meta={<Parts items={[shown, ...details]} />}
         style={{ cursor: 'pointer' }}
         onClick={onClick}
@@ -137,15 +144,15 @@ export function HeldRow({
       style={{ cursor: 'pointer' }}
       onClick={onClick}
     >
-      <Cell title={formatFullPreciseTime(time)}>
-        <RowButton>{shown}</RowButton>
-      </Cell>
+      <Cell title={formatFullPreciseTime(time)}>{shown}</Cell>
       {cells}
     </GridRow>
   )
 }
 
+// Enter opens a row's details, which then follow the keyboard from row to row until Escape closes them.
 export function HeldList<T>({
+  label,
   templates,
   labels,
   records,
@@ -157,6 +164,7 @@ export function HeldList<T>({
   onScroll,
   footer,
 }: {
+  label: string
   templates: Templates
   labels: readonly string[]
   records: readonly T[]
@@ -173,14 +181,30 @@ export function HeldList<T>({
     [itemKey, selected, onSelect],
   )
   const layout = useListLayout()
+  const recordKey = useCallback((record: T) => String(itemKey(record)), [itemKey])
+  const nav = useListNav({
+    name: 'held',
+    items: records,
+    itemKey: recordKey,
+    rank: 1,
+    label,
+    aria: (record) => ({ 'aria-selected': itemKey(record) === selected }),
+    onEnter: onSelect,
+    onMove: (record) => selected !== undefined && onSelect(record),
+    onEscape: () => {
+      if (selected === undefined) return false
+      onSelect(undefined)
+      return true
+    },
+  })
   return (
     <VirtualTable
       minWidth={layout === 'wide' ? 900 : 0}
       header={
         layout === 'stacked' ? undefined : (
           <HeaderRow template={templates[layout]}>
-            {labels.map((label) => (
-              <ColumnHeader key={label} label={label} />
+            {labels.map((each) => (
+              <ColumnHeader key={each} label={each} />
             ))}
           </HeaderRow>
         )
@@ -188,6 +212,7 @@ export function HeldList<T>({
       items={records}
       itemKey={itemKey}
       rowSize={layout === 'stacked' ? stackedHeight : rowHeight}
+      nav={nav}
       renderItem={(record) => renderRow(record, layout, itemKey(record) === selected, toggle)}
       scrollRef={hold.scrollRef}
       onScroll={(event) => {

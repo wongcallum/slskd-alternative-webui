@@ -41,6 +41,25 @@ test('an unread message counts in the title until its conversation is opened, wh
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.getByText(ours)).toBeVisible()
   await expect.poll(async () => (await messages(peer, me)).map((message) => message.message)).toContain(ours)
+
+  const history = unique('History')
+  for (let index = 0; index < 90; index++) {
+    await api.post(conversation(fast.username), jsonString(`${history} ${index}`))
+  }
+  const log = page.getByRole('grid', { name: 'Messages' })
+  const last = log.getByRole('row').last()
+  await expect(last).toContainText(`${history} 89`)
+  await last.focus()
+  const viewport = await page.locator('.chat-scroll').evaluate((element) => element.clientHeight)
+  const lastTop = await last.evaluate((element) => (element as HTMLElement).offsetTop)
+  await page.keyboard.press('PageUp')
+  const focused = log.locator('[role=row]:focus')
+  await expect(focused).toBeInViewport()
+  const pageTop = await focused.evaluate((element) => (element as HTMLElement).offsetTop)
+  expect(lastTop - pageTop).toBeGreaterThan(viewport * 0.75)
+  expect(lastTop - pageTop).toBeLessThanOrEqual(viewport)
+  await page.keyboard.press('PageDown')
+  await expect(last).toBeFocused()
   await peer.dispose()
 })
 

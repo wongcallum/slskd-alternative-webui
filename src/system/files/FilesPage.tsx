@@ -1,15 +1,17 @@
 import { Flex, Text } from '@radix-ui/themes'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 
 import { formatBytes, plural } from '../../lib/format'
 import type { SearchProps } from '../../lib/params'
 import { useAtom, useResource } from '../../lib/store'
 import type { Item } from '../../lib/tree'
 import { useRun } from '../../lib/useRun'
-import { ActionButton, ConfirmButton, OutcomeLine } from '../../ui/controls'
+import { ActionButton, ConfirmButton, ConfirmDialog, OutcomeLine } from '../../ui/controls'
+import { useListKeys } from '../../ui/keys'
 import { Ago, FetchedResource, Fetching } from '../../ui/status'
 import type { ExtraColumn } from '../../ui/tree/columns'
 import type { Selection, TreeConfig } from '../../ui/tree/FolderPane'
+import type { KeysProps } from '../../ui/tree/keys'
 import { TreeView } from '../../ui/tree/TreeView'
 import { stateGate, useApplication } from '../application'
 import { useOptions } from '../options/options'
@@ -70,6 +72,7 @@ const filesConfig = (deleting: boolean): TreeConfig => ({
   selectable: deleting ? selectable : undefined,
   actions: deleting ? (selection) => <DeleteAction selection={selection} /> : undefined,
   status: <FilesStatus />,
+  Keys: deleting ? DeleteKey : undefined,
 })
 
 function describeTargets(targets: readonly Target[]) {
@@ -79,19 +82,12 @@ function describeTargets(targets: readonly Target[]) {
   return parts.join(' and ')
 }
 
-function DeleteAction({ selection }: { selection: Selection }) {
-  const { running } = useAtom(fileActions)
-  const { error } = useResource(files)
-  const { targets, size, unaddressable } = useMemo(() => {
-    const all = targetsOf(selection.items)
-    return {
-      targets: all,
-      size: all.reduce((sum, target) => sum + target.size, 0),
-      unaddressable: all.find((target) => encodePath(target.relative) === undefined),
-    }
-  }, [selection.items])
+function describeDelete(items: readonly Item[], listingError: unknown) {
+  const targets = targetsOf(items)
+  const size = targets.reduce((sum, target) => sum + target.size, 0)
+  const unaddressable = targets.find((target) => encodePath(target.relative) === undefined)
   let gate: string | undefined
-  if (error !== undefined) gate = 'The last listing failed, so it may be out of date'
+  if (listingError !== undefined) gate = 'The last listing failed, so it may be out of date'
   else if (unaddressable !== undefined) {
     gate = `slskd can't address ${unaddressable.id.slice(unaddressable.id.lastIndexOf('/') + 1)}; delete its folder instead`
   }
@@ -101,17 +97,73 @@ function DeleteAction({ selection }: { selection: Selection }) {
       ? ['A download still writing to Incomplete keeps going, and most likely ends as succeeded with no file.']
       : []),
   ].join(' ')
+  return {
+    label: `Delete ${targets.length.toLocaleString()} (${formatBytes(size)})`,
+    title: `Delete ${describeTargets(targets)}?`,
+    description,
+    gate,
+  }
+}
+
+function DeleteAction({ selection }: { selection: Selection }) {
+  const { running } = useAtom(fileActions)
+  const { error } = useResource(files)
+  const { label, title, description, gate } = useMemo(
+    () => describeDelete(selection.items, error),
+    [selection.items, error],
+  )
   return (
     <ConfirmButton
-      label={`Delete ${targets.length.toLocaleString()} (${formatBytes(size)})`}
+      label={label}
       busy="Deleting"
       color="red"
       progress={running.delete}
       gate={gate}
-      title={`Delete ${describeTargets(targets)}?`}
+      title={title}
       description={description}
       action="Delete"
+      shortcut={{ key: 'Delete', name: 'Delete' }}
       onConfirm={() => void deleteItems(selection.items)}
+    />
+  )
+}
+
+const nothing: readonly Item[] = []
+
+// Delete asks about the pane's selection, or the row the keyboard is on, as the Delete button does.
+function DeleteKey({ target, tree, selection }: KeysProps) {
+  const { running } = useAtom(fileActions)
+  const { error } = useResource(files)
+  const [open, setOpen] = useState(false)
+  const [items, setItems] = useState(nothing)
+  const { title, description } = useMemo(() => describeDelete(items, error), [items, error])
+  useListKeys(
+    target,
+    tree
+      ? []
+      : [
+          {
+            hotkeys: ['Delete', 'Mod+Backspace'],
+            name: 'Delete',
+            enabled: running.delete === undefined,
+            run: () => {
+              const chosen = selection()?.items.filter(selectable) ?? []
+              if (chosen.length === 0 || describeDelete(chosen, error).gate !== undefined) return
+              setItems(chosen)
+              setOpen(true)
+            },
+          },
+        ],
+  )
+  return (
+    <ConfirmDialog
+      open={open}
+      onOpenChange={setOpen}
+      title={title}
+      description={description}
+      action="Delete"
+      color="red"
+      onConfirm={() => void deleteItems(items)}
     />
   )
 }

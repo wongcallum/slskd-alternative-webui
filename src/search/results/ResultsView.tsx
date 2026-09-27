@@ -22,16 +22,8 @@ import { collapsed, expandedState, groupFeatures } from '../../ui/table'
 import { FiltersButton } from './Filters'
 import { countFilters, noFilters, qualities, type ResultsSearch } from './params'
 import { ResultList } from './ResultList'
-import {
-  download,
-  downloadsOf,
-  type FolderFetch,
-  type ResultFile,
-  type Results,
-  unfiltered,
-  viewGroups,
-} from './results'
-import { canSelect, columns, expansions } from './table'
+import { download, downloadsOf, type FolderFetch, type Results, unfiltered, viewGroups } from './results'
+import { canSelect, columns, expansions, selectedFiles } from './table'
 
 type Props = {
   searchId: string
@@ -87,10 +79,7 @@ export function ResultsView({ searchId, results, folders, params, onSearchChange
     onRowSelectionChange: setRowSelection,
   })
 
-  const selected: ResultFile[] = []
-  for (const row of table.getSelectedRowModel().flatRows) {
-    if (row.original.kind === 'file' && !row.original.locked) selected.push(row.original)
-  }
+  const selected = selectedFiles(table)
   const soulseekGate = useSoulseekGate()
   const downloads = useAtom(downloadsOf(searchId))
   const sm = useFrom('sm')
@@ -108,6 +97,8 @@ export function ResultsView({ searchId, results, folders, params, onSearchChange
           value={filter.text}
           onChange={filter.change}
           width="330px"
+          main
+          list="results"
         />
         {/* Below sm, Locked joins the other filters in the popover, so the toolbar keeps to two lines. */}
         <FiltersButton filters={params} onChange={onSearchChange}>

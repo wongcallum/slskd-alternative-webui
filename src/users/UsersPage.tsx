@@ -54,6 +54,8 @@ export function UsersPage() {
   return (
     <UserListPage
       toolbar={<LookUpBox />}
+      to="/users"
+      label="Looked-up users"
       list={list}
       what="the stored profiles"
       empty="No one looked up yet. Look up a user by name, or from the menu on their name elsewhere."

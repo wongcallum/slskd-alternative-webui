@@ -4,7 +4,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { type SubmitEvent, useState } from 'react'
 
 import { useTouch } from '../lib/media'
-import { disabledProps, Tip } from './controls'
+import { disabledProps, mainField, Tip, toList } from './controls'
 
 // Asking for the user already open acts on them without navigating, which would reset the rest of the URL. When that
 // would do nothing, currentGate says why.
@@ -50,6 +50,8 @@ export function UsernameBox({
               autoFocus={current === undefined && !touch}
               value={text}
               onChange={(event) => setText(event.target.value)}
+              onKeyDown={toList(current === undefined ? 'users' : undefined)}
+              {...mainField(current === undefined)}
             >
               <TextField.Slot>
                 <PersonIcon />

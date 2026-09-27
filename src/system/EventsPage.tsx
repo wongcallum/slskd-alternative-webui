@@ -98,6 +98,7 @@ export function EventsPage({ search, onSearchChange }: Props) {
   } else {
     content = (
       <HeldList
+        label="Events"
         templates={templates}
         labels={labels}
         records={shown}

@@ -2,9 +2,12 @@ import { useCallback } from 'react'
 
 import { browses, loadedShares, useShareList } from '../../browse/browse'
 import { useAtom } from '../../lib/store'
+import { useListKeys } from '../../ui/keys'
+import { useListNav } from '../../ui/listNav'
 import {
   collapsed,
   ColumnHeader,
+  groupNav,
   groupState,
   HeaderRow,
   rowHeight,
@@ -12,9 +15,10 @@ import {
   toggleExpanded,
   useLayout,
   useRowToggle,
+  useSelectionKeys,
   VirtualTable,
 } from '../../ui/table'
-import { downloadsOf, type FolderFetch } from './results'
+import { download, downloadsOf, type FolderFetch } from './results'
 import { FileRow, GroupRow } from './rows'
 import {
   columnLabels,
@@ -23,6 +27,7 @@ import {
   expansions,
   minWidths,
   type ResultTable,
+  selectedFiles,
   stackedSize,
   type TableRow,
   templates,
@@ -52,6 +57,36 @@ export function ResultList({ searchId, table, folders, gate, folderGate }: Props
       ),
     [searchId],
   )
+  const selection = useSelectionKeys(table)
+  const nav = useListNav({
+    name: 'results',
+    items: rows,
+    itemKey: rowId,
+    rank: 1,
+    label: 'Results',
+    ...groupNav,
+    ...selection,
+    onToggle: (row) => onToggle(row.id),
+    onEnter: (row) => (row.original.kind === 'group' ? onToggle(row.id) : selection.onSpace(row, false)),
+  })
+  useListKeys(nav.containerRef, [
+    {
+      hotkeys: ['D'],
+      name: 'Download',
+      enabled: gate === undefined,
+      run: () => {
+        const selected = selectedFiles(table)
+        if (selected.length > 0) {
+          void download(searchId, selected).then(() => table.setRowSelection({}))
+          return
+        }
+        const focused = nav.focused()?.original
+        const files = focused?.kind === 'group' ? focused.files : focused === undefined ? [] : [focused]
+        const open = files.filter((file) => !file.locked)
+        if (open.length > 0) void download(searchId, open)
+      },
+    },
+  ])
 
   const header = (
     <HeaderRow template={stacked ? '' : templates[layout]} table={table} stacked={stacked}>
@@ -109,6 +144,7 @@ export function ResultList({ searchId, table, folders, gate, folderGate }: Props
       items={rows}
       itemKey={rowId}
       rowSize={stacked ? stackedSize : rowHeight}
+      nav={nav}
       renderItem={render}
     />
   )

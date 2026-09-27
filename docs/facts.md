@@ -1196,6 +1196,14 @@ Checked against the `@radix-ui/themes` 3.3.0 package source.
   `--radix-popover-content-available-width` and `-height` on the content element (observed: 340 px on a 360 px screen,
   with the 10 px collision padding).
 - `DropdownMenu.Item` takes `asChild`, but `DropdownMenu.RadioItem` doesn't.
+- A `Dialog` focuses its trigger on closing, so one opened without a `Dialog.Trigger` leaves focus on `<body>`
+  unless `onCloseAutoFocus` puts it somewhere (`@radix-ui/react-dialog` 1.1.23). An `AlertDialog` focuses its
+  Cancel button on opening.
+- A modal dialog hides the rest of the page from assistive technology until it has finished closing, so role queries
+  such as Playwright's find nothing there in the meantime (observed).
+- `Checkbox` ignores Enter, so only Space toggles it (`@radix-ui/react-checkbox` 1.3.11).
+- In a `TabNav`, arrow keys move focus between the links a task after the key (a `setTimeout` in
+  `@radix-ui/react-navigation-menu` 1.2.22).
 - next-themes 0.4.6, which the Radix docs recommend, is mostly unmaintained. Its anti-flash script does nothing
   when rendered client-side only (React 19 doesn't run rendered `<script>`s) and logs a warning in dev.
 
@@ -1227,7 +1235,9 @@ Checked against `@tanstack/react-virtual` 3.14.13 / `virtual-core` 3.17.11.
 - Observed in dev under StrictMode: a `scrollToIndex` in a layout effect on mount, guarded by a ref so it runs only
   once, left the list at the top. Keyed on what it reveals, so StrictMode's second pass runs it again, it scrolls.
 - `rangeExtractor` can force extra indexes into the rendered range, which is how a sticky header is kept
-  rendered after it scrolls past (render it `position: sticky` instead of absolutely positioned).
+  rendered after it scrolls past (render it `position: sticky` instead of absolutely positioned), and the row the
+  keyboard is on wherever the list is scrolled. The indexes it returns are rendered in that order, which is the Tab
+  order.
 
 ## IndexedDB
 
@@ -1271,13 +1281,47 @@ share of 200k files in 15k directories (54 MB of JSON), with `idb` 8.0.3. "Block
   [MDN](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/meta/name/viewport)).
 - A pseudo-element sticking out of a button counts toward its scroll container's overflow. Observed: a hit area 6 px
   past a ghost button near the edge made the chat sidebar scroll sideways by 2 px.
+- Tab can't get past a virtualised list whose every row takes Tab: focusing a row scrolls it into view, the
+  virtualiser renders the rows after it, and Tab goes on to them. Observed in Chromium 153 on Logs, where Tab went
+  through all 99 records one at a time.
 
 ## Headless Tree
 
-Checked against `@headless-tree/core`/`react` 1.7.0 (May 2026). It has no virtualiser of its own and is built to sit
-on `@tanstack/react-virtual`. It provides the ARIA tree pattern with keys. With proxied instances it rebuilds its flat
-list on every expand or collapse: 36 ms at 17k nodes in Node 24. It declares any React version, but its own docs
-run React 18.
+Checked against `@headless-tree/core`/`react` 1.7.0 (May 2026, still the latest in September) from the package
+source, in Node 24, and in a throwaway app in headless Chromium, on a tree of 19.5k rows.
+
+- It has no virtualiser of its own and is built to sit on `@tanstack/react-virtual`. It declares any React version,
+  but its own docs run React 18.
+- Its keys are ↑, ↓, →, ←, Home and End, over a roving tabindex. Nothing is bound to Enter or Space. Typing opens its
+  search, which highlights and focuses matches but can't hide the rest (`08-search.mdx`, issues #123 and #153).
+- Expansion is a list of every open id, which `isExpanded` scans (`tree/feature.ts`). Its own `expandAll()` rebuilds
+  after each folder and took 23.5–24.7 s. The first rebuild with every folder open took 262 ms in Node and 178 ms in
+  the browser with the default static instances, or 20 and 37 ms with proxied ones. Later rebuilds took 13–16 ms
+  either way.
+- A click toggles a folder, so clicking an open one closes it.
+- With expansion and selection controlled and focus left to it, ↓ mostly didn't move.
+- Focus moving to a row that isn't rendered scrolls to it and waits up to 500 ms for it. If the focused row is
+  scrolled out of view, focus drops to `<body>`, and while it isn't rendered no row takes Tab.
+- react-aria-components 1.21.1's Tree comes to 55.7 KB min+gz with its Virtualizer, which it needs instead of
+  TanStack's. It renders `role="treegrid"` and keeps the focused row rendered.
+
+## TanStack Hotkeys
+
+Checked against `@tanstack/react-hotkeys` 0.12.0 and `@tanstack/hotkeys` 0.10.0, both alpha, from the package source
+and in headless Chromium.
+
+- `?` and `/` match `event.key`, with Shift allowed for punctuation, so they work whatever the keyboard layout.
+- A registration that matches calls `preventDefault()` and `stopPropagation()` by default, before its callback runs.
+  On an element target, stopping it keeps the key from React's handlers above the element, since React listens at
+  its root.
+- `ignoreInputs` defaults to true for single keys and Shift or Alt combinations, and false for Ctrl, Meta and Escape
+  (`_registration.js`). It covers inputs other than buttons, textareas, selects and contenteditable, so CodeMirror,
+  but not menus or dialogs.
+- Options are spread over the defaults, so `enabled: undefined` turns a registration off.
+- A sequence's keys have to come within 1 s of each other by default. While one is under way, its registration shows
+  `matchedStepCount` and `partialMatchLastKeyTime`.
+- `useHotkeyRegistrations()` lists every registration with its `meta`. Every key that fires one copies the map of
+  registrations, so a component using it renders again.
 
 ## yaml
 

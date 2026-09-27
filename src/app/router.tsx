@@ -39,6 +39,7 @@ import { sharesSearch, sharesSearchDefaults } from '../system/shares/params'
 import { SharesPage } from '../system/shares/SharesPage'
 import { transfersSearch, transfersSearchDefaults } from '../transfers/params'
 import { TransfersPage } from '../transfers/TransfersPage'
+import { trackHistory } from '../ui/focus'
 import { usersSearch, usersSearchDefaults } from '../users/params'
 import { ProfilePage } from '../users/ProfilePage'
 import { UsersPage } from '../users/UsersPage'
@@ -315,6 +316,8 @@ export const router = createRouter({
 
 // Titles come from snapshots the session's end has just cleared, like a search's text.
 onSessionEnd(() => void router.invalidate())
+
+trackHistory(router.history)
 
 declare module '@tanstack/react-router' {
   interface Register {

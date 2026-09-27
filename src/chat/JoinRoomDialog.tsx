@@ -6,8 +6,9 @@ import { type ReactNode, useDeferredValue, useMemo, useState } from 'react'
 import { api, describeError } from '../lib/api'
 import { byName } from '../lib/text'
 import { FilterField, GateTip } from '../ui/controls'
+import { useListNav } from '../ui/listNav'
 import { Fetching } from '../ui/status'
-import { ColumnHeader, GridRow, HeaderRow, RowButton, VirtualTable } from '../ui/table'
+import { ColumnHeader, GridRow, HeaderRow, VirtualTable } from '../ui/table'
 import { joinRoom, useJoinedRooms } from './rooms'
 
 export type RawAvailableRoom = {
@@ -99,6 +100,14 @@ function RoomPicker({ listing, onRetry, onJoined }: { listing: Listing; onRetry:
     void navigate({ to: '/rooms', search: { room: name } })
   }
 
+  const nav = useListNav({
+    name: 'rooms',
+    items: shown,
+    itemKey: roomKey,
+    label: 'Rooms',
+    onEnter: (room) => void join(room.name),
+  })
+
   const sortable = (id: Sort['id']) => ({
     getIsSorted: () => (sort.id === id ? (sort.desc ? 'desc' : 'asc') : false),
     getToggleSortingHandler: () => () =>
@@ -126,6 +135,7 @@ function RoomPicker({ listing, onRetry, onJoined }: { listing: Listing; onRetry:
         header={header}
         items={shown}
         itemKey={roomKey}
+        nav={nav}
         renderItem={(room) => (
           <RoomRow
             room={room}
@@ -147,6 +157,8 @@ function RoomPicker({ listing, onRetry, onJoined }: { listing: Listing; onRetry:
         value={filter}
         onChange={setFilter}
         style={{ width: '100%' }}
+        list="rooms"
+        onEnter={() => typed !== '' && void join(typed)}
       />
       {typed !== '' && (
         <Flex align="center" gap="3">
@@ -184,11 +196,9 @@ function RoomRow({ room, joined, joining, onJoin }: RoomRowProps) {
   return (
     <GridRow template={template} style={{ cursor: 'pointer' }} onClick={onJoin}>
       <Flex className="table-cell" align="center" gap="2" title={room.name}>
-        <RowButton>
-          <Text size="2" truncate>
-            {room.name}
-          </Text>
-        </RowButton>
+        <Text size="2" truncate>
+          {room.name}
+        </Text>
         {room.isPrivate && (
           <Tooltip content="Private">
             <LockClosedIcon style={{ flexShrink: 0 }} />
