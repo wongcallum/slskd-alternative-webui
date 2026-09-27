@@ -11,6 +11,8 @@ A drop-in replacement web UI for [slskd](https://github.com/slskd/slskd).
 - Downloading a folder from Browse or a search result keeps its subfolders.
 - Search results filter by quality, size, length, files per folder and free upload slot.
 - Files shows each directory's whole tree, with folder sizes and a filter.
+- Everything works from the keyboard. Arrow keys move through lists and the folder tree, `/` goes to the page's
+  filter, `g` and a letter switch pages, and `?` lists the keys.
 
 ## Install
 
@@ -82,7 +84,6 @@ reaches the real Soulseek network.
 
 ## Roadmap
 
-- Keyboard handling (weigh `@headless-tree` for Browse's tree)
 - Filter criteria (quality, size) for Browse.
 - Dashboard
 - Reply to a room message, quoting it in the message box.
