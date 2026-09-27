@@ -179,6 +179,8 @@ The whole app works from the keyboard, for sighted keyboard users first. `?` lis
   aren't one.
 - Stock packs filter criteria into the text box as a syntax (see the facts). We dropped it for a Filters popover,
   because its keywords collide with path text and can't be discovered.
+  - Rejected: stock's VBR and CBR filters. Many files don't say whether they're VBR (see the facts), so either filter
+    would hide files that match it.
 - The results page never reads the downloads list. Rows show Enqueued or Failed from the batch responses.
 - **A folder's full contents come from the user's whole share**, the one Browse caches, rather than a request for
   the folder. slskd peers answer that request with files from other folders under bare names, so some listed paths

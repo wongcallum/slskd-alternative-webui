@@ -15,7 +15,7 @@ export const resultsSearch = v.object({
 
 export type ResultsSearch = v.InferOutput<typeof resultsSearch>
 
-const filterKeys = ['quality', 'size', 'length', 'files', 'free'] as const
+const filterKeys = ['quality', 'lossy', 'size', 'length', 'files', 'free'] as const
 
 export type FilterSearch = Pick<ResultsSearch, (typeof filterKeys)[number]>
 

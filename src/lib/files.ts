@@ -21,7 +21,7 @@ export const countFiles = (groups: readonly { files: readonly unknown[] }[]) =>
 // Lossless ranks above any bitrate, by depth and then sample rate. A file without attributes ranks lowest.
 export const losslessQuality = (bitDepth: number, sampleRate = 0) => 100_000 + bitDepth * 1000 + sampleRate / 1000
 
-const lossless = losslessQuality(0)
+export const lossless = losslessQuality(0)
 
 export function qualityOf(file: RawFile): [number, string] {
   if (file.bitDepth && file.sampleRate) {
