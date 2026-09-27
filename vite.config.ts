@@ -17,7 +17,12 @@ export default defineConfig(({ command }) => ({
   // The build must not know its url_base: slskd rewrites "./static" in index.html to "{urlBase}/static".
   base: command === 'serve' ? `${urlBase}/` : './',
   plugins: [react(), injectUrlBase],
-  build: { assetsDir: 'static', chunkSizeWarningLimit: 1000, license: true },
+  build: {
+    assetsDir: 'static',
+    chunkSizeWarningLimit: 1000,
+    // slskd sends .md as text/markdown; .txt goes as text/plain, which every browser displays.
+    license: { fileName: 'static/licenses.txt' },
+  },
   server: {
     strictPort: true,
     proxy: {

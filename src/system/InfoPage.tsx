@@ -5,6 +5,7 @@ import { version } from '../../package.json'
 import { api, describeError } from '../lib/api'
 import { formatAge, formatBytes, formatSpeed } from '../lib/format'
 import { useAtom, useClock, useResource } from '../lib/store'
+import { urlBase } from '../lib/urlBase'
 import { useRun } from '../lib/useRun'
 import { ActionButton, ConfirmButton, type Detail, DetailList } from '../ui/controls'
 import { Freshness, Polling } from '../ui/status'
@@ -43,6 +44,7 @@ export function InfoPage() {
                 </>
               )}
               {(relay || data.relayMode === 'Agent') && <RelayCard data={data} />}
+              <SourceCard />
             </Grid>
           </Flex>
         )}
@@ -72,7 +74,7 @@ function SlskdCard({ data, known }: { data: Application; known: boolean }) {
   let latest: ReactNode = 'Not checked'
   if (data.updateAvailable && data.latest !== undefined) {
     latest = (
-      <Flex as="span" gap="3" wrap="wrap">
+      <Flex as="span" gapX="3" gapY="1" wrap="wrap">
         <span>{data.latest} is available</span>
         <Link href={releaseNotes(data.latest)} target="_blank" rel="noreferrer">
           Release notes
@@ -239,6 +241,47 @@ function RelayCard({ data }: { data: Application }) {
   return (
     <Section title={data.relayMode === 'Agent' ? 'Relay agent' : 'Relay'}>
       <DetailList rows={rows} />
+    </Section>
+  )
+}
+
+const webUiRepo = 'https://github.com/wongcallum/slskd-alternative-webui'
+
+function ExternalLink({ href, children }: { href: string; children: ReactNode }) {
+  return (
+    <Link href={href} target="_blank" rel="noreferrer">
+      {children}
+    </Link>
+  )
+}
+
+function SourceCard() {
+  return (
+    <Section title="Source and licenses">
+      <DetailList
+        rows={[
+          [
+            'slskd',
+            <Flex key="slskd" as="span" gapX="3" gapY="1" wrap="wrap">
+              <ExternalLink href="https://github.com/slskd/slskd">slskd/slskd</ExternalLink>
+              <ExternalLink href="https://github.com/slskd/slskd/blob/master/LICENSE">AGPL-3.0</ExternalLink>
+            </Flex>,
+          ],
+          [
+            'Web UI',
+            <Flex key="webui" as="span" gapX="3" gapY="1" wrap="wrap">
+              <ExternalLink href={`${webUiRepo}/tree/v${version}`}>wongcallum/slskd-alternative-webui</ExternalLink>
+              <ExternalLink href={`${webUiRepo}/blob/v${version}/LICENSE`}>AGPL-3.0-or-later</ExternalLink>
+            </Flex>,
+          ],
+          [
+            'Libraries',
+            <ExternalLink key="libraries" href={`${urlBase}/static/licenses.txt`}>
+              Third-party licenses
+            </ExternalLink>,
+          ],
+        ]}
+      />
     </Section>
   )
 }
