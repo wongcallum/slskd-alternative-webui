@@ -1,6 +1,7 @@
 import './chat.css'
 import { Cross2Icon, PlusIcon } from '@radix-ui/react-icons'
 import { Badge, Flex, IconButton, Text, Tooltip, VisuallyHidden } from '@radix-ui/themes'
+import { useHotkeys } from '@tanstack/react-hotkeys'
 import { Outlet, Link as RouterLink, useLocation, useNavigate } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 
@@ -11,6 +12,7 @@ import { useResource } from '../lib/store'
 import { useRun } from '../lib/useRun'
 import { useSoulseekGate } from '../soulseek/soulseek'
 import { disabledProps, GatedIconButton } from '../ui/controls'
+import { inOverlay } from '../ui/keys'
 import { closeConversation, type Conversation, conversations } from './conversations'
 import { JoinRoomDialog } from './JoinRoomDialog'
 import type { Target } from './messages'
@@ -22,6 +24,7 @@ import { leaveRoom, useJoinedRooms, useRoomNews } from './rooms'
 export function ChatPage() {
   const sm = useFrom('sm')
   const open = useOpenTarget()
+  useSwitchKeys(open)
   return (
     <Flex height="100%">
       {(sm || open === undefined) && <Sidebar />}
@@ -46,18 +49,56 @@ function useOpenTarget() {
   })
 }
 
-function Sidebar() {
-  const gate = useSoulseekGate()
-  const { known, rooms } = useJoinedRooms()
+// A conversation that hasn't started yet shows while it's open.
+function useConversations(openUser?: string) {
   const { data, error } = useResource(conversations)
   const list = data?.list
-  const open = useOpenTarget()
-  const openUser = open?.kind === 'user' ? open.name : undefined
-  // A conversation that hasn't started yet shows while it's open.
   const shown: readonly Conversation[] =
     list !== undefined && openUser !== undefined && !list.some((each) => each.username === openUser)
       ? [{ username: openUser, unread: 0 }, ...list]
       : (list ?? [])
+  return { list, error, shown }
+}
+
+// Alt with ↑ or ↓ moves through the rooms and conversations in the sidebar's order, from the message box too.
+function useSwitchKeys(open?: Target) {
+  const navigate = useNavigate()
+  const { rooms } = useJoinedRooms()
+  const { shown } = useConversations(open?.kind === 'user' ? open.name : undefined)
+  const targets: Target[] = [
+    ...rooms.map((name) => ({ kind: 'room' as const, name })),
+    ...shown.map(({ username }) => ({ kind: 'user' as const, name: username })),
+  ]
+  const at = targets.findIndex((target) => target.kind === open?.kind && target.name === open.name)
+  const go = (event: KeyboardEvent, step: number) => {
+    const target = targets[at < 0 ? (step > 0 ? 0 : targets.length - 1) : at + step]
+    if (target === undefined || inOverlay(event)) return
+    if (target.kind === 'room') void navigate({ to: '/rooms', search: { room: target.name } })
+    else void navigate({ to: '/chat', search: { user: target.name } })
+  }
+  useHotkeys(
+    [
+      {
+        hotkey: 'Alt+ArrowUp',
+        callback: (event) => go(event, -1),
+        options: { meta: { name: 'Previous room or conversation', group: 'page' } },
+      },
+      {
+        hotkey: 'Alt+ArrowDown',
+        callback: (event) => go(event, 1),
+        options: { meta: { name: 'Next room or conversation', group: 'page' } },
+      },
+    ],
+    { ignoreInputs: false },
+  )
+}
+
+function Sidebar() {
+  const gate = useSoulseekGate()
+  const { known, rooms } = useJoinedRooms()
+  const open = useOpenTarget()
+  const openUser = open?.kind === 'user' ? open.name : undefined
+  const { list, error, shown } = useConversations(openUser)
   return (
     <Flex
       direction="column"

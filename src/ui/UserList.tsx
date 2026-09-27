@@ -1,11 +1,12 @@
 import { ReloadIcon, TrashIcon } from '@radix-ui/react-icons'
 import { Flex, Link } from '@radix-ui/themes'
-import { Link as RouterLink } from '@tanstack/react-router'
+import { Link as RouterLink, useNavigate } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 
 import { describeError } from '../lib/api'
 import type { RecordList } from '../lib/db'
 import { GatedIconButton, Toolbar } from './controls'
+import { useListNav, useRowTabIndex } from './listNav'
 import { Empty, ErrorCallout, Loading } from './status'
 import {
   ActionsCell,
@@ -24,6 +25,8 @@ import {
 
 type Column = { label: string; end?: boolean; wide?: boolean }
 
+type To = '/browse' | '/users'
+
 const entryKey = (entry: { username: string }) => entry.username
 
 export function UserPage({ toolbar, children }: { toolbar: ReactNode; children: ReactNode }) {
@@ -37,9 +40,11 @@ export function UserPage({ toolbar, children }: { toolbar: ReactNode; children: 
   )
 }
 
-// A landing page: a box to ask for a user, over everyone stored, running or failed.
+// A landing page: a box to ask for a user, over everyone stored, running or failed. Enter opens a user.
 export function UserListPage<E extends { username: string }>({
   toolbar,
+  to,
+  label,
   list,
   what,
   empty,
@@ -50,6 +55,8 @@ export function UserListPage<E extends { username: string }>({
   renderRow,
 }: {
   toolbar: ReactNode
+  to: To
+  label: string
   list: RecordList<unknown>
   what: string
   empty: string
@@ -60,6 +67,15 @@ export function UserListPage<E extends { username: string }>({
   renderRow: (entry: E, layout: Layout) => ReactNode
 }) {
   const layout = useListLayout()
+  const navigate = useNavigate()
+  const nav = useListNav({
+    name: 'users',
+    items: entries,
+    itemKey: entryKey,
+    rank: 1,
+    label,
+    onEnter: (entry) => void navigate({ to, search: { user: entry.username } }),
+  })
   let content: ReactNode
   if (!list.loaded) content = <Loading />
   else if (entries.length === 0) {
@@ -89,14 +105,13 @@ export function UserListPage<E extends { username: string }>({
         items={entries}
         itemKey={entryKey}
         rowSize={layout === 'stacked' ? stackedHeight : rowHeight}
+        nav={nav}
         renderItem={(entry) => renderRow(entry, layout)}
       />
     )
   }
   return <UserPage toolbar={toolbar}>{content}</UserPage>
 }
-
-type To = '/browse' | '/users'
 
 // Stacked, a status replaces the details while there is one.
 export function UserListRow({
@@ -158,7 +173,7 @@ export function UserListRow({
 function UserLink({ username, to }: { username: string; to: To }) {
   return (
     <Link asChild size="2" weight="medium" truncate>
-      <RouterLink to={to} search={{ user: username }}>
+      <RouterLink to={to} search={{ user: username }} tabIndex={useRowTabIndex()}>
         {username}
       </RouterLink>
     </Link>

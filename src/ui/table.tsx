@@ -6,10 +6,12 @@ import {
   createExpandedRowModel,
   createSortedRowModel,
   type ExpandedStateList,
+  type RowSelectionState,
   rowExpandingFeature,
   rowSelectionFeature,
   rowSortingFeature,
   tableFeatures,
+  type Updater,
 } from '@tanstack/react-table'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import {
@@ -21,11 +23,13 @@ import {
   type UIEventHandler,
   useCallback,
   useLayoutEffect,
+  useMemo,
   useRef,
 } from 'react'
 
 import { useFrom } from '../lib/media'
 import { compareNames } from '../lib/text'
+import { type ListNav, RowScope, useRowTabIndex } from './listNav'
 
 // Clicks on controls inside a row mustn't also select or expand it, and React bubbles clicks out of portals too.
 export const stop = (event: { stopPropagation: () => void }) => event.stopPropagation()
@@ -76,18 +80,83 @@ type SelectableRow = {
   getToggleSelectedHandler: (options?: { deselectParents?: boolean }) => (event: unknown) => void
 }
 
+type SelectionTable = {
+  getRow: (id: string, searchAll?: boolean) => SelectableRow
+  getSelectedRowModel: () => { flatRows: readonly unknown[] }
+  toggleAllRowsSelected: (value?: boolean) => void
+  setRowSelection: (updater: Updater<RowSelectionState>) => void
+}
+
+function useCurrent<T>(value: T) {
+  const ref = useRef(value)
+  useLayoutEffect(() => {
+    ref.current = value
+  })
+  return ref
+}
+
 // Rows are memoised, so they get one stable callback that toggles through whichever table is current.
 export function useRowToggle(table: { getRow: (id: string, searchAll?: boolean) => SelectableRow }) {
-  const tableRef = useRef(table)
-  useLayoutEffect(() => {
-    tableRef.current = table
-  })
-  return useCallback((id: string, shiftKey: boolean) => {
-    const row = tableRef.current.getRow(id, true)
-    const selected = row.subRows.length > 0 ? row.getIsAllSubRowsSelected() : row.getIsSelected()
-    row.getToggleSelectedHandler({ deselectParents: true })({ shiftKey, target: { checked: !selected } })
-  }, [])
+  const tableRef = useCurrent(table)
+  return useCallback(
+    (id: string, shiftKey: boolean) => {
+      const row = tableRef.current.getRow(id, true)
+      const selected = row.subRows.length > 0 ? row.getIsAllSubRowsSelected() : row.getIsSelected()
+      row.getToggleSelectedHandler({ deselectParents: true })({ shiftKey, target: { checked: !selected } })
+    },
+    [tableRef],
+  )
 }
+
+// Space toggles a row as its check does, and Shift+Space selects a range as a shift-click does. Shift with an arrow
+// adds the rows it passes, rather than a range from wherever the last click was.
+export function useSelectionKeys(table: SelectionTable) {
+  const tableRef = useCurrent(table)
+  const toggle = useRowToggle(table)
+  return useMemo(() => {
+    const include = (id: string) =>
+      tableRef.current.getRow(id, true).getToggleSelectedHandler({ deselectParents: true })({
+        target: { checked: true },
+      })
+    return {
+      multiselectable: true,
+      onSpace: (row: { id: string }, range: boolean) => toggle(row.id, range),
+      onExtend: (from: { id: string }, to: { id: string }) => {
+        include(from.id)
+        include(to.id)
+      },
+      onSelectAll: () => tableRef.current.toggleAllRowsSelected(true),
+      onEscape: () => {
+        if (tableRef.current.getSelectedRowModel().flatRows.length === 0) return false
+        tableRef.current.setRowSelection({})
+        return true
+      },
+    }
+  }, [tableRef, toggle])
+}
+
+export const rowSelected = (row: { getIsSelected: () => boolean }) => ({ 'aria-selected': row.getIsSelected() })
+
+type GroupedRow = {
+  depth: number
+  subRows: readonly unknown[]
+  getIsExpanded: () => boolean
+  getIsSelected: () => boolean
+  getIsAllSubRowsSelected: () => boolean
+}
+
+// Folders over their files: → and ← open and close a folder, and move between it and its files.
+export const groupNav = {
+  role: 'treegrid',
+  depth: (row: GroupedRow) => row.depth,
+  canToggle: (row: GroupedRow) => row.subRows.length > 0,
+  isOpen: (row: GroupedRow) => row.getIsExpanded(),
+  aria: (row: GroupedRow) => ({
+    'aria-level': row.depth + 1,
+    'aria-expanded': row.subRows.length > 0 ? row.getIsExpanded() : undefined,
+    'aria-selected': row.subRows.length > 0 ? row.getIsAllSubRowsSelected() : row.getIsSelected(),
+  }),
+} as const
 
 export const rowHeight = 36
 
@@ -233,7 +302,12 @@ export function CheckCell({
         if (!disabled) onToggle(event.shiftKey)
       }}
     >
-      <Checkbox aria-label={label} checked={selected ? true : partial ? 'indeterminate' : false} disabled={disabled} />
+      <Checkbox
+        aria-label={label}
+        checked={selected ? true : partial ? 'indeterminate' : false}
+        disabled={disabled}
+        tabIndex={useRowTabIndex()}
+      />
     </div>
   )
 }
@@ -250,24 +324,13 @@ export function Cell({ end, title, children }: { end?: boolean; title?: string; 
 
 type GroupNameProps = { expanded: boolean; name: string; children?: ReactNode }
 
-// A row acts on a click anywhere in it, which the keyboard reaches through this. Its click bubbles up to the row.
-export function RowButton({ expanded, children }: { expanded?: boolean; children: ReactNode }) {
-  return (
-    <button type="button" className="row-button" aria-expanded={expanded}>
-      {children}
-    </button>
-  )
-}
-
 export function GroupName({ expanded, name, children }: GroupNameProps) {
   return (
     <>
-      <RowButton expanded={expanded}>
-        {expanded ? <ChevronDownIcon style={{ flexShrink: 0 }} /> : <ChevronRightIcon style={{ flexShrink: 0 }} />}
-        <Text size="2" weight="medium" truncate>
-          {name}
-        </Text>
-      </RowButton>
+      {expanded ? <ChevronDownIcon style={{ flexShrink: 0 }} /> : <ChevronRightIcon style={{ flexShrink: 0 }} />}
+      <Text size="2" weight="medium" truncate>
+        {name}
+      </Text>
       {children}
     </>
   )
@@ -380,8 +443,7 @@ export function VirtualTable<T>({
   renderItem,
   rowSize = rowHeight,
   reveal,
-  role,
-  label,
+  nav,
   scrollRef: externalRef,
   onScroll,
   footer,
@@ -393,14 +455,21 @@ export function VirtualTable<T>({
   renderItem: (item: T) => ReactNode
   rowSize?: number | ((item: T) => number)
   reveal?: { key: unknown; index: number }
-  role?: string
-  label?: string
+  nav: ListNav<T>
   scrollRef?: RefObject<HTMLDivElement | null>
   onScroll?: UIEventHandler<HTMLDivElement>
   footer?: ReactNode
 }) {
   const ownRef = useRef<HTMLDivElement>(null)
   const scrollRef = externalRef ?? ownRef
+  const { containerRef } = nav
+  const setRef = useCallback(
+    (element: HTMLDivElement | null) => {
+      scrollRef.current = element
+      containerRef.current = element
+    },
+    [scrollRef, containerRef],
+  )
   const headHeight = header === undefined ? 0 : columnsHeight
   const getItemKey = useCallback(
     (index: number) => {
@@ -421,6 +490,7 @@ export function VirtualTable<T>({
     getItemKey,
     overscan: 10,
     scrollMargin: headHeight,
+    rangeExtractor: nav.rangeExtractor,
   })
   const found = reveal !== undefined && reveal.index >= 0
   // Rows moving because others opened or closed above them don't scroll.
@@ -428,7 +498,7 @@ export function VirtualTable<T>({
     if (reveal !== undefined && reveal.index >= 0) virtualizer.scrollToIndex(reveal.index, { align: 'auto' })
   }, [reveal?.key, found]) // oxlint-disable-line react-hooks/exhaustive-deps
   return (
-    <div ref={scrollRef} className="table-scroll" role={role} aria-label={label} onScroll={onScroll}>
+    <div ref={setRef} className="table-scroll" onScroll={onScroll} {...nav.containerProps}>
       {header !== undefined && (
         <div className="table-head" style={{ minWidth, height: columnsHeight }}>
           {header}
@@ -438,8 +508,12 @@ export function VirtualTable<T>({
         {virtualizer.getVirtualItems().map((virtual) => {
           const item = items[virtual.index]
           return (
-            <div key={virtual.key} style={virtualRowStyle(virtual.size, virtual.start - headHeight)}>
-              {item !== undefined && renderItem(item)}
+            <div
+              key={virtual.key}
+              style={{ ...virtualRowStyle(virtual.size, virtual.start - headHeight), scrollMarginTop: headHeight }}
+              {...nav.rowProps(virtual.index)}
+            >
+              <RowScope tabbable={virtual.index === nav.stop}>{item !== undefined && renderItem(item)}</RowScope>
             </div>
           )
         })}

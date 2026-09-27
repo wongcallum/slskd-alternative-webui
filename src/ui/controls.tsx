@@ -19,6 +19,7 @@ import {
 import {
   cloneElement,
   type CSSProperties,
+  type KeyboardEvent,
   type ReactElement,
   type ReactNode,
   useDeferredValue,
@@ -30,6 +31,9 @@ import { type Actions, dismissOutcome, type Progress } from '../lib/actions'
 import { formatBytes } from '../lib/format'
 import { useFrom, useTouch } from '../lib/media'
 import { type Atom, useAtom } from '../lib/store'
+import { focusList, returnToList } from './focus'
+import { displayKey } from './keys'
+import { useRowTabIndex } from './listNav'
 import { stop } from './table'
 
 export type Color = NonNullable<TextProps['color']>
@@ -70,15 +74,29 @@ export const disabledProps = (disabled: boolean) => ({
 })
 
 // A tooltip that a tap opens too, for what can't be learned elsewhere: why an action is disabled, or what went wrong.
-// Radix's tooltips never open from touch.
-export function Tip({ content, children }: { content: ReactNode; children: ReactElement }) {
+// Radix's tooltips never open from touch. A control's label or key isn't worth a tap, which then goes straight to the
+// control. A control keeps its tooltip while it has nothing to say, since swapping the wrapper would remount it and
+// lose its focus.
+export function Tip({ content, tap = true, children }: { content?: ReactNode; tap?: boolean; children: ReactElement }) {
   const touch = useTouch()
+  const tabIndex = useRowTabIndex() ?? 0
+  const [open, setOpen] = useState(false)
   // Text that explains something is made focusable, so the keyboard reaches what it says too.
   const trigger =
     typeof children.props === 'object' && children.props !== null && 'onClick' in children.props
       ? children
-      : cloneElement(children as ReactElement<{ tabIndex?: number }>, { tabIndex: 0 })
-  if (!touch) return <Tooltip content={<span style={{ whiteSpace: 'pre-line' }}>{content}</span>}>{trigger}</Tooltip>
+      : cloneElement(children as ReactElement<{ tabIndex?: number }>, { tabIndex })
+  if (!touch || !tap || content === undefined) {
+    return (
+      <Tooltip
+        content={<span style={{ whiteSpace: 'pre-line' }}>{content}</span>}
+        open={open && content !== undefined}
+        onOpenChange={setOpen}
+      >
+        {trigger}
+      </Tooltip>
+    )
+  }
   return (
     <Popover.Root>
       <Popover.Trigger onClick={stop}>{trigger}</Popover.Trigger>
@@ -91,9 +109,12 @@ export function Tip({ content, children }: { content: ReactNode; children: React
   )
 }
 
-// An enabled control's tooltip is only its label, so a tap goes straight to the action.
 export function GateTip({ gate, label, children }: { gate?: string; label: string; children: ReactElement }) {
-  return gate === undefined ? <Tooltip content={label}>{children}</Tooltip> : <Tip content={gate}>{children}</Tip>
+  return (
+    <Tip content={gate ?? label} tap={gate !== undefined}>
+      {children}
+    </Tip>
+  )
 }
 
 export function GatedIconButton({
@@ -115,6 +136,7 @@ export function GatedIconButton({
       variant="ghost"
       color={color}
       aria-label={label}
+      tabIndex={useRowTabIndex()}
       {...disabledProps(gate !== undefined)}
       onClick={() => gate === undefined && onClick()}
     >
@@ -128,6 +150,9 @@ export function GatedIconButton({
   )
 }
 
+// A key in the list that does what the button does, which its tooltip names.
+export type Shortcut = { key: string; name: string }
+
 // While there's progress, the button counts it after its busy label.
 type ActionButtonProps = {
   label: string
@@ -136,10 +161,11 @@ type ActionButtonProps = {
   loading?: boolean
   gate?: string
   color?: 'red' | 'amber'
+  shortcut?: Shortcut
   onClick: () => void
 }
 
-export function ActionButton({ label, busy, progress, loading, gate, color, onClick }: ActionButtonProps) {
+export function ActionButton({ label, busy, progress, loading, gate, color, shortcut, onClick }: ActionButtonProps) {
   const disabled = gate !== undefined || progress !== undefined || loading === true
   const button = (
     <Button
@@ -147,6 +173,7 @@ export function ActionButton({ label, busy, progress, loading, gate, color, onCl
       variant="soft"
       color={color}
       loading={loading}
+      aria-keyshortcuts={shortcut?.key}
       {...disabledProps(disabled)}
       onClick={() => !disabled && onClick()}
     >
@@ -155,36 +182,53 @@ export function ActionButton({ label, busy, progress, loading, gate, color, onCl
         : `${busy ?? label} ${progress.done.toLocaleString()} / ${progress.total.toLocaleString()}`}
     </Button>
   )
-  return gate === undefined || progress !== undefined ? button : <Tip content={gate}>{button}</Tip>
+  let tip = gate
+  if (progress !== undefined) tip = undefined
+  else if (gate === undefined && shortcut !== undefined) tip = `${shortcut.name} (${displayKey(shortcut.key)})`
+  return (
+    <Tip content={tip} tap={gate !== undefined}>
+      {button}
+    </Tip>
+  )
 }
 
-export function ConfirmButton({
+type ConfirmProps = {
+  title: string
+  description: string
+  action: string
+  color?: 'red' | 'amber'
+  onConfirm: () => void
+}
+
+// Radix returns focus to a dialog's trigger, but some dialogs have none: a gated button mustn't open one, and a key
+// opens one from a list. Focus goes back to wherever it was when the dialog opened, or to the list it was in if the
+// dialog's action removed it.
+export function useReturnFocus() {
+  const opener = useRef<Element | null>(null)
+  return {
+    onOpenAutoFocus: () => {
+      opener.current = document.activeElement
+    },
+    onCloseAutoFocus: (event: Event) => {
+      event.preventDefault()
+      if (opener.current instanceof HTMLElement && opener.current.isConnected) opener.current.focus()
+      else returnToList()
+    },
+  }
+}
+
+export function ConfirmDialog({
+  open,
+  onOpenChange,
   title,
   description,
   action,
+  color,
   onConfirm,
-  ...button
-}: Omit<ActionButtonProps, 'onClick'> & { title: string; description: string; action: string; onConfirm: () => void }) {
-  const [open, setOpen] = useState(false)
-  // The button isn't the dialog's trigger, since a gated one mustn't open it, so Radix wouldn't know where to return
-  // focus on closing.
-  const opener = useRef<Element | null>(null)
+}: ConfirmProps & { open: boolean; onOpenChange: (open: boolean) => void }) {
   return (
-    <AlertDialog.Root open={open} onOpenChange={setOpen}>
-      <ActionButton
-        {...button}
-        onClick={() => {
-          opener.current = document.activeElement
-          setOpen(true)
-        }}
-      />
-      <AlertDialog.Content
-        maxWidth="440px"
-        onCloseAutoFocus={(event) => {
-          event.preventDefault()
-          if (opener.current instanceof HTMLElement) opener.current.focus()
-        }}
-      >
+    <AlertDialog.Root open={open} onOpenChange={onOpenChange}>
+      <AlertDialog.Content maxWidth="440px" {...useReturnFocus()}>
         <AlertDialog.Title>{title}</AlertDialog.Title>
         <AlertDialog.Description size="2">{description}</AlertDialog.Description>
         <Flex gap="3" mt="4" justify="end">
@@ -194,13 +238,37 @@ export function ConfirmButton({
             </Button>
           </AlertDialog.Cancel>
           <AlertDialog.Action>
-            <Button color={button.color} onClick={onConfirm}>
+            <Button color={color} onClick={onConfirm}>
               {action}
             </Button>
           </AlertDialog.Action>
         </Flex>
       </AlertDialog.Content>
     </AlertDialog.Root>
+  )
+}
+
+export function ConfirmButton({
+  title,
+  description,
+  action,
+  onConfirm,
+  ...button
+}: Omit<ActionButtonProps, 'onClick'> & ConfirmProps) {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <ActionButton {...button} onClick={() => setOpen(true)} />
+      <ConfirmDialog
+        open={open}
+        onOpenChange={setOpen}
+        title={title}
+        description={description}
+        action={action}
+        color={button.color}
+        onConfirm={onConfirm}
+      />
+    </>
   )
 }
 
@@ -259,6 +327,20 @@ export function useFilterText(q: string, onChange: (q: string) => void) {
   }
 }
 
+// ↓ and Escape go to the list the field filters, to the row the keyboard was last on. In a dialog, Escape closes it
+// first.
+export const toList = (list?: string) =>
+  list === undefined
+    ? undefined
+    : (event: KeyboardEvent) => {
+        if (event.key !== 'ArrowDown' && event.key !== 'Escape') return
+        if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+        if (focusList(list)) event.preventDefault()
+      }
+
+// The page's main field is the one / focuses.
+export const mainField = (main?: boolean) => ({ 'data-main-field': main || undefined })
+
 // Given a width, the field has it from sm and fills its line below.
 export function FilterField({
   placeholder,
@@ -266,12 +348,18 @@ export function FilterField({
   onChange,
   width,
   style,
+  main,
+  list,
+  onEnter,
 }: {
   placeholder: string
   value: string
   onChange: (value: string) => void
   width?: string
   style?: CSSProperties
+  main?: boolean
+  list?: string
+  onEnter?: () => void
 }) {
   const field = (
     <TextField.Root
@@ -279,7 +367,15 @@ export function FilterField({
       placeholder={placeholder}
       value={value}
       onChange={(event) => onChange(event.target.value)}
+      onKeyDown={(event) => {
+        if (event.key !== 'Enter' || onEnter === undefined || event.nativeEvent.isComposing) toList(list)?.(event)
+        else {
+          event.preventDefault()
+          onEnter()
+        }
+      }}
       style={style}
+      {...mainField(main)}
     >
       <TextField.Slot>
         <MagnifyingGlassIcon />
@@ -409,7 +505,7 @@ export function DetailsButton({ children }: { children: ReactNode }) {
   return (
     <Popover.Root>
       <Popover.Trigger>
-        <IconButton size="1" variant="ghost" color="gray" aria-label="Details">
+        <IconButton size="1" variant="ghost" color="gray" aria-label="Details" tabIndex={useRowTabIndex()}>
           <InfoCircledIcon />
         </IconButton>
       </Popover.Trigger>

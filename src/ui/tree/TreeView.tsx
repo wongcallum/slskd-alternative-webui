@@ -6,6 +6,7 @@ import { useFrom } from '../../lib/media'
 import { type SearchProps, useSortParam } from '../../lib/params'
 import { type Folder, matchTree, nearestFolder, type Tree as FolderTree } from '../../lib/tree'
 import { FilterField, GatedIconButton, toolbarStyle, useFilterText } from '../controls'
+import { intendFocus } from '../focus'
 import { FolderPane, type TreeConfig } from './FolderPane'
 import { expandTo, Tree, updateExpansion } from './Tree'
 
@@ -38,6 +39,13 @@ export function TreeView<S extends string>({ tree, fetchedAt, search, onSearchCh
     [tree, onSearchChange],
   )
   const enter = useCallback((target: Folder) => onSearchChange({ path: target.path }), [onSearchChange])
+  // Going up lands on the folder that was left, in the pane or in whatever list the top shows instead.
+  const up = useCallback(() => {
+    const parent = folder.parent
+    if (parent === undefined) return
+    intendFocus(parent === tree.top && config.topList !== undefined ? config.topList : 'pane', `folder\n${folder.id}`)
+    onSearchChange({ path: parent.path })
+  }, [tree, folder, config.topList, onSearchChange])
   const expansionGate = matches === undefined ? undefined : 'The filtered tree shows every match'
   const alone = !sm
   const treeWidth = lg ? '380px' : md ? '300px' : '260px'
@@ -49,6 +57,8 @@ export function TreeView<S extends string>({ tree, fetchedAt, search, onSearchCh
         value={filter.text}
         onChange={filter.change}
         style={{ flexGrow: 1 }}
+        main
+        list={alone && !treeShown ? 'pane' : 'tree'}
       />
       {alone && (
         <Button
@@ -80,7 +90,7 @@ export function TreeView<S extends string>({ tree, fetchedAt, search, onSearchCh
       )}
     </Flex>
   )
-  const treePane = <Tree tree={tree} selected={folder} matches={matches} onOpen={open} />
+  const treePane = <Tree tree={tree} selected={folder} matches={matches} onOpen={open} onUp={up} Keys={config.Keys} />
   const folderPane = (
     <FolderPane
       key={folder.id}
@@ -92,6 +102,7 @@ export function TreeView<S extends string>({ tree, fetchedAt, search, onSearchCh
       sorting={sorting}
       onSortingChange={onSortingChange}
       onOpen={enter}
+      onUp={up}
       config={config}
     />
   )

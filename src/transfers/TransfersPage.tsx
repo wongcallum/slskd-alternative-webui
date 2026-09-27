@@ -103,6 +103,7 @@ export function TransfersPage({ direction, search, onSearchChange }: Props) {
         activeTable={activeTable}
         finishedTable={finishedTable}
         filtered={filter.query !== ''}
+        selected={selected}
         show={search.show}
         onShowChange={(show) => onSearchChange({ show })}
         gates={gates}
@@ -154,7 +155,14 @@ function TransfersToolbar({
   const removable = selected.filter((file) => isFinished(file.state))
   return (
     <Toolbar>
-      <FilterField placeholder="Filter by user or path" value={text} onChange={onTextChange} width="280px" />
+      <FilterField
+        placeholder="Filter by user or path"
+        value={text}
+        onChange={onTextChange}
+        width="280px"
+        main
+        list="transfers"
+      />
       {selected.length > 0 && (
         <SelectionActions count={selected.length} onClear={onClearSelection}>
           {direction === 'download' && (
@@ -163,6 +171,7 @@ function TransfersToolbar({
               busy="Retrying"
               progress={running.retry}
               gate={retryable.length === 0 ? 'Nothing selected has failed or been cancelled' : gates.soulseek}
+              shortcut={{ key: 'R', name: 'Retry' }}
               onClick={() => retry(retryable)}
             />
           )}
@@ -172,6 +181,7 @@ function TransfersToolbar({
             color="red"
             progress={running.cancel}
             gate={cancellable.length === 0 ? 'Nothing selected is active' : gates.list}
+            shortcut={{ key: 'Delete', name: 'Cancel' }}
             onClick={() => cancel(direction, cancellable)}
           />
           <ActionButton
@@ -179,6 +189,7 @@ function TransfersToolbar({
             busy="Removing"
             progress={running.remove}
             gate={removable.length === 0 ? 'Nothing selected has finished' : gates.list}
+            shortcut={{ key: 'Delete', name: 'Remove' }}
             onClick={() => remove(direction, removable)}
           />
         </SelectionActions>

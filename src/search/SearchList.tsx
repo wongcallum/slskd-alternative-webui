@@ -1,6 +1,6 @@
 import { StopIcon, TrashIcon } from '@radix-ui/react-icons'
 import { Flex, Link, Spinner } from '@radix-ui/themes'
-import { Link as RouterLink } from '@tanstack/react-router'
+import { Link as RouterLink, useNavigate } from '@tanstack/react-router'
 import {
   type RowSelectionState,
   rowSelectionFeature,
@@ -12,6 +12,8 @@ import { memo } from 'react'
 
 import { useAtom } from '../lib/store'
 import { GatedIconButton } from '../ui/controls'
+import { useListKeys } from '../ui/keys'
+import { useListNav, useRowTabIndex } from '../ui/listNav'
 import { Ago } from '../ui/status'
 import {
   ActionsCell,
@@ -24,11 +26,13 @@ import {
   Parts,
   rowHeight,
   rowId,
+  rowSelected,
   StackedRow,
   stackedHeight,
   stop,
   useListLayout,
   useRowToggle,
+  useSelectionKeys,
   VirtualTable,
 } from '../ui/table'
 import { deleteSearches, listActions, type Search, stopSearches } from './searches'
@@ -65,6 +69,30 @@ export function SearchList({ table, gate }: { table: ReturnType<typeof useListTa
   const rows = table.getRowModel().rows
   const onSelect = useRowToggle(table)
   const layout = useListLayout()
+  const navigate = useNavigate()
+  const nav = useListNav({
+    name: 'searches',
+    items: rows,
+    itemKey: rowId,
+    rank: 1,
+    label: 'Searches',
+    aria: rowSelected,
+    onEnter: (row) => void navigate({ to: '/searches/$id', params: { id: row.original.id } }),
+    ...useSelectionKeys(table),
+  })
+  useListKeys(nav.containerRef, [
+    {
+      hotkeys: ['Delete', 'Mod+Backspace'],
+      name: 'Delete',
+      enabled: rowGate === undefined,
+      run: () => {
+        const selected = table.getSelectedRowModel().rows.map((row) => row.original)
+        const focused = nav.focused()?.original
+        if (selected.length > 0) void deleteSearches(selected)
+        else if (focused !== undefined) void deleteSearches([focused])
+      },
+    },
+  ])
 
   const header = (
     <HeaderRow template={layout === 'stacked' ? '' : templates[layout]} table={table} stacked={layout === 'stacked'}>
@@ -88,6 +116,7 @@ export function SearchList({ table, gate }: { table: ReturnType<typeof useListTa
       items={rows}
       itemKey={rowId}
       rowSize={layout === 'stacked' ? stackedHeight : rowHeight}
+      nav={nav}
       renderItem={(row) => (
         <SearchRow
           search={row.original}
@@ -125,9 +154,10 @@ const SearchRow = memo(function SearchRow({ search, layout, selected, pending, g
       {pending && <Spinner size="1" />}
     </>
   )
+  const tabIndex = useRowTabIndex()
   const link = (
     <Link asChild size="2" weight="medium" truncate>
-      <RouterLink to="/searches/$id" params={{ id: search.id }} onClick={stop}>
+      <RouterLink to="/searches/$id" params={{ id: search.id }} tabIndex={tabIndex} onClick={stop}>
         {search.text}
       </RouterLink>
     </Link>

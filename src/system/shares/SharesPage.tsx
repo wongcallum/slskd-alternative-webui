@@ -8,6 +8,7 @@ import type { SearchProps } from '../../lib/params'
 import { useResource } from '../../lib/store'
 import { useRun } from '../../lib/useRun'
 import { ActionButton, Tip, toolbarStyle } from '../../ui/controls'
+import { type ListNav, RowScope, useListNav } from '../../ui/listNav'
 import { Busy, Empty, FetchedResource, Fetching, Freshness } from '../../ui/status'
 import {
   Cell,
@@ -15,7 +16,6 @@ import {
   GridRow,
   HeaderRow,
   Parts,
-  RowButton,
   rowHeight,
   StackedRow,
   stackedHeight,
@@ -124,10 +124,23 @@ function ScanBar({ data, known }: { data: Application; known: boolean }) {
   )
 }
 
+const noShares: readonly Share[] = []
+
+// A share's key matches its folder's row in the contents, so going up from a share lands on it here.
+const shareKey = (share: Share) => (share.excluded ? `excluded\n${share.host}\n${share.id}` : `folder\n${share.alias}`)
+
 function ShareTable({ onOpen }: { onOpen: (path: string) => void }) {
   const { data, error } = useResource(shareList)
   const options = useOptions()
   const stacked = useListLayout() === 'stacked'
+  const { containerRef, ...nav } = useListNav({
+    name: 'shares',
+    items: data?.shares ?? noShares,
+    itemKey: shareKey,
+    rank: 1,
+    label: 'Shares',
+    onEnter: (share) => !share.excluded && onOpen(share.alias),
+  })
   if (data === undefined) {
     return (
       <Fetching error={error} onRetry={shareList.refresh}>
@@ -151,7 +164,7 @@ function ShareTable({ onOpen }: { onOpen: (path: string) => void }) {
           Nothing is shared. Shares are set in slskd's config, as <Code>shares.directories</Code>.
         </Empty>
       ) : (
-        <Box minWidth={stacked ? undefined : `${(hosts ? 140 : 0) + 660}px`}>
+        <Box ref={containerRef} minWidth={stacked ? undefined : `${(hosts ? 140 : 0) + 660}px`} {...nav.containerProps}>
           {!stacked && (
             <HeaderRow template={template}>
               {hosts && <ColumnHeader label="Host" />}
@@ -161,13 +174,15 @@ function ShareTable({ onOpen }: { onOpen: (path: string) => void }) {
               <ColumnHeader label="Files" end />
             </HeaderRow>
           )}
-          {data.shares.map((share) => (
+          {data.shares.map((share, index) => (
             <ShareRow
               key={`${share.host}\n${share.id}`}
               share={share}
               template={template}
               stacked={stacked}
               hosts={hosts}
+              row={nav.rowProps(index)}
+              tabbable={index === nav.stop}
               onOpen={onOpen}
             />
           ))}
@@ -203,12 +218,16 @@ function ShareRow({
   template,
   stacked,
   hosts,
+  row: attributes,
+  tabbable,
   onOpen,
 }: {
   share: Share
   template: string
   stacked: boolean
   hosts: boolean
+  row: ReturnType<ListNav<Share>['rowProps']>
+  tabbable: boolean
   onOpen: (path: string) => void
 }) {
   const { excluded } = share
@@ -222,56 +241,56 @@ function ShareRow({
       {share.localPath}
     </Text>
   )
-  const path = excluded ? (
+  const path = (
     <>
-      <Cross2Icon style={{ flexShrink: 0 }} />
+      {excluded ? <Cross2Icon style={{ flexShrink: 0 }} /> : <ChevronRightIcon style={{ flexShrink: 0 }} />}
       {name}
     </>
-  ) : (
-    <RowButton>
-      <ChevronRightIcon style={{ flexShrink: 0 }} />
-      {name}
-    </RowButton>
   )
+  const rowProps = { ...attributes, style: { height: stacked ? stackedHeight : rowHeight } }
   if (stacked) {
     return (
-      <div style={{ height: stackedHeight }}>
-        <StackedRow
-          {...row}
-          title={path}
-          meta={
-            <Parts
-              items={
-                excluded
-                  ? [hosts && share.host, 'Excluded']
-                  : [
-                      hosts && share.host,
-                      `Shared as ${share.alias}`,
-                      <span key="folders">
-                        <Count value={share.folders} /> folders
-                      </span>,
-                      <span key="files">
-                        <Count value={share.files} /> files
-                      </span>,
-                    ]
-              }
-            />
-          }
-        />
+      <div {...rowProps}>
+        <RowScope tabbable={tabbable}>
+          <StackedRow
+            {...row}
+            title={path}
+            meta={
+              <Parts
+                items={
+                  excluded
+                    ? [hosts && share.host, 'Excluded']
+                    : [
+                        hosts && share.host,
+                        `Shared as ${share.alias}`,
+                        <span key="folders">
+                          <Count value={share.folders} /> folders
+                        </span>,
+                        <span key="files">
+                          <Count value={share.files} /> files
+                        </span>,
+                      ]
+                }
+              />
+            }
+          />
+        </RowScope>
       </div>
     )
   }
   return (
-    <div style={{ height: rowHeight }}>
-      <GridRow template={template} {...row}>
-        {hosts && <Cell>{share.host}</Cell>}
-        <Flex className="table-cell" align="center" gap="2" title={share.localPath}>
-          {path}
-        </Flex>
-        <Cell>{excluded ? 'Excluded' : share.alias}</Cell>
-        <Cell end>{!excluded && <Count value={share.folders} />}</Cell>
-        <Cell end>{!excluded && <Count value={share.files} />}</Cell>
-      </GridRow>
+    <div {...rowProps}>
+      <RowScope tabbable={tabbable}>
+        <GridRow template={template} {...row}>
+          {hosts && <Cell>{share.host}</Cell>}
+          <Flex className="table-cell" align="center" gap="2" title={share.localPath}>
+            {path}
+          </Flex>
+          <Cell>{excluded ? 'Excluded' : share.alias}</Cell>
+          <Cell end>{!excluded && <Count value={share.folders} />}</Cell>
+          <Cell end>{!excluded && <Count value={share.files} />}</Cell>
+        </GridRow>
+      </RowScope>
     </div>
   )
 }
@@ -292,6 +311,7 @@ const contentsConfig: TreeConfig = {
   scope: 'the shares',
   extras: audioColumns,
   status: <ScanningNote />,
+  topList: 'shares',
 }
 
 function ContentsView({ search, onSearchChange }: Props) {

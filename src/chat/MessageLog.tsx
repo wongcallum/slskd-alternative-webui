@@ -1,9 +1,22 @@
 import { ArrowDownIcon } from '@radix-ui/react-icons'
 import { Box, Button } from '@radix-ui/themes'
-import { memo, type ReactNode, type UIEvent, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  createContext,
+  memo,
+  type ReactNode,
+  type RefObject,
+  type UIEvent,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 
 import { formatTime } from '../lib/format'
 import { LinkedText } from '../ui/LinkedText'
+import { rowAttributes, RowScope, useListNav } from '../ui/listNav'
 import type { Message } from './messages'
 
 type PendingLine = { id: number; text: string; sentAt: number; unconfirmed: boolean }
@@ -26,10 +39,27 @@ type Props = {
 
 const none: readonly PendingLine[] = []
 
+const messageKey = (message: Message) => message.key
+
+// The log's scroller, which the composer scrolls with PageUp and PageDown.
+export const LogScroll = createContext<RefObject<HTMLDivElement | null> | undefined>(undefined)
+
 // The log sticks to the newest message at the bottom. Once scrolled up it holds still, and counts what arrives.
+// The keyboard starts on the newest message, and a line's name and links are reached from it.
 export function MessageLog({ messages, pending = none, ownName, newFrom, note, empty, renderName }: Props) {
-  const scrollRef = useRef<HTMLDivElement>(null)
+  const ownRef = useRef<HTMLDivElement>(null)
+  const scrollRef = useContext(LogScroll) ?? ownRef
   const contentRef = useRef<HTMLDivElement>(null)
+  const nav = useListNav({ name: 'messages', items: messages, itemKey: messageKey, label: 'Messages', start: 'last' })
+  const { containerRef } = nav
+  const setContent = useCallback(
+    (element: HTMLDivElement | null) => {
+      contentRef.current = element
+      containerRef.current = element
+    },
+    [containerRef],
+  )
+  const stop = nav.stop
   // The key of the newest message when the log was scrolled up, or undefined while it follows the bottom.
   const [away, setAway] = useState<string>()
   const following = useRef(true)
@@ -46,7 +76,7 @@ export function MessageLog({ messages, pending = none, ownName, newFrom, note, e
     observer.observe(scroller)
     observer.observe(content)
     return () => observer.disconnect()
-  }, [])
+  }, [scrollRef])
 
   function onScroll(event: UIEvent<HTMLDivElement>) {
     const element = event.currentTarget
@@ -66,7 +96,7 @@ export function MessageLog({ messages, pending = none, ownName, newFrom, note, e
     const name = ownName ?? 'You'
     const list: ReactNode[] = []
     let day = ''
-    for (const message of messages) {
+    for (const [index, message] of messages.entries()) {
       const next = dayOf(message.time)
       if (next !== day) {
         list.push(
@@ -83,18 +113,27 @@ export function MessageLog({ messages, pending = none, ownName, newFrom, note, e
           </div>,
         )
       }
-      list.push(<MessageRow key={message.key} message={message} ownName={name} renderName={renderName} />)
+      list.push(
+        <MessageRow
+          key={message.key}
+          message={message}
+          index={index}
+          tabbable={index === stop}
+          ownName={name}
+          renderName={renderName}
+        />,
+      )
     }
     for (const line of pending) {
       list.push(<PendingRow key={`pending ${line.id}`} line={line} username={name} />)
     }
     return list
-  }, [messages, pending, newFrom, ownName, renderName])
+  }, [messages, pending, newFrom, ownName, renderName, stop])
 
   return (
     <Box position="relative" flexGrow="1" minHeight="0">
       <div ref={scrollRef} className="chat-scroll" data-following={away === undefined || undefined} onScroll={onScroll}>
-        <div ref={contentRef} className="chat-log">
+        <div ref={setContent} className="chat-log" {...nav.containerProps}>
           {note !== undefined && <div className="chat-note">{note}</div>}
           {rows.length === 0 ? <div className="chat-note">{empty}</div> : rows}
         </div>
@@ -116,25 +155,36 @@ export function MessageLog({ messages, pending = none, ownName, newFrom, note, e
 
 const MessageRow = memo(function MessageRow({
   message,
+  index,
+  tabbable,
   ownName,
   renderName,
 }: {
   message: Message
+  index: number
+  tabbable: boolean
   ownName: string
   renderName?: (username: string) => ReactNode
 }) {
   const name = message.self ? ownName : message.username
   return (
-    <div className="chat-line" data-self={message.self || undefined} data-mention={message.mention || undefined}>
-      <span className="chat-time" title={formatTime(message.time)}>
-        {clock.format(message.time)}
-      </span>
-      <span className="chat-name" title={name}>
-        {message.self || renderName === undefined ? name : renderName(name)}
-      </span>
-      <span className="chat-text">
-        <LinkedText>{message.text}</LinkedText>
-      </span>
+    <div
+      className="chat-line"
+      data-self={message.self || undefined}
+      data-mention={message.mention || undefined}
+      {...rowAttributes(index, tabbable)}
+    >
+      <RowScope tabbable={tabbable}>
+        <span className="chat-time" title={formatTime(message.time)}>
+          {clock.format(message.time)}
+        </span>
+        <span className="chat-name" title={name}>
+          {message.self || renderName === undefined ? name : renderName(name)}
+        </span>
+        <span className="chat-text">
+          <LinkedText>{message.text}</LinkedText>
+        </span>
+      </RowScope>
     </div>
   )
 })
