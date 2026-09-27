@@ -1,6 +1,7 @@
 import { expect, logInPage, test } from '../fixtures'
 
 const pages = {
+  dashboard: 'Dashboard',
   searches: 'Search',
   downloads: 'Downloads',
   uploads: 'Uploads',
@@ -29,7 +30,7 @@ test('logging in at a deep link stays on its page', async ({ page }) => {
 test('every page renders from a deep link', async ({ page }) => {
   await page.goto('')
   await logInPage(page)
-  await expect(page).toHaveURL(/\/slskd\/searches$/)
+  await expect(page).toHaveURL(/\/slskd\/dashboard$/)
   for (const [path, title] of Object.entries(pages)) {
     await page.goto(path)
     await expect(page).toHaveTitle(`${title} – slskd`)
@@ -43,8 +44,8 @@ test.describe('at the root without auth', () => {
 
   test('the app opens without a login', async ({ page, slskd }) => {
     await page.goto('')
-    await expect(page).toHaveURL(`${slskd.base}/searches`)
-    await expect(page.getByText('Live', { exact: true })).toBeVisible()
+    await expect(page).toHaveURL(`${slskd.base}/dashboard`)
+    await expect(page.getByText(/^Updated \d+ s ago$/)).toBeVisible()
     await page.goto('system/info')
     await expect(page.getByText('Live', { exact: true })).toBeVisible()
   })

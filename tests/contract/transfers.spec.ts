@@ -222,9 +222,41 @@ test('clearing finished uploads removes every finished one, and leaves the rest'
   await peer.dispose()
 })
 
-test("a user's history comes as a report per direction", async ({ api, peers: { fast } }) => {
-  const { ids } = await enqueue(api, fast, [file(fast, intro)])
+test('finished transfers are reported by their final state, per user and over time', async ({
+  api,
+  peers: { fast },
+}) => {
+  const { ids } = await enqueue(api, fast, [file(fast, intro), missing])
   await finished(api, fast, ids)
-  const report = await api.get(`telemetry/reports/transfers/users/${encodeURIComponent(fast.username)}`)
-  expect(schemas.parse(schemas.userHistory, await report.json()).Download.statistics.total).toBeGreaterThan(0)
+  const reports = 'telemetry/reports/transfers'
+  const allTime = { start: new Date(0).toISOString() }
+  const summary = await api.get(`${reports}/summary`, { params: allTime })
+  expect(schemas.parse(schemas.summary, await summary.json()).Download.Succeeded?.count).toBeGreaterThan(0)
+
+  // The dashboard adds hourly buckets up into local days, so they have to start on whole UTC hours, empty ones included.
+  const hour = 3_600_000
+  const now = Date.now()
+  const histogram = await api.get(`${reports}/histogram`, {
+    params: { start: new Date(now - 3 * hour).toISOString(), end: new Date(now).toISOString(), interval: 60 },
+  })
+  const starts = Object.keys(schemas.parse(schemas.histogram, await histogram.json()))
+    .map((key) => Date.parse(key))
+    .sort((a, b) => a - b)
+  expect(starts.length).toBeGreaterThanOrEqual(3)
+  expect(starts.map((start, index) => start - index * hour - Math.floor(now / hour - 3) * hour)).toEqual(
+    starts.map(() => 0),
+  )
+
+  const leaders = await api.get(`${reports}/leaderboard`, {
+    params: { ...allTime, direction: 'Download', sortBy: 'TotalBytes', sortOrder: 'DESC' },
+  })
+  expect(schemas.parse(schemas.leaders, await leaders.json()).map((leader) => leader.username)).toContain(fast.username)
+  const reasons = await api.get(`${reports}/exceptions/pareto`, { params: { ...allTime, direction: 'Download' } })
+  expect(schemas.parse(schemas.reasons, await reasons.json()).length).toBeGreaterThan(0)
+  const peer = await contextFor(fast.instance)
+  const folders = await peer.get(`${reports}/directories`, { params: allTime })
+  expect(schemas.parse(schemas.folders, await folders.json()).length).toBeGreaterThan(0)
+  await peer.dispose()
+  const user = await api.get(`${reports}/users/${encodeURIComponent(fast.username)}`)
+  expect(schemas.parse(schemas.userHistory, await user.json()).Download.statistics.total).toBeGreaterThan(0)
 })

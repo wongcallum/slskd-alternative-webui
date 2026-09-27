@@ -4,6 +4,7 @@ import type { RawShare as RawBrowse, RawProgress } from '../../src/browse/browse
 import type { RawConversation, RawPrivateMessage } from '../../src/chat/conversations'
 import type { RawAvailableRoom } from '../../src/chat/JoinRoomDialog'
 import type { RawRoomMessage, RawRoomUser } from '../../src/chat/rooms'
+import type { RawFolder, RawHistogram, RawLeader, RawReason, RawSummary } from '../../src/dashboard/reports'
 import type { RawDirectory } from '../../src/lib/files'
 import type { RawResponse } from '../../src/search/results/results'
 import type { RawSearch } from '../../src/search/searches'
@@ -150,6 +151,7 @@ export const processMetrics = shape<Metrics>(
 const transferMetrics = v.object({
   inProgress: v.object({ files: v.number(), averageSpeed: v.number(), totalSpeed: v.number() }),
   queued: v.object({ files: v.number() }),
+  completed: v.object({ succeeded: count, failed: count }),
 })
 
 export const metrics = shape<RawMetrics>(v.object({ downloads: transferMetrics, uploads: transferMetrics }))
@@ -238,8 +240,33 @@ export const search = shape<RawSearch>(
   }),
 )
 
+// Keyed by the final state without Completed, which is how the dashboard tells successes from failures.
+const byState = v.record(
+  v.picklist(['Succeeded', 'Cancelled', 'TimedOut', 'Errored', 'Rejected', 'Aborted']),
+  v.object({ totalBytes: count, count, distinctUsers: count }),
+)
+
+const summaryShape = v.object({ Download: byState, Upload: byState })
+
+export const summary = shape<RawSummary>(summaryShape)
+
+// The dashboard parses each bucket's start as UTC.
+export const histogram = shape<RawHistogram>(
+  v.record(v.pipe(v.string(), v.regex(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/)), summaryShape),
+)
+
+export const leaders = shape<RawLeader[]>(
+  v.array(v.object({ username: v.string(), count, totalBytes: count, averageSpeed: v.number() })),
+)
+
+export const folders = shape<RawFolder[]>(v.array(v.object({ directory: v.string(), count, distinctUsers: count })))
+
+export const reasons = shape<RawReason[]>(
+  v.array(v.object({ exception: v.optional(v.string()), count, distinctUsers: count })),
+)
+
 const history = v.object({
-  summary: v.record(v.string(), v.object({ totalBytes: count })),
+  summary: byState,
   statistics: v.object({ total: count, successful: count, cancelled: count }),
   exceptions: v.array(v.object({ exception: v.string(), count })),
 })
