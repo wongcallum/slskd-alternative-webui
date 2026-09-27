@@ -5,9 +5,6 @@ on:
     branches: [master]
   pull_request:
   workflow_dispatch:
-  # Catches slskd changing under the app before a release does.
-  schedule:
-    - cron: '0 6 * * *'
 
 jobs:
   test:
@@ -15,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        slskd: ${{ github.event_name == 'schedule' && fromJSON('["release", "master"]') || fromJSON('["pinned", "release"]') }}
+        slskd: [pinned, release]
     steps:
       - uses: actions/checkout@v7
       - uses: cachix/install-nix-action@v31
@@ -26,11 +23,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if [ '${{ matrix.slskd }}' = release ]; then
-            ref=$(gh release view --repo slskd/slskd --json tagName --jq .tagName)
-          else
-            ref=master
-          fi
+          ref=$(gh release view --repo slskd/slskd --json tagName --jq .tagName)
           echo "SLSKD_INPUT=github:slskd/slskd/$ref" >> "$GITHUB_ENV"
 
       - name: Build slskd

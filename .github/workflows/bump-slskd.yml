@@ -1,0 +1,32 @@
+name: Bump slskd
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  bump:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: cachix/install-nix-action@v31
+      - run: nix profile add nixpkgs#devenv
+
+      - name: Update the slskd input
+        id: update
+        run: |
+          echo "old=$(jq -r .nodes.slskd.locked.rev devenv.lock | cut -c1-7)" >> "$GITHUB_OUTPUT"
+          devenv update slskd
+          echo "new=$(jq -r .nodes.slskd.locked.rev devenv.lock | cut -c1-7)" >> "$GITHUB_OUTPUT"
+
+      # With the default GITHUB_TOKEN, the pull request wouldn't trigger the Test workflow.
+      - uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.BUMP_TOKEN }}
+          branch: bump-slskd
+          delete-branch: true
+          add-paths: devenv.lock
+          commit-message: Bump slskd to ${{ steps.update.outputs.new }}
+          title: Bump slskd to ${{ steps.update.outputs.new }}
+          body: https://github.com/slskd/slskd/compare/${{ steps.update.outputs.old }}...${{ steps.update.outputs.new }}

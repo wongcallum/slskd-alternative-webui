@@ -56,7 +56,7 @@ whether your slskd runs in Docker or from a binary, and include any errors from 
 ## Development
 
 Install Nix and devenv, then enter the environment with `devenv shell` or `direnv allow`.
-It provides Node.js, pnpm, the .NET SDK and Chromium, and links `slskd` to the slskd source pinned in `devenv.yaml`.
+It provides Node.js, pnpm, the .NET SDK and Chromium, and links `slskd` to the slskd source pinned in `devenv.lock`.
 
 1. Run `pnpm install`.
 2. Run `devenv up -d` to build and start a dev slskd, and `devenv down` to stop it. It runs with `no_connect`, url
@@ -68,7 +68,7 @@ It provides Node.js, pnpm, the .NET SDK and Chromium, and links `slskd` to the s
   press Connect in the Soulseek popover.
 - To run slskd with other settings, run `devenv down` first, then override its environment, for example
   `devenv up -d -O processes.slskd.env.SLSKD_NO_AUTH:string true`.
-- To move to another slskd commit, change its rev in `devenv.yaml` and run `devenv update slskd`.
+- To move slskd to its latest commit, run `devenv update slskd`.
 - Run `pnpm fmt`, `pnpm lint` and `pnpm test` before committing.
 
 ### Tests
@@ -80,8 +80,8 @@ connected slskd peers sharing test files. Nothing reaches the real Soulseek netw
   `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1` where there's none.
 - devenv builds Soulfind from the commit pinned in `devenv.yaml` and sets `SOULFIND_BIN`. Soulfind needs an IPv4
   route, though not internet access.
-- CI runs the tests against the pinned slskd revision and the latest release. Nightly, it runs the tests against
-  the latest release and slskd's master revision.
+- CI runs the tests against the pinned slskd revision and the latest release. Weekly, it opens a pull request that
+  moves the pin to slskd's master revision.
 
 ## License
 
