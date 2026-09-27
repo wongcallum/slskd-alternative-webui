@@ -1,6 +1,7 @@
 import { Box, Button, Card, Flex, Grid, Heading, Link, Text } from '@radix-ui/themes'
 import type { ReactNode } from 'react'
 
+import { version } from '../../package.json'
 import { api, describeError } from '../lib/api'
 import { formatAge, formatBytes, formatSpeed, plural } from '../lib/format'
 import { useAtom, useClock, useResource } from '../lib/store'
@@ -69,6 +70,7 @@ function SlskdCard({ data, known }: { data: Application; known: boolean }) {
   const rows: Detail[] = [
     ['Version', data.build === undefined ? data.version : `${data.version} (${data.build} build)`],
     ['Latest', latest],
+    ['Web UI', version],
   ]
   if (process?.startedAt !== undefined) rows.push(['Uptime', <Uptime key="uptime" startedAt={process.startedAt} />])
   if (process?.runtime !== undefined) rows.push(['Runtime', process.runtime])

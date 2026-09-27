@@ -11,6 +11,14 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v7
+      - name: Check the tag matches package.json
+        run: |
+          version=$(jq -r .version package.json)
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::The tag is $GITHUB_REF_NAME, but package.json has $version"
+            exit 1
+          fi
+
       - uses: cachix/install-nix-action@v31
       - run: nix profile add nixpkgs#devenv
 
