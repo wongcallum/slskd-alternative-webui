@@ -2,9 +2,10 @@ import { Button, Text } from '@radix-ui/themes'
 import { type RowSelectionState, useTable } from '@tanstack/react-table'
 import { useDeferredValue, useMemo, useState } from 'react'
 
+import { useCriteria } from '../../lib/criteria'
 import { countFiles } from '../../lib/files'
 import { useFrom } from '../../lib/media'
-import { useSortParam } from '../../lib/params'
+import { positiveInteger, useSortParam } from '../../lib/params'
 import { useAtom } from '../../lib/store'
 import { useSoulseekGate } from '../../soulseek/soulseek'
 import { DownloadButton } from '../../transfers/DownloadButton'
@@ -17,10 +18,10 @@ import {
   ToolbarEnd,
   useFilterText,
 } from '../../ui/controls'
+import { AmountField, FiltersButton } from '../../ui/Filters'
 import { Empty } from '../../ui/status'
 import { collapsed, expandedState, groupFeatures } from '../../ui/table'
-import { FiltersButton } from './Filters'
-import { countFilters, noFilters, qualities, type ResultsSearch } from './params'
+import { countFilters, noFilters, type ResultsSearch } from './params'
 import { ResultList } from './ResultList'
 import { download, downloadsOf, type FolderFetch, type Results, unfiltered, viewGroups } from './results'
 import { canSelect, columns, expansions, selectedFiles } from './table'
@@ -38,13 +39,11 @@ export function ResultsView({ searchId, results, folders, params, onSearchChange
   const query = filter.query
   const locked = params.locked === 'show'
   const free = params.free === 'only'
-  const quality = useDeferredValue(qualities.find(([value]) => value === params.quality)?.[2] ?? 0)
-  const size = useDeferredValue(Number(params.size) * 2 ** 20)
-  const length = useDeferredValue(Number(params.length) * 60)
+  const criteria = useCriteria(params)
   const files = useDeferredValue(Number(params.files))
   const groups = useMemo(
-    () => viewGroups(results, folders, { query, locked, free, quality, size, length, files }),
-    [results, folders, query, locked, free, quality, size, length, files],
+    () => viewGroups(results, folders, { ...criteria, query, locked, free, files }),
+    [results, folders, criteria, query, locked, free, files],
   )
   const total = useMemo(
     () => countFiles(viewGroups(results, folders, { ...unfiltered, locked })),
@@ -101,7 +100,23 @@ export function ResultsView({ searchId, results, folders, params, onSearchChange
           list="results"
         />
         {/* Below sm, Locked joins the other filters in the popover, so the toolbar keeps to two lines. */}
-        <FiltersButton filters={params} onChange={onSearchChange}>
+        <FiltersButton
+          filters={params}
+          onChange={onSearchChange}
+          active={countFilters(params)}
+          onClear={() => onSearchChange(noFilters)}
+          fields={
+            <AmountField
+              label="Min files per folder"
+              value={params.files}
+              schema={positiveInteger}
+              onChange={(minimum) => onSearchChange({ files: minimum })}
+            />
+          }
+        >
+          <CheckboxField checked={free} onChange={(checked) => onSearchChange({ free: checked ? 'only' : 'all' })}>
+            Free slot only
+          </CheckboxField>
           {!sm && lockedField}
         </FiltersButton>
         {sm && lockedField}

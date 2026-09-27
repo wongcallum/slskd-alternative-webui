@@ -1,7 +1,8 @@
 import { MinusIcon, PlusIcon } from '@radix-ui/react-icons'
 import { Button, Flex } from '@radix-ui/themes'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 
+import { type Criteria, unjudged } from '../../lib/criteria'
 import { useFrom } from '../../lib/media'
 import { type SearchProps, useSortParam } from '../../lib/params'
 import { type Folder, matchTree, nearestFolder, type Tree as FolderTree } from '../../lib/tree'
@@ -16,17 +17,27 @@ type Props<S extends string> = SearchProps<TreeSearch<S>> & {
   tree: FolderTree
   fetchedAt: number
   config: TreeConfig
+  criteria?: Criteria
+  filters?: ReactNode
 }
 
 // Below sm there's room for one pane: the folder, whose path leads up and whose folders lead down, or the tree in its
 // place, from which opening a folder goes back to it.
-export function TreeView<S extends string>({ tree, fetchedAt, search, onSearchChange, config }: Props<S>) {
+export function TreeView<S extends string>({
+  tree,
+  fetchedAt,
+  search,
+  onSearchChange,
+  config,
+  criteria = unjudged,
+  filters,
+}: Props<S>) {
   const sm = useFrom('sm')
   const md = useFrom('md')
   const lg = useFrom('lg')
   const [treeShown, setTreeShown] = useState(false)
   const filter = useFilterText(search.q, (q) => onSearchChange({ q }))
-  const matches = useMemo(() => matchTree(tree, filter.query), [tree, filter.query])
+  const matches = useMemo(() => matchTree(tree, filter.query, criteria), [tree, filter.query, criteria])
   const folder = useMemo(() => nearestFolder(tree, search.path), [tree, search.path])
   const { sorting, onSortingChange } = useSortParam(search.sort, (sort) => onSearchChange({ sort }))
   useEffect(() => expandTo(tree, folder, false), [tree, folder])
@@ -60,6 +71,7 @@ export function TreeView<S extends string>({ tree, fetchedAt, search, onSearchCh
         main
         list={alone && !treeShown ? 'pane' : 'tree'}
       />
+      {filters}
       {alone && (
         <Button
           variant={treeShown ? 'solid' : 'soft'}

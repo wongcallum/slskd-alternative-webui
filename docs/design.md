@@ -188,6 +188,11 @@ The whole app works from the keyboard, for sighted keyboard users first. `?` lis
 ### Browse
 
 - Two tabs browsing the same user at once is an accepted gap, although slskd can cross their results.
+- Quality, size and length judge files as Search's Filters do, alongside the text filter: files without attributes,
+  such as cover art, stay while their folder still shows a file that passes.
+- `d` on a folder in the filtered tree still downloads all it holds. Selecting in the filtered pane downloads only
+  what's shown.
+- Filters is an icon in the tree's toolbar, since a labelled button leaves the text filter too narrow below lg.
 
 ### Users
 

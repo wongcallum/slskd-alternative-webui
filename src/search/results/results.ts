@@ -1,5 +1,6 @@
 import { browse, cachedShare } from '../../browse/browse'
 import { api, describeError } from '../../lib/api'
+import { type Criteria, hasAttributes, judging, passes, unjudged } from '../../lib/criteria'
 import { describeRange, lastSeparator, nameOf, qualityOf, type RawFile, widenRange } from '../../lib/files'
 import { createAtom } from '../../lib/store'
 import { byName, compareNames, queryMatcher } from '../../lib/text'
@@ -192,44 +193,27 @@ export type FolderFetch = {
   failedAt?: number
 }
 
-// Quality is a floor on the quality ranking, size is in bytes and length in seconds. Zero turns a criterion off.
-type ResultFilter = {
-  query: string
-  locked: boolean
-  free: boolean
-  quality: number
-  size: number
-  length: number
-  files: number
-}
+type ResultFilter = Criteria & { query: string; locked: boolean; free: boolean; files: number }
 
-export const unfiltered = { query: '', free: false, quality: 0, size: 0, length: 0, files: 0 }
-
-const hasAttributes = (file: ResultFile) => file.quality >= 0 || file.length !== undefined
+export const unfiltered = { ...unjudged, query: '', free: false, files: 0 }
 
 const countAttributed = (files: ResultFile[]) => files.reduce((count, file) => count + (hasAttributes(file) ? 1 : 0), 0)
 
-// Criteria judge files with attributes. Files without them, such as cover art, ride along while their folder still
-// shows a file that has them. Fetched files bypass the filter but count towards the folder's minimum.
-// Groups whose files all pass keep their identity, so TanStack reuses what it can.
+// Fetched files bypass the filter but count towards the folder's minimum. Groups whose files all pass keep their
+// identity, so TanStack reuses what it can.
 export function viewGroups(results: Results, folders: ReadonlyMap<string, FolderFetch>, filter: ResultFilter) {
   const base = filter.locked ? results.all : results.unlocked
   const matches = queryMatcher(filter.query)
-  const judging = filter.quality > 0 || filter.size > 0 || filter.length > 0
-  if (matches === undefined && !judging && filter.files === 0 && !filter.free && folders.size === 0) return base
-  const passes = (file: ResultFile) =>
-    !hasAttributes(file) ||
-    ((filter.quality === 0 || file.quality >= filter.quality) &&
-      file.size >= filter.size &&
-      (file.length ?? 0) >= filter.length)
+  const judged = judging(filter)
+  if (matches === undefined && !judged && filter.files === 0 && !filter.free && folders.size === 0) return base
   const view: ResultGroup[] = []
   for (const group of base) {
     if (filter.free && !group.peer.free) continue
     const fetched = folders.get(group.id)?.files ?? []
     const extras = filter.locked ? fetched : fetched.filter((file) => !file.locked)
     let files = matches === undefined ? group.files : group.files.filter((file) => matches(file.search))
-    if (judging) {
-      files = files.filter(passes)
+    if (judged) {
+      files = files.filter((file) => passes(filter, file))
       if (countAttributed(files) + countAttributed(extras) === 0) files = []
     }
     if (files.length + extras.length === 0) continue
