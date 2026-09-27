@@ -295,6 +295,10 @@ observed on throwaway instances of the dev build and the 0.25.1 and 0.26.0 relea
   There's nothing per-transfer.
 - `completed.*` are counters since the process started. Everything else is a gauge, and all of it starts at 0
   after a restart. Startup's "Application shut down" errors don't count as failed.
+- A download cancelled by the user, or by the 3-minute wait for the peer to acknowledge it, doesn't count as failed
+  either: the count is taken under the transfer's own cancellation token, which throws first
+  (`Telemetry/Metrics.cs`, `Transfers/Downloads/DownloadService.cs`). Every upload that fails counts, cancelled
+  ones included.
 - The gauges are recounted every 5 s from Soulseek.NET's in-memory transfer list (`Client.Downloads` /
   `Client.Uploads`), not from the database (`Transfers/Downloads/DownloadService.cs:1101`,
   `Transfers/Uploads/UploadService.cs:1032`). Queued is any state with the `Queued` flag, and in progress is
@@ -594,22 +598,37 @@ configuration and the debug view were checked on the dev build with `SLSKD_REMOT
 
 ## Telemetry reports
 
-Paths are relative to `Telemetry/`. Stock's dashboard (`components/Dashboard/`) is built on these; we have no
-dashboard yet.
+Paths are relative to `Telemetry/` unless they start with another directory. Stock's dashboard
+(`components/Dashboard/`) and ours are built on these. Timings are from a throwaway instance of the dev build holding
+200,000 synthetic finished transfers over two years.
 
 - `GET /telemetry/reports/transfers/{summary,histogram,leaderboard,exceptions,exceptions/pareto,directories}`
   (`API/ReportsController.cs`, `ReportsService.cs`) only read SQLite, never Soulseek, and need no option. Stock
   sends its nine requests when the page opens and when the range changes, and never polls.
-- Each request runs raw SQL, uncached. The window filters on `EndedAt`, which no index covers without a username, so
-  every request reads every finished row, and recent exceptions sort them all before the limit. Observed 2–50 ms
-  over 154 finished rows; not measured at scale. An unparseable `start` or `end` silently becomes the default.
+- Each request runs raw SQL, uncached. An unparseable `start` or `end` silently becomes the default, a `start` at or
+  after `end` is a 400, and `limit` has no cap.
+- **The cost grows with the window.** Once SQLite has index statistics, which slskd's `PRAGMA optimize` at startup
+  writes (`Program.cs`), `summary` and `histogram` skip-scan an index down to the window. `leaderboard` and
+  `directories` read every success, and `exceptions` every row of its direction. The dashboard's seven requests
+  together took 80 ms for 24 hours, 100 ms for 30 days, 650 ms for a year and 1.2 s for all time, and the hourly
+  histogram for 30 days was 465 KB.
 - Only finished transfers count, and **removed records are included**, so a retried file counts as a failure and a
   success.
 - `summary` is `{Download: {<state>: stats}, Upload: {...}}`, keyed by the final state without `Completed`
-  (`Succeeded`, `Errored`, ...). Stats are `{totalBytes (SUM(size)), count, distinctUsers, averageSpeed, averageWait, averageDuration}`,
-  with durations in whole seconds. `histogram` gives the same per bucket, keyed by the bucket start. Starts align to
-  multiples of the width since 1970, so it can return `buckets + 1` entries, and a `start` before 2020-12-30 means
-  the oldest record.
+  (`Succeeded`, `Errored`, ...), with both directions always there. Stats are
+  `{totalBytes (SUM(size)), count, distinctUsers, averageSpeed, averageWait, averageDuration}`, with durations
+  averaged from whole seconds. `start` defaults to 7 days ago.
+- `histogram` gives the same per bucket, keyed by the bucket's start with a `Z`. `interval` sets the width in minutes
+  (2 or more), and `buckets` (1 to 1,000, 100 by default) divides the window by that many, floored to whole seconds,
+  which is rarely a round width. Giving both is a 400.
+  - Starts are multiples of the width since 1970 in UTC, so with `interval=60` they're whole UTC hours and with
+    `1440` UTC midnights, whatever slskd's zone (observed at +05:45). The first starts before `start` and holds only
+    what ended after it.
+  - Every bucket up to `end` is returned, empty ones as `{Download: {}, Upload: {}}`. So `buckets` gives
+    `buckets + 1` or `+ 2` entries, far more when the width floors to a few seconds, and `interval` has no limit
+    (21 MB for 15 minutes over two years).
+  - A `start` before 2020-12-30 becomes the oldest `RequestedAt` of any row, or stays at that date when there are
+    none (about 2,100 empty days).
 - `GET /telemetry/reports/transfers/users/{u}` gives one user's history, all time by default: `{Upload, Download}`, each
   `{summary, statistics: {total, successful, errored, cancelled}, exceptions}`. `summary` is keyed like the one
   above, and `exceptions` is the top 25 of `exceptions/pareto`, `[{exception, count, distinctUsers}]`, cancellations
@@ -617,10 +636,16 @@ dashboard yet.
   matches exactly, and one with a dot in it works (observed). Stock never calls it.
 - `summary` and `leaderboard` average each transfer's speed, while `histogram` divides total bytes by total seconds
   (observed 16.7 against 3.39 MB/s over one window).
-- `leaderboard` counts successes only, and its `sortBy` (`Count|TotalBytes|AverageSpeed`) and `sortOrder` are
-  case-sensitive. `directories` counts successful **uploads** only. `exceptions` covers every other final state,
-  cancelled included, keeps only the message after the first `": "`, and returns dates without the `Z`. Neither
-  `leaderboard` nor `exceptions` caps `limit`.
+- `leaderboard` counts successes only, and breaks ties by username, descending. Rows also carry `averageWait`,
+  `averageDuration` and a `distinctUsers` that's always 0. Its `sortBy` (`Count|TotalBytes|AverageSpeed`) and
+  `sortOrder` are case-sensitive, and another case is a 400.
+- `directories` counts successful **uploads** only, by the remote folder as peers see it (`music\Artist\Album`),
+  sorted by distinct users and then count. It takes no direction or sort.
+- `exceptions` and `exceptions/pareto` cover every row of the direction with a failed or cancelled flag and an
+  `EndedAt`, which includes downloads waiting to be retried. They drop the message up to two characters past its
+  first `:`, so one with an IP address and port turns into a fragment like `234)`, or `0300: Remote connection
+closed`, with a group per port. `exceptions` returns dates without the `Z`. `exceptions/pareto` sorts by count
+  alone, so ties come in any order, and a missing message is a group of its own, without `exception`.
 - Stock's numbers inherit all this. "Downloaded" sums the full size of failed and cancelled transfers (on dev,
   1.4 GB of them against 709 MB that succeeded), "Distinct peers" adds the two directions' counts, and "Recent
   errors" times are shifted by the browser's UTC offset.
@@ -1275,3 +1300,15 @@ Checked against `@codemirror/view` 6.43.13, `lang-yaml` 6.1.3, `lint` 6.9.7 and 
   `EditorView.darkTheme.of(true)`, which picks the base themes' `&dark` rules over `&light`. That facet in a
   `Compartment` switches them in an open editor (observed).
 - The editor, the YAML mode, lint and search come to about 123 kB gzipped.
+
+## Recharts
+
+Checked against `recharts` 3.10.1.
+
+- It depends on Redux Toolkit, immer, react-redux and reselect, and the dashboard's chart comes to about 103 kB
+  gzipped.
+- Colours given as CSS variables, like `var(--accent-9)`, follow a theme switch without a render (observed in
+  Chromium). shadcn's charts, which are built on it, colour everything that way.
+- A `Tooltip` whose `content` is an element clones it with `active`, `activeIndex` and `payload` added. With
+  `responsive`, the chart takes its size from its own CSS, like `width: 100%`.
+- A tap shows the tooltip and leaves it up (observed with touch emulated in Chromium).

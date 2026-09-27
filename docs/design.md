@@ -112,6 +112,28 @@ down and deleting files ask for confirmation.
   transfers and results).
 - The sort strip scrolls with no visible hint.
 
+### Dashboard
+
+- It's the landing page, as stock's is, with Search's box on top. A search opens its results as it does from Search,
+  since there's no toast to say it started.
+- The figures are our own, from slskd's totals per final state. Transferred counts successes only, failed is
+  `Errored`, `TimedOut`, `Rejected` and `Aborted`, and cancelled counts as neither. Users are counted per direction
+  and never added together.
+  - Rejected: stock's totals, which add up every final state at full size, and add the two directions' users.
+- The errors table shows slskd's groups as they come, cancellations included, since they can't be filtered by state.
+  - **Accepted gap:** a message with an IP address and port turns into a fragment (see the facts).
+  - Rejected: repairing the fragments, which would be code keyed to one slskd bug.
+- Bars follow the local calendar. Hours, six hours and days are made of slskd's hourly buckets, and months of its UTC
+  days, since a year of hours is megabytes. The totals cover exactly the bars' span.
+  - **Accepted gaps:** the edges of months are off by the UTC offset, and in zones with a :30 or :45 offset so are
+    the edges of days.
+- It loads again when the metrics hub counts a finished transfer, since nothing else changes the reports, at most once
+  a minute and not while the tab is hidden. The hub doesn't count a cancelled download, which the figures leave out
+  anyway.
+- The chart library loads with the chart, since it's about 100 kB gzipped.
+- Rejected: stock's tabs, its list of recent errors (the transfer lists filter to failures), its 12 chart series, and
+  custom date ranges.
+
 ### Transfers
 
 - Rows have `contain: strict`, which makes scrolling far cheaper: scrolling 25k search results in 1,500 px jumps went
