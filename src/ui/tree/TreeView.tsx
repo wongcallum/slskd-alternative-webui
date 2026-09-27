@@ -1,4 +1,4 @@
-import { MinusIcon, PlusIcon } from '@radix-ui/react-icons'
+import { MinusIcon, PlusIcon, TargetIcon } from '@radix-ui/react-icons'
 import { Button, Flex } from '@radix-ui/themes'
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 
@@ -36,6 +36,7 @@ export function TreeView<S extends string>({
   const md = useFrom('md')
   const lg = useFrom('lg')
   const [treeShown, setTreeShown] = useState(false)
+  const [reveal, setReveal] = useState(0)
   const filter = useFilterText(search.q, (q) => onSearchChange({ q }))
   const matches = useMemo(() => matchTree(tree, filter.query, criteria), [tree, filter.query, criteria])
   const folder = useMemo(() => nearestFolder(tree, search.path), [tree, search.path])
@@ -57,6 +58,9 @@ export function TreeView<S extends string>({
     intendFocus(parent === tree.top && config.topList !== undefined ? config.topList : 'pane', `folder\n${folder.id}`)
     onSearchChange({ path: parent.path })
   }, [tree, folder, config.topList, onSearchChange])
+  let revealGate: string | undefined
+  if (folder === tree.top) revealGate = 'No folder is open'
+  else if (matches !== undefined && !matches.counts.has(folder)) revealGate = 'The filter hides the open folder'
   const expansionGate = matches === undefined ? undefined : 'The filtered tree shows every match'
   const alone = !sm
   const treeWidth = lg ? '380px' : md ? '300px' : '260px'
@@ -85,6 +89,16 @@ export function TreeView<S extends string>({
       {(!alone || treeShown) && (
         <>
           <GatedIconButton
+            label="Show the open folder"
+            gate={revealGate}
+            onClick={() => {
+              expandTo(tree, folder, false)
+              setReveal((count) => count + 1)
+            }}
+          >
+            <TargetIcon />
+          </GatedIconButton>
+          <GatedIconButton
             label="Expand all"
             gate={expansionGate}
             onClick={() => updateExpansion(tree, () => ({ all: true, toggled: {} }))}
@@ -102,7 +116,9 @@ export function TreeView<S extends string>({
       )}
     </Flex>
   )
-  const treePane = <Tree tree={tree} selected={folder} matches={matches} onOpen={open} onUp={up} Keys={config.Keys} />
+  const treePane = (
+    <Tree tree={tree} selected={folder} matches={matches} onOpen={open} onUp={up} reveal={reveal} Keys={config.Keys} />
+  )
   const folderPane = (
     <FolderPane
       key={folder.id}

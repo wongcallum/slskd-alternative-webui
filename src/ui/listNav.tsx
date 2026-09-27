@@ -273,6 +273,11 @@ export function useListNav<T>(options: ListNavOptions<T>) {
     containerRef,
     stop,
     focused: () => items[stopRef.current],
+    // Moves the keyboard to the row with the key, which may only exist from the next render.
+    focusKey: (key: string) => {
+      setSpot({ key })
+      wantFocus.current = true
+    },
     containerProps: {
       role,
       'aria-label': options.label,

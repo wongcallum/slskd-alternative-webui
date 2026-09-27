@@ -7,7 +7,7 @@ import {
   tableFeatures,
   useTable,
 } from '@tanstack/react-table'
-import { type ComponentType, memo, useCallback, useMemo } from 'react'
+import { type ComponentType, memo, useCallback, useMemo, useState } from 'react'
 
 import { useFrom, useTouch } from '../../lib/media'
 import { createAtom, useAtom } from '../../lib/store'
@@ -65,12 +65,14 @@ type TreeProps = {
   matches?: Matches
   onOpen: (folder: Folder) => void
   onUp: () => void
+  // Each new value takes the keyboard to the open folder.
+  reveal: number
   Keys?: ComponentType<KeysProps>
 }
 
 const noop = () => {}
 
-export function Tree({ tree, selected, matches, onOpen, onUp, Keys }: TreeProps) {
+export function Tree({ tree, selected, matches, onOpen, onUp, reveal, Keys }: TreeProps) {
   const sm = useFrom('sm')
   const touch = useTouch()
   const stored = useAtom(expansions).get(tree.key)
@@ -122,6 +124,11 @@ export function Tree({ tree, selected, matches, onOpen, onUp, Keys }: TreeProps)
     }),
   })
   useListKeys(nav.containerRef, upKeys(onUp))
+  const [seenReveal, setSeenReveal] = useState(reveal)
+  if (reveal !== seenReveal) {
+    setSeenReveal(reveal)
+    nav.focusKey(selected.id)
+  }
   const selectedIndex = rows.findIndex((row) => row.id === selected.id)
 
   if (rows.length === 0) {
