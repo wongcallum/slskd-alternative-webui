@@ -151,8 +151,6 @@ Everything is under `/transfers`, and returns 403 in relay agent mode.
   `Queued, Remotely` or `InProgress` ends the peer's upload within moments, the queued one when the peer offers it
   (observed on the test network).
 - **There's no retry endpoint.** Retrying means enqueueing the same `username` + `filename` + `size` again.
-  Stock's retry uses the obsolete `POST downloads/{username}` one file at a time, so it loses the batch and
-  its destination, and runs into the 429.
 
 ## Auth
 
@@ -196,12 +194,12 @@ Everything is under `/transfers`, and returns 403 in relay agent mode.
 - `user.statistics` are as the server reports them. `health.search.incoming {latency, queueDepth, dropRate}` is a
   moving average in ms, the waiting incoming searches, and drops so far this minute, refreshed every 30 s.
 - `vpn` is `{isReady, isConnected}` both when the VPN integration is off and when it's down, and `relay.mode` reads
-  `Controller` with relay disabled, so neither says whether its feature is on. `users` is never populated.
+  `Controller` with relay disabled, so neither says whether its feature is on.
 
 ## Application
 
 Paths are relative to `Core/API/Controllers/` unless they start with another directory. Restart and shutdown were
-observed on throwaway instances of the dev build and the 0.25.1 and 0.26.0 release binaries.
+observed on throwaway instances of the dev build and the 0.26.0 release binary.
 
 - `PUT /application` restarts and `DELETE /application` shuts down. Both need a JWT (API keys can't call them),
   return 204 at once, and aren't gated on any option or on relay mode (`ApplicationController.cs`).
@@ -230,7 +228,7 @@ observed on throwaway instances of the dev build and the 0.25.1 and 0.26.0 relea
     closes them only as the application stops, so the new one stays open, and the old process's graceful stop waits
     for it until the 30 s timeout. Observed in the UI test on 2 cores: the page's metrics hub reconnected 150 ms after
     the PUT and stayed connected for 27.6 s, while the new process had already quit. Stock's hubs retry after 0, 100,
-    250 and 500 ms (`web/src/lib/hubFactory.js`), and ours at once and then after 1 s.
+    250 and 500 ms (`web/src/lib/hubFactory.js`).
   - The mutex is per Unix session (no `Global\` prefix), and the child stays in its parent's session.
   - Under devenv 2.3's process manager, when the process it started exits, the manager signals every process group in
     that process's Unix session and kills what's left after `shutdown.grace`, taking the re-executed child with it
@@ -284,8 +282,6 @@ observed on throwaway instances of the dev build and the 0.25.1 and 0.26.0 relea
   `dotnet_build_info` labels `runtime_version`, `os_version` and `process_architecture`, and free space per mount.
   As JSON it's an object keyed by metric name (`{name, help, type, samples: [{value, labels}]}`). About 35 KB and
   10 ms on dev.
-- 0.25.1 sometimes answers it with a 500 ("An item with the same key has already been added"). Observed twice in
-  about five minutes. 0.25.1 also has no metrics hub, so its negotiate is a 404.
 
 ## Metrics hub
 
@@ -599,7 +595,7 @@ configuration and the debug view were checked on the dev build with `SLSKD_REMOT
 ## Telemetry reports
 
 Paths are relative to `Telemetry/` unless they start with another directory. Stock's dashboard
-(`components/Dashboard/`) and ours are built on these. Timings are from a throwaway instance of the dev build holding
+(`components/Dashboard/`) is built on these. Timings are from a throwaway instance of the dev build holding
 200,000 synthetic finished transfers over two years.
 
 - `GET /telemetry/reports/transfers/{summary,histogram,leaderboard,exceptions,exceptions/pareto,directories}`
@@ -889,8 +885,8 @@ observations come from browsing one real peer: 168,159 files in 21,852 directori
 - It's always a fresh request for the whole share. Nothing is cached or persisted server-side, no hub pushes anything
   about it, and there's no concurrency limit. The protocol can't list folders lazily.
 - Errors:
-  - An offline user gets a 404 with a JSON string. For 60 s after a user goes offline, the cached endpoint gives a 500
-    connect failure instead (`Common/UserEndPointCache.cs`).
+  - For 60 s after a user goes offline, the cached endpoint gives a 500 connect failure rather than the offline 404
+    (`Common/UserEndPointCache.cs`).
   - **A peer that doesn't start replying gives a 500, `"The wait timed out after 60000 milliseconds"`** (observed).
     The 60 s `BrowseOptions.ResponseTimeout` covers the lookup, connecting and the peer composing its reply
     (`SN:SoulseekClient.cs`). Once data flows there's no overall cap: only 15 s without data fails it.
@@ -910,7 +906,6 @@ observations come from browsing one real peer: 168,159 files in 21,852 directori
   heap (the text takes as much again while it's kept). Building the tree with recursive counts and sizes and a
   collator sort takes 23 ms.
 - Stock caches browse results in IndexedDB (`slskd-browse` / `browse`) and `localStorage['slskd-browse-state']`.
-  We share an origin with stock, so use different names.
 
 ## Rooms
 
@@ -1087,7 +1082,7 @@ Paths are relative to `slskd/src/web/src`.
   card, with a select-all per directory. Per-file actions are a click on the state (retry when failed, queue
   position when queued), and bulk Retry/Cancel/Remove act on the selection or on "all errored/queued/succeeded"
   from the header. Nothing asks for confirmation. Retry sends one obsolete per-user POST per file in parallel,
-  so most get 429 beyond two files. Uploads show a Retry for failed selections that would download the file
+  which loses the batch and its destination, and most get 429 beyond two files. Uploads show a Retry for failed selections that would download the file
   from the peer instead.
 - Search (`components/Search/`):
   - One route, `/searches/:id?`. The list comes only from the search hub. It shows every search newest first, with a
@@ -1140,8 +1135,7 @@ Paths are relative to `slskd/src/web/src`.
 
 ### Search filter syntax
 
-Stock's result filter (`lib/searches.js:40-190`). We replaced it with a Filters popover (see
-[Search](design.md#search)):
+Stock's result filter (`lib/searches.js:40-190`):
 
 - The text is lowercased and split on single spaces. Numeric tokens are found anywhere in the text, with no word
   boundary, and only the first match counts:
@@ -1259,8 +1253,8 @@ Checked against the `@radix-ui/themes` 3.3.0 package source.
 - `Checkbox` ignores Enter, so only Space toggles it (`@radix-ui/react-checkbox` 1.3.11).
 - In a `TabNav`, arrow keys move focus between the links a task after the key (a `setTimeout` in
   `@radix-ui/react-navigation-menu` 1.2.22).
-- next-themes 0.4.6, which the Radix docs recommend, is mostly unmaintained. Its anti-flash script does nothing
-  when rendered client-side only (React 19 doesn't run rendered `<script>`s) and logs a warning in dev.
+- next-themes 0.4.6, which the Radix docs recommend, is unneeded: its anti-flash script does nothing when rendered
+  client-side only (React 19 doesn't run rendered `<script>`s).
 
 ## TanStack Table
 
@@ -1319,8 +1313,7 @@ share of 200k files in 15k directories (54 MB of JSON), with `idb` 8.0.3. "Block
   data all at once, least recently used first, so it takes stock's data with ours. `navigator.storage.persist()` is
   decided by engagement in Chrome (it returned `false` headless), prompts in Firefox, and is decided automatically
   in Safari.
-- `idb` 8.0.3 (May 2025) is 1.4 KB, with a typed `DBSchema` and manual upgrades. `idb-keyval` allows only one store
-  per database. Dexie 4.4.6 is 32.6 KB.
+- `idb` 8.0.3 is 1.4 KB with a typed `DBSchema`, where `idb-keyval` allows one store per database and Dexie is 32.6 KB.
 
 ## Browser APIs
 
@@ -1342,23 +1335,12 @@ share of 200k files in 15k directories (54 MB of JSON), with `idb` 8.0.3. "Block
 
 ## Headless Tree
 
-Checked against `@headless-tree/core`/`react` 1.7.0 (May 2026, still the latest in September) from the package
-source, in Node 24, and in a throwaway app in headless Chromium, on a tree of 19.5k rows.
+Why it was rejected, from `@headless-tree/core`/`react` 1.7.0 on a tree of 19.5k rows:
 
-- It has no virtualiser of its own and is built to sit on `@tanstack/react-virtual`. It declares any React version,
-  but its own docs run React 18.
-- Its keys are ↑, ↓, →, ←, Home and End, over a roving tabindex. Nothing is bound to Enter or Space. Typing opens its
-  search, which highlights and focuses matches but can't hide the rest (`08-search.mdx`, issues #123 and #153).
-- Expansion is a list of every open id, which `isExpanded` scans (`tree/feature.ts`). Its own `expandAll()` rebuilds
-  after each folder and took 23.5–24.7 s. The first rebuild with every folder open took 262 ms in Node and 178 ms in
-  the browser with the default static instances, or 20 and 37 ms with proxied ones. Later rebuilds took 13–16 ms
-  either way.
-- A click toggles a folder, so clicking an open one closes it.
-- With expansion and selection controlled and focus left to it, ↓ mostly didn't move.
-- Focus moving to a row that isn't rendered scrolls to it and waits up to 500 ms for it. If the focused row is
-  scrolled out of view, focus drops to `<body>`, and while it isn't rendered no row takes Tab.
-- react-aria-components 1.21.1's Tree comes to 55.7 KB min+gz with its Virtualizer, which it needs instead of
-  TanStack's. It renders `role="treegrid"` and keeps the focused row rendered.
+- Typing opens its search, which can't hide non-matches, and nothing is bound to Enter. A click on an open folder
+  closes it.
+- `isExpanded` scans a list of every open id, and its `expandAll()` rebuilds after each folder (24 s).
+- A focused row scrolled out of view drops focus to `<body>`, and then no row takes Tab.
 
 ## TanStack Hotkeys
 
