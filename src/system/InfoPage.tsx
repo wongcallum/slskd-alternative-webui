@@ -32,9 +32,9 @@ export function InfoPage() {
         {data === undefined ? (
           <Polling what="slskd's state" error={error} />
         ) : (
-          <Flex direction="column" gap="4" p="4" maxWidth="1200px">
+          <Flex direction="column" gap="4" p="4">
             <PendingCallouts data={data} known={known} />
-            <Grid columns={{ initial: '1', md: '2' }} gap="4" align="start">
+            <Grid columns="repeat(auto-fit, minmax(min(100%, 420px), 1fr))" gap="4" align="start">
               <SlskdCard data={data} known={known} />
               {data.relayMode !== 'Agent' && (
                 <>

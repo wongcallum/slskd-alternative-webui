@@ -3,3 +3,10 @@
   direction: rtl;
   text-align: left;
 }
+
+/* Past Radix's largest breakpoint, the cards fit in one row at about the width they get at md. */
+@media (min-width: 2000px) {
+  .dashboard-cards.dashboard-cards {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

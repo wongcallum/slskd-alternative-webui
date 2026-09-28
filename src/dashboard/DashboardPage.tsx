@@ -103,7 +103,7 @@ export function DashboardPage({ search, onSearchChange }: Props) {
 
 function History({ report, search, onSearchChange }: Props & { report: Report }) {
   return (
-    <Flex direction="column" gap="4" p="4" maxWidth="1200px">
+    <Flex direction="column" gap="4" p="4">
       <TotalsCard totals={report.totals} />
       <Section
         title={unitHeadings[report.unit]}
@@ -115,7 +115,7 @@ function History({ report, search, onSearchChange }: Props & { report: Report })
           <Chart bars={report.bars} unit={report.unit} measure={search.chart} height={chartHeight} />
         </Suspense>
       </Section>
-      <Grid columns={{ initial: '1', md: '2' }} gap="4" align="start">
+      <Grid className="dashboard-cards" columns={{ initial: '1', md: '2' }} gap="4" align="start">
         <LeaderCards range={search.range} sort={search.users} onSort={(users) => onSearchChange({ users })} />
         <FolderCard folders={report.folders} />
         <ReasonCard
