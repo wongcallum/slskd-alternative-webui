@@ -312,20 +312,26 @@ export function OutcomeLine<S extends Actions<string>>({ atom }: { atom: Atom<S>
   )
 }
 
-// The field shows what's typed, and follows the URL only when it changes from elsewhere, such as on Back.
+// The field shows what's typed, and follows the URL only when it changes from elsewhere, such as on Back. The URL
+// catches up with typing a render or more later, so values still on their way are not changes from elsewhere.
 export function useFilterText(q: string, onChange: (q: string) => void) {
   const [text, setText] = useState(q)
-  const [urlText, setUrlText] = useState(q)
-  if (q !== urlText) {
-    setUrlText(q)
-    setText(q)
+  const [seen, setSeen] = useState(q)
+  const [sent, setSent] = useState<readonly string[]>([])
+  if (q !== seen) {
+    setSeen(q)
+    const index = sent.indexOf(q)
+    if (index === -1) {
+      setText(q)
+      setSent([])
+    } else setSent(sent.slice(index + 1))
   }
   return {
     text,
     query: useDeferredValue(text),
     change: (value: string) => {
       setText(value)
-      setUrlText(value)
+      setSent((current) => [...current, value])
       onChange(value)
     },
   }
