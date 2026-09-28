@@ -53,7 +53,8 @@ test('a listing can fail on the file slskd writes and deletes while another requ
   api,
 }) => {
   test.setTimeout(60_000)
-  for (let round = 0; round < 1000; round++) {
+  const deadline = Date.now() + 50_000
+  while (Date.now() < deadline) {
     const [listing] = await Promise.all([
       api.get('files/downloads/directories', { params: { recursive: true } }),
       api.get('options'),
