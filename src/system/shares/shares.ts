@@ -2,7 +2,7 @@ import { isHTTPError } from 'ky'
 
 import { api, sleep } from '../../lib/api'
 import { createAtom, createResource, load, type Resource } from '../../lib/store'
-import { compareExactly } from '../../lib/text'
+import { compareExactly, comparePaths } from '../../lib/text'
 import { buildTree, type InputDirectory, type Tree } from '../../lib/tree'
 import { type Application, application } from '../application'
 import { options } from '../options/options'
@@ -45,17 +45,8 @@ application.watch(() => {
   if (finished) scansFinished.set((count) => count + 1)
 })
 
-const segments = (path: string) => path.split(/[\\/]/)
-
-// By segment, so a share's exclusions and nested shares sit right below it.
-function byPath(a: Share, b: Share) {
-  const [left, right] = [segments(a.localPath), segments(b.localPath)]
-  for (let i = 0; i < Math.min(left.length, right.length); i++) {
-    const order = compareExactly(left[i] ?? '', right[i] ?? '')
-    if (order !== 0) return order
-  }
-  return left.length - right.length || compareExactly(a.host, b.host)
-}
+// A share's exclusions and nested shares sit right below it.
+const byPath = (a: Share, b: Share) => comparePaths(a.localPath, b.localPath) || compareExactly(a.host, b.host)
 
 export async function fetchShares(signal: AbortSignal): Promise<ShareList> {
   const hosts = await api.get('shares', { signal }).json<Record<string, RawShare[]>>()
