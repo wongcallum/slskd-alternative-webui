@@ -28,7 +28,7 @@ import {
 } from 'react'
 
 import { useFrom } from '../lib/media'
-import { compareNames } from '../lib/text'
+import { compareNames, comparePaths } from '../lib/text'
 import { type ListNav, RowScope, useRowTabIndex } from './listNav'
 import { type Columns, columnsVar, onResizeKey, ResizeHandles, type Track } from './widths'
 
@@ -40,6 +40,8 @@ const preventShiftSelection = (event: MouseEvent) => {
 }
 
 export const sortByName = constructSortFn({ sort: compareNames })
+
+export const sortByPath = constructSortFn({ sort: comparePaths })
 
 export const groupFeatures = tableFeatures({
   rowSortingFeature,
@@ -333,15 +335,27 @@ export function Cell({ end, title, children }: { end?: boolean; title?: string; 
   )
 }
 
-type GroupNameProps = { expanded: boolean; name: string; children?: ReactNode }
+type GroupNameProps = { expanded: boolean; name: string; parent?: string; children?: ReactNode }
 
-export function GroupName({ expanded, name, children }: GroupNameProps) {
+export function GroupName({ expanded, name, parent, children }: GroupNameProps) {
+  const text = (
+    <Text size="2" weight="medium" truncate>
+      {name}
+    </Text>
+  )
   return (
     <>
       {expanded ? <ChevronDownIcon style={{ flexShrink: 0 }} /> : <ChevronRightIcon style={{ flexShrink: 0 }} />}
-      <Text size="2" weight="medium" truncate>
-        {name}
-      </Text>
+      {parent ? (
+        <Flex className="table-path" minWidth="0">
+          <Text size="2" color="gray">
+            <bdi dir="ltr">{parent}</bdi>
+          </Text>
+          {text}
+        </Flex>
+      ) : (
+        text
+      )}
       {children}
     </>
   )

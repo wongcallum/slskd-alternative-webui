@@ -4,6 +4,17 @@ export const compareNames = new Intl.Collator(undefined, { numeric: true, sensit
 // Names are exact: some shares have folders differing only by case, or segments starting with a space.
 export const compareExactly = (a: string, b: string) => compareNames(a, b) || (a < b ? -1 : a > b ? 1 : 0)
 
+// By segment, so a folder's subfolders sit right below it: whole strings put `Album 2` between `Album` and
+// `Album\Scans`.
+export function comparePaths(a: string, b: string) {
+  const [left, right] = [a.split(/[\\/]/), b.split(/[\\/]/)]
+  for (let i = 0; i < Math.min(left.length, right.length); i++) {
+    const order = compareExactly(left[i] ?? '', right[i] ?? '')
+    if (order !== 0) return order
+  }
+  return left.length - right.length
+}
+
 export const byName = <T extends { name: string }>(a: T, b: T) => compareExactly(a.name, b.name)
 
 export const byUsername = <T extends { username: string }>(a: T, b: T) => compareExactly(a.username, b.username)

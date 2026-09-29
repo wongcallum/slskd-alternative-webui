@@ -172,6 +172,7 @@ export const GroupRow = memo(function GroupRow({
   onHide,
 }: GroupRowProps) {
   const { peer } = group
+  const parent = group.directory.slice(0, group.directory.length - group.name.length)
   const open = group.files.filter((file) => !file.locked)
   const extra = group.files.length - group.matched
   const hidden = group.total - group.files.length
@@ -251,7 +252,7 @@ export const GroupRow = memo(function GroupRow({
         selected={selected}
         dimmed={open.length === 0}
         check={check}
-        title={<GroupName expanded={expanded} name={group.name} />}
+        title={<GroupName expanded={expanded} name={group.name} parent={parent} />}
         meta={
           <Parts
             items={[
@@ -285,7 +286,7 @@ export const GroupRow = memo(function GroupRow({
   return (
     <GridRow group selected={selected} dimmed={open.length === 0} onClick={() => onToggle(group.id)}>
       {check}
-      <GroupNameCell expanded={expanded} name={group.name} title={group.directory} />
+      <GroupNameCell expanded={expanded} name={group.name} parent={parent} title={group.directory} />
       <UserCell username={group.username} onHide={() => onHide(group.username)} />
       <Cell end title={hidden > 0 ? `${plural(hidden, 'file')} filtered out` : undefined}>
         {hidden > 0 ? shown : `${group.matched.toLocaleString()}${plus}`}

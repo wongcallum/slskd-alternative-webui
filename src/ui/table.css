@@ -228,6 +228,19 @@
   white-space: nowrap;
 }
 
+/* The parent path gives way first, and loses its start, so a folder's own name and the end of its path stay visible. */
+.table-path > :first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl;
+}
+
+.table-path > :last-child {
+  flex-shrink: 0;
+  max-width: 100%;
+}
+
 .table-stacked-meta {
   display: flex;
   align-items: center;
