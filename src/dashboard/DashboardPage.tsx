@@ -228,7 +228,7 @@ function Rows<T>({
   }
   return (
     <Inset side="x">
-      <HeaderRow template={template} stacked={stacked}>
+      <HeaderRow columns={template} stacked={stacked}>
         {!stacked && <ColumnHeader label={label} />}
         {columns}
       </HeaderRow>

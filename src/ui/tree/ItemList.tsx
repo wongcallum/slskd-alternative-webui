@@ -19,6 +19,7 @@ import {
   useRowToggle,
   VirtualTable,
 } from '../table'
+import { useColumns } from '../widths'
 import type { ExtraColumn, Layout, PaneRow, PaneTable } from './columns'
 
 export type FileBadge = ComponentType<{ file: TreeFile }>
@@ -50,10 +51,11 @@ export function ItemList({
 }: Props) {
   const rows = table.getRowModel().rows
   const onSelect = useRowToggle(table)
-  const { template, minWidth, counted, extras } = layout
+  const { counted, extras } = layout
+  const columns = useColumns('pane', layout.tracks)
 
   const header = (
-    <HeaderRow template={template} table={selectable ? table : undefined} stacked={stacked}>
+    <HeaderRow columns={columns} table={selectable ? table : undefined} stacked={stacked}>
       <ColumnHeader label="Name" column={table.getColumn('name')} />
       {(counted || stacked) &&
         (filtered ? (
@@ -79,7 +81,6 @@ export function ItemList({
       return (
         <SubfolderRow
           folder={item}
-          template={template}
           stacked={stacked}
           counted={counted}
           extras={extras}
@@ -94,7 +95,6 @@ export function ItemList({
     return (
       <FileRow
         file={item}
-        template={template}
         stacked={stacked}
         counted={counted}
         extras={extras}
@@ -111,7 +111,7 @@ export function ItemList({
 
   return (
     <VirtualTable
-      minWidth={stacked ? 0 : minWidth}
+      columns={stacked ? undefined : columns}
       header={header}
       items={rows}
       itemKey={rowId}
@@ -131,7 +131,6 @@ function ExtraCells({ item, extras }: { item: Item; extras: readonly ExtraColumn
 }
 
 type RowProps = {
-  template: string
   stacked: boolean
   counted: boolean
   extras: readonly ExtraColumn[]
@@ -154,7 +153,6 @@ function Row({
   size,
   onClick,
   stacked,
-  template,
   counted,
   extras,
   selectable,
@@ -204,7 +202,7 @@ function Row({
     )
   }
   return (
-    <GridRow template={template} group={group} selected={selected} dimmed={dimmed} style={style} onClick={onClick}>
+    <GridRow group={group} selected={selected} dimmed={dimmed} style={style} onClick={onClick}>
       {check}
       <Flex className="table-cell" align="center" gap="2" title={title}>
         {label}

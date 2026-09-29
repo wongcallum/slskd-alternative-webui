@@ -30,6 +30,7 @@ import {
 import { useFrom } from '../lib/media'
 import { compareNames, comparePaths } from '../lib/text'
 import { type ListNav, RowScope, useRowTabIndex } from './listNav'
+import { type Columns, columnsVar, onResizeKey, ResizeHandles, type Track } from './widths'
 
 // Clicks on controls inside a row mustn't also select or expand it, and React bubbles clicks out of portals too.
 export const stop = (event: { stopPropagation: () => void }) => event.stopPropagation()
@@ -173,6 +174,11 @@ export type Layout = 'stacked' | 'medium' | 'wide'
 
 export type Templates = Record<Exclude<Layout, 'stacked'>, string>
 
+export type LayoutTracks = Record<Exclude<Layout, 'stacked'>, readonly Track[]>
+
+// Stacked rows have no columns, but the hook that sizes them still runs.
+export const tracksFor = (tracks: LayoutTracks, layout: Layout) => tracks[layout === 'stacked' ? 'medium' : layout]
+
 export function useLayout(): Layout {
   const md = useFrom('md')
   const lg = useFrom('lg')
@@ -216,7 +222,12 @@ function Row({
   )
 }
 
-export function GridRow({ template, style, ...props }: RowProps & { template: string; children: ReactNode }) {
+// Without a template, a row takes the columns its list sets.
+export function GridRow({
+  template = 'var(--columns)',
+  style,
+  ...props
+}: RowProps & { template?: string; children: ReactNode }) {
   return <Row className="table-row" style={{ gridTemplateColumns: template, ...style }} {...props} />
 }
 
@@ -372,24 +383,31 @@ type SelectAll = {
   toggleAllRowsSelected: () => void
 }
 
+// Resizable columns have handles on their edges.
 export function HeaderRow({
-  template,
+  columns,
   table,
   stacked,
   children,
 }: {
-  template: string
+  columns: Columns | string
   table?: SelectAll
   stacked?: boolean
   children: ReactNode
 }) {
+  const resizable = typeof columns === 'string' || stacked ? undefined : columns
   return (
     <div
       className="table-row table-columns"
       style={{
-        gridTemplateColumns: stacked ? `${table === undefined ? '' : '40px '}minmax(0, 1fr)` : template,
+        gridTemplateColumns: stacked
+          ? `${table === undefined ? '' : '40px '}minmax(0, 1fr)`
+          : typeof columns === 'string'
+            ? columns
+            : columns.template,
         height: columnsHeight,
       }}
+      onKeyDown={resizable && ((event) => onResizeKey(event, resizable))}
     >
       {table !== undefined && (
         <CheckCell
@@ -401,6 +419,7 @@ export function HeaderRow({
         />
       )}
       {stacked ? <div className="table-sorts">{children}</div> : children}
+      {resizable && <ResizeHandles columns={resizable} />}
     </div>
   )
 }
@@ -450,7 +469,8 @@ export const virtualRowStyle = (size: number, start: number): CSSProperties => (
 // itemKey and rowSize have to keep their identity, because a new one makes the virtualizer measure every row again,
 // which is also how a new row size takes effect.
 export function VirtualTable<T>({
-  minWidth,
+  columns,
+  minWidth: fixedWidth = 0,
   header,
   items,
   itemKey,
@@ -462,7 +482,8 @@ export function VirtualTable<T>({
   onScroll,
   footer,
 }: {
-  minWidth: number
+  columns?: Columns
+  minWidth?: number
   header?: ReactNode
   items: readonly T[]
   itemKey: (item: T) => Key
@@ -485,6 +506,7 @@ export function VirtualTable<T>({
     [scrollRef, containerRef],
   )
   const headHeight = header === undefined ? 0 : columnsHeight
+  const minWidth = columns?.minWidth ?? fixedWidth
   const getItemKey = useCallback(
     (index: number) => {
       const item = items[index]
@@ -512,7 +534,13 @@ export function VirtualTable<T>({
     if (reveal !== undefined && reveal.index >= 0) virtualizer.scrollToIndex(reveal.index, { align: 'auto' })
   }, [reveal?.key, found]) // oxlint-disable-line react-hooks/exhaustive-deps
   return (
-    <div ref={setRef} className="table-scroll" onScroll={onScroll} {...nav.containerProps}>
+    <div
+      ref={setRef}
+      className="table-scroll"
+      style={columns && columnsVar(columns)}
+      onScroll={onScroll}
+      {...nav.containerProps}
+    >
       {header !== undefined && (
         <div className="table-head" style={{ minWidth, height: columnsHeight }}>
           {header}

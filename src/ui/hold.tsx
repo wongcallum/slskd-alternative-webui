@@ -11,14 +11,16 @@ import {
   GridRow,
   HeaderRow,
   type Layout,
+  type LayoutTracks,
   Parts,
   rowHeight,
   StackedRow,
   stackedHeight,
-  type Templates,
+  tracksFor,
   useListLayout,
   VirtualTable,
 } from './table'
+import { useColumns } from './widths'
 
 // A list with the newest rows on top holds still while it's scrolled down or paused, so reading isn't disturbed by
 // rows arriving at the top. The marker is whatever the list needs to tell the rows it held from the new ones.
@@ -104,7 +106,6 @@ export function HeldToolbar({
 
 export function HeldRow({
   layout,
-  templates,
   time,
   selected,
   dimmed,
@@ -114,7 +115,6 @@ export function HeldRow({
   onClick,
 }: {
   layout: Layout
-  templates: Templates
   time: number
   selected: boolean
   dimmed?: boolean
@@ -137,13 +137,7 @@ export function HeldRow({
     )
   }
   return (
-    <GridRow
-      template={templates[layout]}
-      selected={selected}
-      dimmed={dimmed}
-      style={{ cursor: 'pointer' }}
-      onClick={onClick}
-    >
+    <GridRow selected={selected} dimmed={dimmed} style={{ cursor: 'pointer' }} onClick={onClick}>
       <Cell title={formatFullPreciseTime(time)}>{shown}</Cell>
       {cells}
     </GridRow>
@@ -153,7 +147,8 @@ export function HeldRow({
 // Enter opens a row's details, which then follow the keyboard from row to row until Escape closes them.
 export function HeldList<T>({
   label,
-  templates,
+  table,
+  tracks,
   labels,
   records,
   itemKey,
@@ -165,7 +160,8 @@ export function HeldList<T>({
   footer,
 }: {
   label: string
-  templates: Templates
+  table: string
+  tracks: LayoutTracks
   labels: readonly string[]
   records: readonly T[]
   itemKey: (record: T) => Key
@@ -181,6 +177,7 @@ export function HeldList<T>({
     [itemKey, selected, onSelect],
   )
   const layout = useListLayout()
+  const columns = useColumns(table, tracksFor(tracks, layout))
   const recordKey = useCallback((record: T) => String(itemKey(record)), [itemKey])
   const nav = useListNav({
     name: 'held',
@@ -199,10 +196,10 @@ export function HeldList<T>({
   })
   return (
     <VirtualTable
-      minWidth={layout === 'wide' ? 900 : 0}
+      columns={layout === 'stacked' ? undefined : columns}
       header={
         layout === 'stacked' ? undefined : (
-          <HeaderRow template={templates[layout]}>
+          <HeaderRow columns={columns}>
             {labels.map((each) => (
               <ColumnHeader key={each} label={each} />
             ))}

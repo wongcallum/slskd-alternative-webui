@@ -19,7 +19,7 @@ import {
 } from '../ui/table'
 import { UserCell, UserMenu } from '../users/UserMenu'
 import { type Lookup, lookUpPositions, retry } from './actions'
-import { fraction, sizeOf, templates, timeOf } from './table'
+import { fraction, sizeOf, timeOf } from './table'
 import {
   type Direction,
   type Group,
@@ -128,11 +128,7 @@ export const FileRow = memo(function FileRow({
     )
   }
   return (
-    <GridRow
-      template={templates[layout][section]}
-      selected={selected}
-      onClick={(event) => onSelect(file.id, event.shiftKey)}
-    >
+    <GridRow selected={selected} onClick={(event) => onSelect(file.id, event.shiftKey)}>
       {check}
       <div className="table-cell" style={{ paddingLeft: 36 }} title={file.filename}>
         <Text size="2">{file.name}</Text>
@@ -317,12 +313,7 @@ export const GroupRow = memo(function GroupRow({
     )
   }
   return (
-    <GridRow
-      template={templates[layout][section]}
-      group
-      selected={selected}
-      onClick={() => onToggle(section, group.id)}
-    >
+    <GridRow group selected={selected} onClick={() => onToggle(section, group.id)}>
       {check}
       <GroupNameCell expanded={expanded} name={group.name} title={group.directory}>
         {count}

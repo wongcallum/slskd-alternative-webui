@@ -129,6 +129,23 @@ The whole app works from the keyboard, for sighted keyboard users first. `?` lis
 - Rejected: a larger search box on Dashboard and Search. It was the only control of its size, and it moved the line
   under the first bar from page to page.
 
+### Columns
+
+- A column is resized by dragging its edge in the header, or with Shift+← and Shift+→ on its sort button. A
+  double-click on the edge resets it. Widths are kept in localStorage for each kind of table, whatever the layout, and
+  the transfer sections share theirs so their columns stay in line.
+- The name column, or whichever column grows, takes what the others leave. So the edge that moves is the one on its
+  side, and the name column gives or takes what the resized column does, which keeps the edge under the pointer. Once
+  the row is wider than the list, the name column is at its minimum, so the minimum moves instead.
+  - Rejected: TanStack Table's column resizing, whose handler only changes the dragged column (see the facts), so
+    beside a growing name column the edge would drift from the pointer.
+- **Accepted gaps:**
+  - Columns don't resize by touch, since a handle would catch swipes along the header.
+  - Columns whose header doesn't sort, on the list of searches, Shares, Events and Logs, can't be resized from the
+    keyboard.
+  - The Users and Browse lists don't resize. A column grows on each side of the others, so no edge between them could
+    follow the pointer.
+
 ## Features
 
 ### Shell

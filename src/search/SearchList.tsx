@@ -23,6 +23,7 @@ import {
   GridRow,
   HeaderRow,
   type Layout,
+  type LayoutTracks,
   Parts,
   rowHeight,
   rowId,
@@ -30,19 +31,36 @@ import {
   StackedRow,
   stackedHeight,
   stop,
+  tracksFor,
   useListLayout,
   useRowToggle,
   useSelectionKeys,
   VirtualTable,
 } from '../ui/table'
+import { fixed, growing, sized, useColumns } from '../ui/widths'
 import { deleteSearches, listActions, type Search, stopSearches } from './searches'
 import { describeCounts, SearchState } from './SearchState'
 
 const features = tableFeatures({ rowSelectionFeature })
 
-const templates = {
-  wide: '40px 130px minmax(240px, 1fr) 110px 170px 110px 76px',
-  medium: '40px 110px minmax(200px, 1fr) 150px 100px 76px',
+const tracks: LayoutTracks = {
+  wide: [
+    fixed(40),
+    sized('state', 130),
+    growing('search', 240),
+    sized('responses', 110),
+    sized('files', 170),
+    sized('started', 110),
+    fixed(76),
+  ],
+  medium: [
+    fixed(40),
+    sized('state', 110),
+    growing('search', 200),
+    sized('files', 150),
+    sized('started', 100),
+    fixed(76),
+  ],
 }
 
 export function useListTable(
@@ -69,6 +87,7 @@ export function SearchList({ table, gate }: { table: ReturnType<typeof useListTa
   const rows = table.getRowModel().rows
   const onSelect = useRowToggle(table)
   const layout = useListLayout()
+  const columns = useColumns('searches', tracksFor(tracks, layout))
   const navigate = useNavigate()
   const nav = useListNav({
     name: 'searches',
@@ -95,7 +114,7 @@ export function SearchList({ table, gate }: { table: ReturnType<typeof useListTa
   ])
 
   const header = (
-    <HeaderRow template={layout === 'stacked' ? '' : templates[layout]} table={table} stacked={layout === 'stacked'}>
+    <HeaderRow columns={columns} table={table} stacked={layout === 'stacked'}>
       {layout !== 'stacked' && <ColumnHeader label="State" />}
       <ColumnHeader label="Search" />
       {layout === 'wide' && <ColumnHeader label="Responses" end />}
@@ -111,7 +130,7 @@ export function SearchList({ table, gate }: { table: ReturnType<typeof useListTa
 
   return (
     <VirtualTable
-      minWidth={layout === 'wide' ? 1000 : 0}
+      columns={layout === 'stacked' ? undefined : columns}
       header={header}
       items={rows}
       itemKey={rowId}
@@ -198,7 +217,7 @@ const SearchRow = memo(function SearchRow({ search, layout, selected, pending, g
     )
   }
   return (
-    <GridRow template={templates[layout]} selected={selected} onClick={onClick}>
+    <GridRow selected={selected} onClick={onClick}>
       {check}
       <Flex className="table-cell" align="center" gap="2">
         {state}

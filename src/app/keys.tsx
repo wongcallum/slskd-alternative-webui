@@ -84,6 +84,10 @@ const treeKeys: readonly (readonly [Hotkey[], string])[] = [
   [['Enter'], 'Open the folder, or go into the one that is open'],
 ]
 
+const headerKeys: readonly (readonly [Hotkey[], string])[] = [
+  [['Shift+ArrowLeft', 'Shift+ArrowRight'], 'Narrow or widen the column'],
+]
+
 const fieldKeys: readonly (readonly [Hotkey[], string])[] = [
   [['ArrowDown', 'Escape'], 'Go from a filter back to its list'],
 ]
@@ -166,6 +170,7 @@ function Contents() {
       <Section title="On this page" rows={page} />
       <Section title="In a list" rows={fixed(listKeys)} />
       {tree && <Section title="In the folders" rows={fixed(treeKeys)} />}
+      <Section title="On a column's header" rows={fixed(headerKeys)} />
       <Section title="In a filter" rows={fixed(fieldKeys)} />
     </Flex>
   )

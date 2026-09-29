@@ -5,12 +5,13 @@ import {
   type Expansion,
   groupFeatures,
   type Layout,
+  type LayoutTracks,
   sortByName,
   sortByPath,
   stackedHeight,
   stackedHeight3,
-  type Templates,
 } from '../../ui/table'
+import { fixed, growing, sized } from '../../ui/widths'
 import { availability, type ResultFile, type ResultGroup } from './results'
 
 export const columnIds = ['name', 'user', 'files', 'size', 'quality', 'length', 'speed', 'queue'] as const
@@ -55,12 +56,31 @@ export const columnLabels: Record<(typeof columnIds)[number], string> = {
 
 export const endAligned = new Set<string>(['files', 'size', 'length', 'speed', 'queue'])
 
-export const templates: Templates = {
-  wide: '40px minmax(280px, 1fr) 150px 90px 100px 160px 80px 110px 80px 132px',
-  medium: '40px minmax(260px, 1fr) 120px 60px 90px 120px 90px 60px 132px',
+export const tracks: LayoutTracks = {
+  wide: [
+    fixed(40),
+    growing('name', 280),
+    sized('user', 150),
+    sized('files', 90),
+    sized('size', 100),
+    sized('quality', 160),
+    sized('length', 80),
+    sized('speed', 110),
+    sized('queue', 80),
+    fixed(132),
+  ],
+  medium: [
+    fixed(40),
+    growing('name', 260),
+    sized('user', 120),
+    sized('files', 60),
+    sized('size', 90),
+    sized('quality', 120),
+    sized('speed', 90),
+    sized('queue', 60),
+    fixed(132),
+  ],
 }
-
-export const minWidths: Record<Layout, number> = { stacked: 0, wide: 1222, medium: 972 }
 
 export const columnsOf = (layout: Layout) =>
   layout === 'medium' ? columnIds.filter((id) => id !== 'length') : columnIds

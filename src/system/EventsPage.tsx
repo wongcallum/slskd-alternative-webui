@@ -11,7 +11,8 @@ import { useFilterText } from '../ui/controls'
 import { DetailsPane } from '../ui/details'
 import { HeldList, HeldRow, HeldToolbar, useHold } from '../ui/hold'
 import { Busy, Empty, Freshness, Polling } from '../ui/status'
-import { Cell, type Layout, rowHeight } from '../ui/table'
+import { Cell, type Layout, type LayoutTracks, rowHeight } from '../ui/table'
+import { growing, sized } from '../ui/widths'
 import { YamlView } from '../ui/YamlView'
 import { UserCell, UserMenu } from '../users/UserMenu'
 import {
@@ -99,7 +100,8 @@ export function EventsPage({ search, onSearchChange }: Props) {
     content = (
       <HeldList
         label="Events"
-        templates={templates}
+        table="events"
+        tracks={tracks}
         labels={labels}
         records={shown}
         itemKey={eventId}
@@ -231,9 +233,9 @@ function ListEnd({ data, filtered, replaced }: { data: Events; filtered: boolean
   )
 }
 
-const templates = {
-  wide: '170px 160px 180px minmax(300px, 1fr)',
-  medium: '140px 150px 130px minmax(300px, 1fr)',
+const tracks: LayoutTracks = {
+  wide: [sized('time', 170), sized('type', 160), sized('user', 180), growing('details', 300)],
+  medium: [sized('time', 140), sized('type', 150), sized('user', 130), growing('details', 300)],
 }
 
 const labels = ['Time', 'Type', 'User', 'Details']
@@ -271,7 +273,6 @@ const EventRow = memo(function EventRow({ record, layout, selected, onSelect }: 
   return (
     <HeldRow
       layout={layout}
-      templates={templates}
       time={record.time}
       selected={selected}
       title={titled ? <Text size="2">{typeLabel(record.type)}</Text> : details}

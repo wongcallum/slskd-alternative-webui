@@ -8,7 +8,7 @@ A drop-in replacement web UI for [slskd](https://github.com/slskd/slskd).
 ## Features
 
 - Long lists are virtualised, and stay responsive while transfers update.
-- Transfers, browse and search results are sortable, filterable tables.
+- Transfers, browse and search results are sortable, filterable tables with resizable columns.
 - Browsed shares and user profiles persist across reloads and logins.
 - Page state, such as the open user, room or conversation and filters and sorts, is stored in the URL.
 - Downloading a folder from Browse or a search result keeps its subfolders.

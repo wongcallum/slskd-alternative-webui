@@ -23,7 +23,6 @@ import {
 } from '../../ui/table'
 import { UserCell, UserMenu } from '../../users/UserMenu'
 import { download, type FolderFetch, fetchFolder, type ResultFile, type ResultGroup } from './results'
-import { templates } from './table'
 
 // Keeps a file's actions in line with its folder's, which has two more.
 function Placeholder() {
@@ -117,7 +116,7 @@ export const FileRow = memo(function FileRow({
     )
   }
   return (
-    <GridRow template={templates[layout]} selected={selected} dimmed={file.locked} onClick={onClick}>
+    <GridRow selected={selected} dimmed={file.locked} onClick={onClick}>
       {check}
       <Flex className="table-cell" align="center" gap="2" style={{ paddingLeft: 36 }} title={file.filename}>
         {name}
@@ -285,13 +284,7 @@ export const GroupRow = memo(function GroupRow({
     )
   }
   return (
-    <GridRow
-      template={templates[layout]}
-      group
-      selected={selected}
-      dimmed={open.length === 0}
-      onClick={() => onToggle(group.id)}
-    >
+    <GridRow group selected={selected} dimmed={open.length === 0} onClick={() => onToggle(group.id)}>
       {check}
       <GroupNameCell expanded={expanded} name={group.name} parent={parent} title={group.directory} />
       <UserCell username={group.username} onHide={() => onHide(group.username)} />
