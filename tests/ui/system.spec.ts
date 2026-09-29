@@ -40,6 +40,8 @@ test('a column is resized from its edge or the keyboard and kept, and a double-c
   const header = pane.locator('.table-columns')
   const row = pane.getByRole('row', { name: /Resized\.flac/ }).locator('.table-row')
   await expect(row).toBeVisible()
+  // The checkbox column comes with the options, which can arrive after the listing.
+  await expect(pane.getByRole('checkbox', { name: 'Select all' })).toBeVisible()
   const sort = pane.getByRole('button', { name: 'Size', exact: true })
   const size = header.locator('.table-cell').filter({ has: page.getByRole('button', { name: 'Size', exact: true }) })
   const edge = async () => {
