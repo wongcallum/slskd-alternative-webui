@@ -6,6 +6,7 @@ import {
   groupFeatures,
   type Layout,
   sortByName,
+  sortByPath,
   stackedHeight,
   stackedHeight3,
   type Templates,
@@ -23,7 +24,11 @@ export type ResultTable = ReturnType<typeof useTable<typeof groupFeatures, Item>
 const helper = createColumnHelper<typeof groupFeatures, Item>()
 
 export const columns = helper.columns([
-  helper.accessor((item) => item.name, { id: 'name', sortFn: sortByName, sortDescFirst: false }),
+  helper.accessor((item) => (item.kind === 'group' ? item.directory : item.name), {
+    id: 'name',
+    sortFn: sortByPath,
+    sortDescFirst: false,
+  }),
   helper.accessor((item) => item.username, { id: 'user', sortFn: sortByName, sortDescFirst: false }),
   helper.accessor((item) => (item.kind === 'group' ? item.files.length : 0), {
     id: 'files',

@@ -3,7 +3,7 @@ import { api, describeError } from '../../lib/api'
 import { type Criteria, hasAttributes, judging, passes, unjudged } from '../../lib/criteria'
 import { describeRange, lastSeparator, nameOf, qualityOf, type RawFile, widenRange } from '../../lib/files'
 import { createAtom } from '../../lib/store'
-import { byName, compareNames, queryMatcher } from '../../lib/text'
+import { byName, byUsername, comparePaths, queryMatcher } from '../../lib/text'
 import { filesUnder, type TreeFile } from '../../lib/tree'
 import { sessionSignal } from '../../session/session'
 import { type Batch, createDownloads, enqueueDownloads } from '../../transfers/enqueue'
@@ -66,11 +66,6 @@ export type Results = {
 
 const directoryOf = (filename: string) => filename.slice(0, Math.max(0, lastSeparator(filename)))
 
-function folderName(directory: string) {
-  const last = lastSeparator(directory)
-  return last <= 0 ? directory : directory.slice(lastSeparator(directory, last - 1) + 1)
-}
-
 // A folder is rated by its worst file, ignoring files without attributes such as cover art.
 function qualityRange(files: ResultFile[]): [number, string] {
   const range: { worst?: ResultFile; best?: ResultFile } = {}
@@ -118,7 +113,7 @@ function buildGroup(id: string, peer: Peer, directory: string, files: ResultFile
     peer,
     username: peer.username,
     directory,
-    name: folderName(directory),
+    name: nameOf(directory),
     files,
     matched,
     total,
@@ -135,8 +130,8 @@ export const availability = (peer: Peer) => (peer.free ? -1 : peer.queueLength)
 const byDefault = (a: ResultGroup, b: ResultGroup) =>
   availability(a.peer) - availability(b.peer) ||
   b.peer.speed - a.peer.speed ||
-  compareNames(a.name, b.name) ||
-  compareNames(a.username, b.username)
+  byUsername(a, b) ||
+  comparePaths(a.directory, b.directory)
 
 function toResults(responses: RawResponse[]): Results {
   const folders = new Map<string, { peer: Peer; directory: string; files: Map<string, ResultFile> }>()
