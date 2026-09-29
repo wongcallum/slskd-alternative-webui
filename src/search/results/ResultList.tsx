@@ -13,11 +13,13 @@ import {
   rowHeight,
   rowId,
   toggleExpanded,
+  tracksFor,
   useLayout,
   useRowToggle,
   useSelectionKeys,
   VirtualTable,
 } from '../../ui/table'
+import { useColumns } from '../../ui/widths'
 import { download, downloadsOf, type FolderFetch } from './results'
 import { FileRow, GroupRow } from './rows'
 import {
@@ -25,12 +27,11 @@ import {
   columnsOf,
   endAligned,
   expansions,
-  minWidths,
   type ResultTable,
   selectedFiles,
   stackedSize,
   type TableRow,
-  templates,
+  tracks,
 } from './table'
 
 type Props = {
@@ -49,6 +50,7 @@ export function ResultList({ searchId, table, folders, gate, folderGate, onHide 
   const running = useAtom(browses)
   const layout = useLayout()
   const stacked = layout === 'stacked'
+  const columns = useColumns('results', tracksFor(tracks, layout))
   const rows = table.getRowModel().rows
   const onSelect = useRowToggle(table)
   const onToggle = useCallback(
@@ -90,7 +92,7 @@ export function ResultList({ searchId, table, folders, gate, folderGate, onHide 
   ])
 
   const header = (
-    <HeaderRow template={stacked ? '' : templates[layout]} table={table} stacked={stacked}>
+    <HeaderRow columns={columns} table={table} stacked={stacked}>
       {columnsOf(layout).map((id) => (
         <ColumnHeader
           key={id}
@@ -141,7 +143,7 @@ export function ResultList({ searchId, table, folders, gate, folderGate, onHide 
 
   return (
     <VirtualTable
-      minWidth={minWidths[layout]}
+      columns={stacked ? undefined : columns}
       header={header}
       items={rows}
       itemKey={rowId}

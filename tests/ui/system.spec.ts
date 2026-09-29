@@ -1,6 +1,8 @@
 import { existsSync } from 'node:fs'
-import { readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+
+import type { Locator } from '@playwright/test'
 
 import { expect, logInPage, test } from '../fixtures'
 
@@ -15,6 +17,60 @@ test('a file is deleted from Files, even one that needs its path encoded with a 
   await page.getByRole('alertdialog').getByRole('button', { name: 'Delete' }).click()
   await expect(page.getByText('Is it?.flac')).toBeHidden()
   expect(existsSync(file)).toBe(false)
+})
+
+// Each column's width in a row, the header included.
+const widths = (row: Locator) =>
+  row.evaluate((element) =>
+    [...element.children]
+      .filter((child) => !child.classList.contains('table-resize'))
+      .map((child) => Math.round(child.getBoundingClientRect().width)),
+  )
+
+test('a column is resized from its edge or the keyboard and kept, and a double-click on its edge resets it', async ({
+  page,
+  slskd,
+}) => {
+  const folder = path.join(slskd.downloads, 'Columns')
+  await mkdir(folder, { recursive: true })
+  await writeFile(path.join(folder, 'Resized.flac'), 'x')
+  await page.goto(`system/files?path=${encodeURIComponent('Downloads/Columns')}`)
+  await logInPage(page)
+  const pane = page.getByRole('grid', { name: 'Contents' })
+  const header = pane.locator('.table-columns')
+  const row = pane.getByRole('row', { name: /Resized\.flac/ }).locator('.table-row')
+  await expect(row).toBeVisible()
+  const sort = pane.getByRole('button', { name: 'Size', exact: true })
+  const size = header.locator('.table-cell').filter({ has: page.getByRole('button', { name: 'Size', exact: true }) })
+  const edge = async () => {
+    const box = await size.boundingBox()
+    return { x: box!.x, y: box!.y + box!.height / 2 }
+  }
+
+  const index = await size.evaluate((cell) => [...(cell.parentElement?.children ?? [])].indexOf(cell))
+  const before = await widths(header)
+  expect(before[index]).toBe(100)
+  const start = await edge()
+  await page.mouse.move(start.x, start.y)
+  await page.mouse.down()
+  await page.mouse.move(start.x - 60, start.y, { steps: 4 })
+  await page.mouse.up()
+  expect((await edge()).x).toBeCloseTo(start.x - 60, 0)
+  const dragged = await widths(header)
+  expect(dragged[index]).toBe(160)
+  expect(await widths(row)).toEqual(dragged)
+
+  await page.reload()
+  await expect(row).toBeVisible()
+  expect(await widths(header)).toEqual(dragged)
+  await sort.focus()
+  await page.keyboard.press('Shift+ArrowRight')
+  await expect.poll(async () => (await widths(header))[index]).toBe(170)
+  await expect(sort).toHaveAccessibleName('Size')
+
+  const { x, y } = await edge()
+  await page.mouse.dblclick(x, y)
+  await expect.poll(() => widths(header)).toEqual(before)
 })
 
 test('a rescan updates the counts, and the contents open from a share', async ({ page }) => {

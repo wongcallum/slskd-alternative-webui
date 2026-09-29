@@ -48,7 +48,6 @@ export function RoomUsers({ room, fill }: { room: string; fill?: boolean }) {
   else {
     content = (
       <VirtualTable
-        minWidth={0}
         items={shown}
         itemKey={userKey}
         rowSize={fill ? 40 : 32}

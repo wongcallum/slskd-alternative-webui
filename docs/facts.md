@@ -1276,6 +1276,9 @@ and its bundled docs (`skills/`).
   display order, and `selectChildren` (default true) includes collapsed children. `toggleAllRowsSelected` only
   adds or deletes the table's own row ids and leaves any other ids in the state alone.
 - `useTable` returns a new table object whenever its options object changes, which in practice is every render.
+- `columnResizingFeature`'s `header.getResizeHandler()` takes mouse and touch events, not pointer or keyboard events.
+  It sets only the dragged header's leaf columns, each to its size at the start plus its share of the drag.
+  `columnResizeDirection: 'rtl'` reverses the drag.
 
 ## TanStack Virtual
 
@@ -1329,6 +1332,9 @@ share of 200k files in 15k directories (54 MB of JSON), with `idb` 8.0.3. "Block
   [MDN](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/meta/name/viewport)).
 - A pseudo-element sticking out of a button counts toward its scroll container's overflow. Observed: a hit area 6 px
   past a ghost button near the edge made the chat sidebar scroll sideways by 2 px.
+- An absolutely positioned child of a grid is placed in the grid lines it names, but a line left `auto` is the grid's
+  padding edge, so `grid-column: 3` runs from line 3 to the grid's end, and `3 / span 1` keeps it to the column
+  ([spec](https://www.w3.org/TR/css-grid-2/#abspos-items), observed in Chromium 153).
 - Tab can't get past a virtualised list whose every row takes Tab: focusing a row scrolls it into view, the
   virtualiser renders the rows after it, and Tab goes on to them. Observed in Chromium 153 on Logs, where Tab went
   through all 99 records one at a time.

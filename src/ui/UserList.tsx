@@ -87,7 +87,7 @@ export function UserListPage<E extends { username: string }>({
       )
   } else {
     const header = layout !== 'stacked' && (
-      <HeaderRow template={templates[layout]}>
+      <HeaderRow columns={templates[layout]}>
         {columns
           .filter((column) => layout === 'wide' || column.wide !== true)
           .map((column) => (

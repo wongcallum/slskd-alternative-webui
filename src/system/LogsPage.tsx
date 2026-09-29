@@ -7,7 +7,8 @@ import { type Choices, ChoiceSelect, type Color, useFilterText } from '../ui/con
 import { DetailsPane, Preformatted } from '../ui/details'
 import { HeldList, HeldRow, HeldToolbar, useHold } from '../ui/hold'
 import { Empty, Freshness, Polling } from '../ui/status'
-import { Cell, type Layout } from '../ui/table'
+import { Cell, type Layout, type LayoutTracks } from '../ui/table'
+import { growing, sized } from '../ui/widths'
 import {
   type Level,
   logMatcher,
@@ -90,7 +91,8 @@ export function LogsPage({ search, onSearchChange }: Props) {
     content = (
       <HeldList
         label="Log"
-        templates={templates}
+        table="logs"
+        tracks={tracks}
         labels={labels}
         records={shown}
         itemKey={recordId}
@@ -127,9 +129,9 @@ function LevelSelect({ value, onChange }: { value: MinimumLevel; onChange: (leve
   )
 }
 
-const templates = {
-  wide: '170px 80px 200px minmax(300px, 1fr)',
-  medium: '150px 80px 150px minmax(300px, 1fr)',
+const tracks: LayoutTracks = {
+  wide: [sized('time', 170), sized('level', 80), sized('source', 200), growing('message', 300)],
+  medium: [sized('time', 150), sized('level', 80), sized('source', 150), growing('message', 300)],
 }
 
 const labels = ['Time', 'Level', 'Source', 'Message']
@@ -163,7 +165,6 @@ const LogRow = memo(function LogRow({ record, layout, selected, onSelect }: LogR
   return (
     <HeldRow
       layout={layout}
-      templates={templates}
       time={record.time}
       selected={selected}
       dimmed={isQuiet(record.level)}

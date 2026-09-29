@@ -26,6 +26,7 @@ import {
   useSelectionKeys,
   virtualRowStyle,
 } from '../ui/table'
+import { type Columns, columnsVar, useColumns } from '../ui/widths'
 import { actions, cancel, clearFinished, lookups, remove, retry } from './actions'
 import { FileRow, GroupRow } from './rows'
 import {
@@ -34,11 +35,10 @@ import {
   columnsOf,
   expansions,
   type Gates,
-  minWidths,
   openSections,
   type SectionTable,
   type TableRow,
-  templates,
+  tracks,
   twoLineBarHeight,
 } from './table'
 import {
@@ -80,6 +80,11 @@ export function TransferList(props: ListProps) {
   const { direction, activeTable, finishedTable, gates } = props
   const layout = useLayout()
   const twoLines = !useFrom('sm')
+  const sectionTracks = tracks[layout === 'stacked' ? 'medium' : layout]
+  const columns = {
+    active: useColumns('transfers', sectionTracks.active),
+    finished: useColumns('transfers', sectionTracks.finished),
+  }
   const open = useAtom(openSections[direction])
   const { pending, running } = useAtom(actions[direction])
   const lookupMap = useAtom(lookups)
@@ -217,6 +222,7 @@ export function TransferList(props: ListProps) {
       return (
         <SectionHeader
           {...props}
+          columns={columns[item.section]}
           layout={layout}
           twoLines={twoLines}
           section={item.section}
@@ -270,20 +276,24 @@ export function TransferList(props: ListProps) {
 
   return (
     <div ref={setRef} className="table-scroll" {...nav.containerProps}>
-      <div style={{ height: virtualizer.getTotalSize(), position: 'relative', minWidth: minWidths[layout] }}>
+      <div
+        style={{
+          height: virtualizer.getTotalSize(),
+          position: 'relative',
+          minWidth: layout === 'stacked' ? 0 : Math.max(columns.active.minWidth, columns.finished.minWidth),
+        }}
+      >
         {virtualizer.getVirtualItems().map((virtual) => {
           const item = itemAt(virtual.index)
           return (
             <div
               key={virtual.key}
-              style={
-                virtual.index === stickyRef.current
+              style={{
+                ...(virtual.index === stickyRef.current
                   ? { position: 'sticky', top: 0, zIndex: 1, height: virtual.size }
-                  : {
-                      ...virtualRowStyle(virtual.size, virtual.start),
-                      scrollMarginTop: headerHeight(item.section),
-                    }
-              }
+                  : { ...virtualRowStyle(virtual.size, virtual.start), scrollMarginTop: headerHeight(item.section) }),
+                ...columnsVar(columns[item.section]),
+              }}
               {...nav.rowProps(virtual.index)}
             >
               <RowScope tabbable={virtual.index === nav.stop}>{render(item)}</RowScope>
@@ -383,11 +393,12 @@ function SectionHeader({
   show,
   onShowChange,
   gates,
+  columns,
   layout,
   twoLines,
   section,
   open,
-}: ListProps & { layout: Layout; twoLines: boolean; section: Section; open: boolean }) {
+}: ListProps & { columns: Columns; layout: Layout; twoLines: boolean; section: Section; open: boolean }) {
   const { running } = useAtom(actions[direction])
   const table = section === 'active' ? activeTable : finishedTable
   const groups = section === 'active' ? active : finished
@@ -493,7 +504,7 @@ function SectionHeader({
         </Flex>
       )}
       {open && (
-        <HeaderRow template={layout === 'stacked' ? '' : templates[layout][section]} table={table} stacked={stacked}>
+        <HeaderRow columns={columns} table={table} stacked={stacked}>
           {columnsOf(section, layout).map((id) => (
             <ColumnHeader
               key={id}

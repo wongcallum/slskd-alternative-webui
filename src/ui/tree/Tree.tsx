@@ -154,7 +154,6 @@ export function Tree({ tree, selected, matches, onOpen, onUp, reveal, Keys }: Tr
         />
       )}
       <VirtualTable
-        minWidth={0}
         items={rows}
         itemKey={rowId}
         rowSize={!sm ? 40 : touch ? 36 : 30}

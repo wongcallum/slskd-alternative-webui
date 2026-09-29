@@ -64,8 +64,56 @@
   outline: 2px solid var(--focus-8);
 }
 
+.table-columns {
+  position: relative;
+}
+
 .table-columns:hover {
   background-color: transparent;
+}
+
+/* Placed in its column's grid area, it straddles the column's edge. */
+.table-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+  width: 9px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.table-resize[data-edge='start'] {
+  left: -5px;
+}
+
+.table-resize[data-edge='end'] {
+  right: -4px;
+}
+
+.table-resize::after {
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 4px;
+  width: 1px;
+  content: '';
+}
+
+.table-columns:hover .table-resize::after {
+  background-color: var(--gray-a6);
+}
+
+.table-columns .table-resize:is(:hover, [data-active])::after {
+  left: 3px;
+  width: 3px;
+  background-color: var(--accent-9);
+}
+
+@media (pointer: coarse) {
+  .table-resize {
+    display: none;
+  }
 }
 
 .table-sort {

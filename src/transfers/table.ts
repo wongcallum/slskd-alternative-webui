@@ -12,6 +12,7 @@ import { formatBytes, formatProgress, toTime } from '../lib/format'
 import { useSortParam } from '../lib/params'
 import { createAtom } from '../lib/store'
 import { collapsed, type Expansion, expandedState, groupFeatures, type Layout, sortByName } from '../ui/table'
+import { fixed, growing, sized, type Track } from '../ui/widths'
 import { type Group, isFailed, isTransferring, perDirection, type Section, type Transfer } from './transfers'
 
 export const columnIds = {
@@ -67,18 +68,49 @@ export const columnLabels: Record<Section, Record<ColumnId, string>> = {
   finished: { name: 'Name', user: 'User', status: 'Status', size: 'Size', speed: 'Speed', time: 'Ended' },
 }
 
-export const templates: Record<Exclude<Layout, 'stacked'>, Record<Section, string>> = {
+// The sections share their widths, which keeps their columns in line. Requested and Ended keep theirs apart.
+export const tracks: Record<Exclude<Layout, 'stacked'>, Record<Section, readonly Track[]>> = {
   wide: {
-    active: '40px minmax(240px, 1fr) 160px 280px 170px 110px 100px 76px',
-    finished: '40px minmax(240px, 1fr) 160px 280px 170px 200px 76px',
+    active: [
+      fixed(40),
+      growing('name', 240),
+      sized('user', 160),
+      sized('status', 280),
+      sized('size', 170),
+      sized('speed', 110),
+      sized('requested', 100),
+      fixed(76),
+    ],
+    finished: [
+      fixed(40),
+      growing('name', 240),
+      sized('user', 160),
+      sized('status', 280),
+      sized('size', 170),
+      sized('ended', 200),
+      fixed(76),
+    ],
   },
   medium: {
-    active: '40px minmax(200px, 1fr) 140px 240px 150px 100px 76px',
-    finished: '40px minmax(200px, 1fr) 140px 240px 150px 76px',
+    active: [
+      fixed(40),
+      growing('name', 200),
+      sized('user', 140),
+      sized('status', 240),
+      sized('size', 150),
+      sized('speed', 100),
+      fixed(76),
+    ],
+    finished: [
+      fixed(40),
+      growing('name', 200),
+      sized('user', 140),
+      sized('status', 240),
+      sized('size', 150),
+      fixed(76),
+    ],
   },
 }
-
-export const minWidths: Record<Layout, number> = { stacked: 0, wide: 1176, medium: 946 }
 
 export const columnsOf = (section: Section, layout: Layout) =>
   layout === 'medium' ? columnIds[section].filter((id) => id !== 'time') : columnIds[section]

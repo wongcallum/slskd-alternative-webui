@@ -123,7 +123,7 @@ function RoomPicker({ listing, onRetry, onJoined }: { listing: Listing; onRetry:
     )
   } else {
     const header = (
-      <HeaderRow template={template}>
+      <HeaderRow columns={template}>
         <ColumnHeader label="Room" column={sortable('name')} />
         <ColumnHeader label="Users" end column={sortable('users')} />
         <div />
@@ -131,7 +131,6 @@ function RoomPicker({ listing, onRetry, onJoined }: { listing: Listing; onRetry:
     )
     list = (
       <VirtualTable
-        minWidth={0}
         header={header}
         items={shown}
         itemKey={roomKey}

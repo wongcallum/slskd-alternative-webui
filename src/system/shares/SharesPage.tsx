@@ -24,6 +24,7 @@ import {
 import { audioColumns } from '../../ui/tree/columns'
 import type { TreeConfig } from '../../ui/tree/FolderPane'
 import { TreeView } from '../../ui/tree/TreeView'
+import { columnsVar, growing, sized, useColumns } from '../../ui/widths'
 import {
   type Application,
   application,
@@ -126,6 +127,10 @@ function ScanBar({ data, known }: { data: Application; known: boolean }) {
 
 const noShares: readonly Share[] = []
 
+const tracks = [growing('path', 300, 2), growing('alias', 160), sized('folders', 100), sized('files', 100)]
+
+const hostTracks = [sized('host', 140), ...tracks]
+
 // A share's key matches its folder's row in the contents, so going up from a share lands on it here.
 const shareKey = (share: Share) => (share.excluded ? `excluded\n${share.host}\n${share.id}` : `folder\n${share.alias}`)
 
@@ -133,6 +138,8 @@ function ShareTable({ onOpen }: { onOpen: (path: string) => void }) {
   const { data, error } = useResource(shareList)
   const options = useOptions()
   const stacked = useListLayout() === 'stacked'
+  const hosts = (data?.hosts ?? 0) > 1
+  const columns = useColumns('shares', hosts ? hostTracks : tracks)
   const { containerRef, ...nav } = useListNav({
     name: 'shares',
     items: data?.shares ?? noShares,
@@ -148,8 +155,6 @@ function ShareTable({ onOpen }: { onOpen: (path: string) => void }) {
       </Fetching>
     )
   }
-  const hosts = data.hosts > 1
-  const template = `${hosts ? '140px ' : ''}minmax(300px, 2fr) minmax(160px, 1fr) 100px 100px`
   return (
     <Box flexGrow="1" minHeight="0" overflow="auto">
       {error !== undefined && (
@@ -164,9 +169,13 @@ function ShareTable({ onOpen }: { onOpen: (path: string) => void }) {
           Nothing is shared. Shares are set in slskd's config, as <Code>shares.directories</Code>.
         </Empty>
       ) : (
-        <Box ref={containerRef} minWidth={stacked ? undefined : `${(hosts ? 140 : 0) + 660}px`} {...nav.containerProps}>
+        <Box
+          ref={containerRef}
+          style={stacked ? undefined : { ...columnsVar(columns), minWidth: columns.minWidth }}
+          {...nav.containerProps}
+        >
           {!stacked && (
-            <HeaderRow template={template}>
+            <HeaderRow columns={columns}>
               {hosts && <ColumnHeader label="Host" />}
               <ColumnHeader label="Local path" />
               <ColumnHeader label="Shared as" />
@@ -178,7 +187,6 @@ function ShareTable({ onOpen }: { onOpen: (path: string) => void }) {
             <ShareRow
               key={`${share.host}\n${share.id}`}
               share={share}
-              template={template}
               stacked={stacked}
               hosts={hosts}
               row={nav.rowProps(index)}
@@ -215,7 +223,6 @@ function Count({ value }: { value?: number }) {
 
 function ShareRow({
   share,
-  template,
   stacked,
   hosts,
   row: attributes,
@@ -223,7 +230,6 @@ function ShareRow({
   onOpen,
 }: {
   share: Share
-  template: string
   stacked: boolean
   hosts: boolean
   row: ReturnType<ListNav<Share>['rowProps']>
@@ -281,7 +287,7 @@ function ShareRow({
   return (
     <div {...rowProps}>
       <RowScope tabbable={tabbable}>
-        <GridRow template={template} {...row}>
+        <GridRow {...row}>
           {hosts && <Cell>{share.host}</Cell>}
           <Flex className="table-cell" align="center" gap="2" title={share.localPath}>
             {path}

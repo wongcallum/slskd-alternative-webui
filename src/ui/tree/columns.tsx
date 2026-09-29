@@ -14,6 +14,7 @@ import { useFrom } from '../../lib/media'
 import { sortOf, textParam } from '../../lib/params'
 import { byName, compareNames } from '../../lib/text'
 import type { Item } from '../../lib/tree'
+import { fixed, growing, sized, type Track } from '../widths'
 
 const paneColumnIds = ['name', 'folder', 'files', 'size'] as const
 
@@ -64,7 +65,7 @@ export function usePaneWidth(): PaneWidth {
   return !sm ? 'stacked' : !md ? 'narrow' : !lg ? 'medium' : 'wide'
 }
 
-export type Layout = { template: string; minWidth: number; counted: boolean; extras: readonly ExtraColumn[] }
+export type Layout = { tracks: readonly Track[]; counted: boolean; extras: readonly ExtraColumn[] }
 
 // Filtered, the pane lists matching files from every folder below, so the folder replaces the file count.
 export function paneLayout(
@@ -75,27 +76,14 @@ export function paneLayout(
 ): Layout {
   const extras = width === 'wide' ? allExtras : allExtras.filter((extra) => extra.wide !== true)
   const counted = width === 'medium' || width === 'wide'
-  const widths = extras.map((extra) => extra.width)
-  const [name, nameWidth] = !counted
-    ? ['minmax(180px, 1fr)', 180]
-    : filtered
-      ? ['minmax(240px, 1fr)', 240]
-      : ['minmax(280px, 1fr)', 280]
-  const [count, countWidth] = filtered ? ['minmax(160px, 0.7fr)', 160] : ['90px', 90]
-  const parts = [
-    ...(selectable ? ['40px'] : []),
-    name,
-    ...(counted ? [count] : []),
-    '100px',
-    ...widths.map((each) => `${each}px`),
+  const tracks = [
+    ...(selectable ? [fixed(40)] : []),
+    growing('name', !counted ? 180 : filtered ? 240 : 280),
+    ...(counted ? [filtered ? growing('folder', 160, 0.7) : sized('files', 90)] : []),
+    sized('size', 100),
+    ...extras.map((extra) => sized(extra.id, extra.width)),
   ]
-  const fixed = (selectable ? 40 : 0) + nameWidth + (counted ? countWidth : 0) + 100
-  return {
-    template: parts.join(' '),
-    minWidth: widths.reduce((sum, each) => sum + each, fixed),
-    counted,
-    extras,
-  }
+  return { tracks, counted, extras }
 }
 
 function numberOf(id: string, extras: readonly ExtraColumn[]): ((item: Item) => number) | undefined {
