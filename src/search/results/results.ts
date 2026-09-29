@@ -3,7 +3,7 @@ import { api, describeError } from '../../lib/api'
 import { type Criteria, hasAttributes, judging, passes, unjudged } from '../../lib/criteria'
 import { describeRange, lastSeparator, nameOf, qualityOf, type RawFile, widenRange } from '../../lib/files'
 import { createAtom } from '../../lib/store'
-import { byName, compareNames, queryMatcher } from '../../lib/text'
+import { byName, byUsername, comparePaths, queryMatcher } from '../../lib/text'
 import { filesUnder, type TreeFile } from '../../lib/tree'
 import { sessionSignal } from '../../session/session'
 import { type Batch, createDownloads, enqueueDownloads } from '../../transfers/enqueue'
@@ -135,8 +135,8 @@ export const availability = (peer: Peer) => (peer.free ? -1 : peer.queueLength)
 const byDefault = (a: ResultGroup, b: ResultGroup) =>
   availability(a.peer) - availability(b.peer) ||
   b.peer.speed - a.peer.speed ||
-  compareNames(a.name, b.name) ||
-  compareNames(a.username, b.username)
+  byUsername(a, b) ||
+  comparePaths(a.directory, b.directory)
 
 function toResults(responses: RawResponse[]): Results {
   const folders = new Map<string, { peer: Peer; directory: string; files: Map<string, ResultFile> }>()

@@ -28,7 +28,7 @@ import {
 } from 'react'
 
 import { useFrom } from '../lib/media'
-import { compareNames } from '../lib/text'
+import { compareNames, comparePaths } from '../lib/text'
 import { type ListNav, RowScope, useRowTabIndex } from './listNav'
 
 // Clicks on controls inside a row mustn't also select or expand it, and React bubbles clicks out of portals too.
@@ -39,6 +39,8 @@ const preventShiftSelection = (event: MouseEvent) => {
 }
 
 export const sortByName = constructSortFn({ sort: compareNames })
+
+export const sortByPath = constructSortFn({ sort: comparePaths })
 
 export const groupFeatures = tableFeatures({
   rowSortingFeature,
