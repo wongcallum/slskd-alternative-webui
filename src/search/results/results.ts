@@ -66,11 +66,6 @@ export type Results = {
 
 const directoryOf = (filename: string) => filename.slice(0, Math.max(0, lastSeparator(filename)))
 
-function folderName(directory: string) {
-  const last = lastSeparator(directory)
-  return last <= 0 ? directory : directory.slice(lastSeparator(directory, last - 1) + 1)
-}
-
 // A folder is rated by its worst file, ignoring files without attributes such as cover art.
 function qualityRange(files: ResultFile[]): [number, string] {
   const range: { worst?: ResultFile; best?: ResultFile } = {}
@@ -118,7 +113,7 @@ function buildGroup(id: string, peer: Peer, directory: string, files: ResultFile
     peer,
     username: peer.username,
     directory,
-    name: folderName(directory),
+    name: nameOf(directory),
     files,
     matched,
     total,
