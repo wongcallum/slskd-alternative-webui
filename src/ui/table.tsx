@@ -338,24 +338,21 @@ export function Cell({ end, title, children }: { end?: boolean; title?: string; 
 type GroupNameProps = { expanded: boolean; name: string; parent?: string; children?: ReactNode }
 
 export function GroupName({ expanded, name, parent, children }: GroupNameProps) {
-  const text = (
-    <Text size="2" weight="medium" truncate>
-      {name}
-    </Text>
-  )
   return (
     <>
       {expanded ? <ChevronDownIcon style={{ flexShrink: 0 }} /> : <ChevronRightIcon style={{ flexShrink: 0 }} />}
-      {parent ? (
-        <Flex className="table-path" minWidth="0">
-          <Text size="2" color="gray">
-            <bdi dir="ltr">{parent}</bdi>
-          </Text>
-          {text}
-        </Flex>
-      ) : (
-        text
-      )}
+      <Text size="2" weight="medium" truncate className={parent ? 'table-path' : undefined}>
+        {parent ? (
+          <bdi dir="ltr">
+            <Text color="gray" weight="regular">
+              {parent}
+            </Text>
+            {name}
+          </bdi>
+        ) : (
+          name
+        )}
+      </Text>
       {children}
     </>
   )
