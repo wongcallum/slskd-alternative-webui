@@ -228,17 +228,9 @@
   white-space: nowrap;
 }
 
-/* The parent path gives way first, and loses its start, so a folder's own name and the end of its path stay visible. */
-.table-path > :first-child {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* The whole path is cut from its start, so a long folder name is cut the same way as the path of its subfolders. */
+.table-path {
   direction: rtl;
-}
-
-.table-path > :last-child {
-  flex-shrink: 0;
-  max-width: 100%;
 }
 
 .table-stacked-meta {

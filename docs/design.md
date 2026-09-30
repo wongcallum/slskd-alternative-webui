@@ -229,9 +229,10 @@ The whole app works from the keyboard, for sighted keyboard users first. `?` lis
   - Rejected: stock's Enter, which starts a search and stays on the list while the button opens it. The difference
     can't be seen, and queueing several searches is rare.
 - The results page never reads the downloads list. Rows show Enqueued or Failed from the batch responses.
-- A folder shows its whole path, with the part above it dimmed and cut from the start when it doesn't fit, and by
-  default a user's folders are in path order. Soulseek returns a subfolder such as `Scans` as a folder of its own, and
-  this puts it right below its album with the album's name in front.
+- A folder shows its whole path with the part above it dimmed, cut from the start when it doesn't fit, and by default a
+  user's folders are in path order. Soulseek returns a subfolder such as `Scans` as a folder of its own, and this puts
+  it right below its album with the album's name in front. The name is cut from the start too, like its subfolders'
+  paths, so an album and its `Scans` show the same end of the album's name.
 - **A folder's full contents come from the user's whole share**, the one Browse caches, rather than a request for
   the folder. slskd peers answer that request with files from other folders under bare names, so some listed paths
   don't exist (see the facts), and old slskds will stay on the network long after a fix. A cached share is read
