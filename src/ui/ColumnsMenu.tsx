@@ -30,6 +30,8 @@ export function ColumnsMenu({ columns, labels }: { columns: Columns; labels: Rea
                 size="1"
                 variant={count > 0 ? 'soft' : 'ghost'}
                 color={count > 0 ? undefined : 'gray'}
+                // Matches the negative margin a ghost button has, so the icon stays put when the variant changes.
+                m={count > 0 ? '-1' : undefined}
                 aria-label={label}
               >
                 <ColumnsIcon />
