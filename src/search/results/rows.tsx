@@ -38,6 +38,7 @@ type FileRowProps = {
   rowId: string
   file: ResultFile
   layout: Layout
+  shown: ReadonlySet<string>
   selected: boolean
   pending: boolean
   mark?: Mark
@@ -50,6 +51,7 @@ export const FileRow = memo(function FileRow({
   rowId,
   file,
   layout,
+  shown,
   selected,
   pending,
   mark,
@@ -121,13 +123,13 @@ export const FileRow = memo(function FileRow({
       <Flex className="table-cell" align="center" gap="2" style={{ paddingLeft: 36 }} title={file.filename}>
         {name}
       </Flex>
-      <div className="table-cell" />
-      <div className="table-cell" />
-      <Cell end>{formatBytes(file.size)}</Cell>
-      <Cell>{file.qualityLabel}</Cell>
-      {layout === 'wide' && <Cell end>{length}</Cell>}
-      <div className="table-cell" />
-      <div className="table-cell" />
+      {shown.has('user') && <div className="table-cell" />}
+      {shown.has('files') && <div className="table-cell" />}
+      {shown.has('size') && <Cell end>{formatBytes(file.size)}</Cell>}
+      {shown.has('quality') && <Cell>{file.qualityLabel}</Cell>}
+      {shown.has('length') && <Cell end>{length}</Cell>}
+      {shown.has('speed') && <div className="table-cell" />}
+      {shown.has('queue') && <div className="table-cell" />}
       <ActionsCell>
         {downloadButton}
         <Placeholder />
@@ -142,6 +144,7 @@ type GroupRowProps = {
   searchId: string
   group: ResultGroup
   layout: Layout
+  shown: ReadonlySet<string>
   expanded: boolean
   selected: boolean
   partial: boolean
@@ -159,6 +162,7 @@ export const GroupRow = memo(function GroupRow({
   searchId,
   group,
   layout,
+  shown,
   expanded,
   selected,
   partial,
@@ -206,7 +210,7 @@ export const GroupRow = memo(function GroupRow({
     details.push(['Folder fetch failed', formatTime(fetch.failedAt)])
   }
   if (error !== undefined) details.push(['Error', error])
-  const shown = `${group.files.length.toLocaleString()} of ${group.total.toLocaleString()}`
+  const ofTotal = `${group.files.length.toLocaleString()} of ${group.total.toLocaleString()}`
   const plus = fetched && extra > 0 ? ` + ${extra.toLocaleString()}` : ''
   const length = group.length > 0 && formatDuration(group.length)
   const check = (
@@ -256,7 +260,7 @@ export const GroupRow = memo(function GroupRow({
         meta={
           <Parts
             items={[
-              hidden > 0 ? `${shown} files` : `${plural(group.matched, 'file')}${plus}`,
+              hidden > 0 ? `${ofTotal} files` : `${plural(group.matched, 'file')}${plus}`,
               formatBytes(group.size),
               group.qualityLabel,
               length,
@@ -287,25 +291,29 @@ export const GroupRow = memo(function GroupRow({
     <GridRow group selected={selected} dimmed={open.length === 0} onClick={() => onToggle(group.id)}>
       {check}
       <GroupNameCell expanded={expanded} name={group.name} parent={parent} title={group.directory} />
-      <UserCell username={group.username} onHide={() => onHide(group.username)} />
-      <Cell end title={hidden > 0 ? `${plural(hidden, 'file')} filtered out` : undefined}>
-        {hidden > 0 ? shown : `${group.matched.toLocaleString()}${plus}`}
-      </Cell>
-      <Cell end>{formatBytes(group.size)}</Cell>
-      <Cell title={group.qualityLabel}>{group.qualityLabel}</Cell>
-      {layout === 'wide' && <Cell end>{length}</Cell>}
-      <Cell end>{formatSpeed(peer.speed)}</Cell>
-      <div className="table-cell" data-align="end">
-        {peer.free ? (
-          <Text size="2" color="green">
-            Free
-          </Text>
-        ) : (
-          <Text size="2" color="gray">
-            {peer.queueLength.toLocaleString()}
-          </Text>
-        )}
-      </div>
+      {shown.has('user') && <UserCell username={group.username} onHide={() => onHide(group.username)} />}
+      {shown.has('files') && (
+        <Cell end title={hidden > 0 ? `${plural(hidden, 'file')} filtered out` : undefined}>
+          {hidden > 0 ? ofTotal : `${group.matched.toLocaleString()}${plus}`}
+        </Cell>
+      )}
+      {shown.has('size') && <Cell end>{formatBytes(group.size)}</Cell>}
+      {shown.has('quality') && <Cell title={group.qualityLabel}>{group.qualityLabel}</Cell>}
+      {shown.has('length') && <Cell end>{length}</Cell>}
+      {shown.has('speed') && <Cell end>{formatSpeed(peer.speed)}</Cell>}
+      {shown.has('queue') && (
+        <div className="table-cell" data-align="end">
+          {peer.free ? (
+            <Text size="2" color="green">
+              Free
+            </Text>
+          ) : (
+            <Text size="2" color="gray">
+              {peer.queueLength.toLocaleString()}
+            </Text>
+          )}
+        </div>
+      )}
       <ActionsCell>{actions}</ActionsCell>
     </GridRow>
   )

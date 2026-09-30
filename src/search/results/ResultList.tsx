@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 
 import { browses, loadedShares, useShareList } from '../../browse/browse'
 import { useAtom } from '../../lib/store'
+import { ColumnsMenu } from '../../ui/ColumnsMenu'
 import { useListKeys } from '../../ui/keys'
 import { useListNav } from '../../ui/listNav'
 import {
@@ -93,7 +94,7 @@ export function ResultList({ searchId, table, folders, gate, folderGate, onHide 
 
   const header = (
     <HeaderRow columns={columns} table={table} stacked={stacked}>
-      {columnsOf(layout).map((id) => (
+      {columnsOf(stacked, columns.shown).map((id) => (
         <ColumnHeader
           key={id}
           label={columnLabels[id]}
@@ -101,7 +102,7 @@ export function ResultList({ searchId, table, folders, gate, folderGate, onHide 
           column={table.getColumn(id)}
         />
       ))}
-      {!stacked && <div />}
+      {!stacked && <ColumnsMenu columns={columns} labels={columnLabels} />}
     </HeaderRow>
   )
 
@@ -114,6 +115,7 @@ export function ResultList({ searchId, table, folders, gate, folderGate, onHide 
           searchId={searchId}
           group={original}
           layout={layout}
+          shown={columns.shown}
           {...groupState(row)}
           fetch={fetch}
           cached={records.has(original.username) || memory.get(original.username)?.status === 'ready'}
@@ -132,6 +134,7 @@ export function ResultList({ searchId, table, folders, gate, folderGate, onHide 
         rowId={row.id}
         file={original}
         layout={layout}
+        shown={columns.shown}
         selected={row.getIsSelected()}
         pending={pending.has(original.id)}
         mark={marks.get(original.id)}

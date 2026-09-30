@@ -14,33 +14,56 @@ export const growing = (key: string, width: number, grow = 1): Track => ({ key, 
 
 type Widths = Readonly<Record<string, number>>
 
-type Tables = Readonly<Record<string, Widths>>
+type Settings = { widths: Widths; hidden: readonly string[] }
+
+type Tables = Readonly<Record<string, Settings>>
 
 function parse(stored: unknown): Tables | undefined {
   if (typeof stored !== 'object' || stored === null) return undefined
-  const tables: Record<string, Widths> = {}
-  for (const [table, widths] of Object.entries(stored)) {
-    if (typeof widths !== 'object' || widths === null) continue
-    tables[table] = Object.fromEntries(
-      Object.entries(widths as Record<string, unknown>).filter(([, width]) => Number.isFinite(width)),
-    ) as Widths
+  const tables: Record<string, Settings> = {}
+  for (const [table, settings] of Object.entries(stored)) {
+    if (typeof settings !== 'object' || settings === null) continue
+    const { widths, hidden } = settings as Record<string, unknown>
+    tables[table] = {
+      widths:
+        typeof widths === 'object' && widths !== null
+          ? Object.fromEntries(Object.entries(widths).filter(([, width]) => Number.isFinite(width)))
+          : {},
+      hidden: Array.isArray(hidden) ? hidden.filter((key) => typeof key === 'string') : [],
+    }
   }
   return tables
 }
 
 const stored = createStoredAtom<Tables>('slskd-alt-columns', parse, {})
 
-// A drag's widths, which are only stored once it ends.
-const dragging = createAtom<Tables>({})
+const without = <T,>(all: Readonly<Record<string, T>>, key: string) =>
+  Object.fromEntries(Object.entries(all).filter(([each]) => each !== key))
 
-function save(table: string, widths: Widths | undefined) {
-  const without = (all: Tables) => Object.fromEntries(Object.entries(all).filter(([each]) => each !== table))
-  stored.set((all) => (widths === undefined ? without(all) : { ...all, [table]: widths }))
-  dragging.set(without)
+function store(table: string, change: Partial<Settings>) {
+  stored.set((all) => {
+    const next: Settings = { widths: {}, hidden: [], ...all[table], ...change }
+    const empty = Object.keys(next.widths).length === 0 && next.hidden.length === 0
+    return empty ? without(all, table) : { ...all, [table]: next }
+  })
 }
+
+// A drag's widths, which are only stored once it ends.
+const dragging = createAtom<Readonly<Record<string, Widths>>>({})
+
+function save(table: string, widths: Widths) {
+  store(table, { widths })
+  dragging.set((all) => without(all, table))
+}
+
+export const setHidden = (table: string, hidden: readonly string[]) => store(table, { hidden })
 
 export type Columns = {
   table: string
+  // The layout's columns, hidden ones included.
+  all: readonly Track[]
+  hidden: readonly string[]
+  shown: ReadonlySet<string>
   defaults: readonly Track[]
   tracks: readonly Track[]
   widths: Widths
@@ -55,13 +78,26 @@ const leastFill = 120
 // The fill is the first growing column, which takes what the others leave.
 const fillOf = (tracks: readonly Track[]) => tracks.findIndex((track) => track.grow !== undefined)
 
+// Every column but the fill can be hidden.
+export const hideable = (tracks: readonly Track[], index: number) =>
+  tracks[index]?.key !== undefined && index !== fillOf(tracks)
+
 const none: Widths = {}
 
-// Tables of a kind, such as every tree pane, share their widths.
-export function useColumns(table: string, defaults: readonly Track[]): Columns {
+const nothing: readonly string[] = []
+
+// Tables of a kind, such as every tree pane, share their widths and hidden columns.
+export function useColumns(table: string, all: readonly Track[]): Columns {
   const draft = useAtom(dragging)[table]
   const saved = useAtom(stored)[table]
-  const widths = draft ?? saved ?? none
+  const widths = draft ?? saved?.widths ?? none
+  const hidden = saved?.hidden ?? nothing
+  const defaults = useMemo(
+    () => all.filter((track, index) => !hideable(all, index) || !hidden.includes(track.key as string)),
+    [all, hidden],
+  )
+  // Rows take the columns they show from here, so it keeps its identity through a resize.
+  const shown = useMemo(() => new Set(defaults.flatMap(({ key }) => (key === undefined ? [] : [key]))), [defaults])
   return useMemo(() => {
     const fill = fillOf(defaults)
     const tracks = defaults.map((track, index) => {
@@ -73,6 +109,9 @@ export function useColumns(table: string, defaults: readonly Track[]): Columns {
     })
     return {
       table,
+      all,
+      hidden,
+      shown,
       defaults,
       tracks,
       widths,
@@ -81,7 +120,7 @@ export function useColumns(table: string, defaults: readonly Track[]): Columns {
         .join(' '),
       minWidth: tracks.reduce((sum, { width }) => sum + width, 0),
     }
-  }, [table, defaults, widths])
+  }, [table, all, hidden, shown, defaults, widths])
 }
 
 // Rows take their columns from their list, so a resize doesn't render them again.
@@ -126,8 +165,8 @@ function reset(columns: Columns, index: number) {
   const { tracks, widths } = columns
   const key = tracks[index]?.key
   const fillKey = tracks[fillOf(tracks)]?.key
-  const next = Object.fromEntries(Object.entries(widths).filter(([each]) => each !== key))
-  save(columns.table, Object.keys(next).some((each) => each !== fillKey) ? next : undefined)
+  const next = key === undefined ? widths : without(widths, key)
+  save(columns.table, Object.keys(next).some((each) => each !== fillKey) ? next : none)
 }
 
 const resizable = (track: Track) => track.key !== undefined && track.grow === undefined

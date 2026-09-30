@@ -1,9 +1,10 @@
 import { ChevronRightIcon, FileIcon, LockClosedIcon } from '@radix-ui/react-icons'
 import { Flex, Text } from '@radix-ui/themes'
-import { type ComponentType, memo, type ReactNode } from 'react'
+import { type ComponentType, memo, type ReactNode, useMemo } from 'react'
 
 import { formatBytes, plural } from '../../lib/format'
 import type { Folder, Item, TreeFile } from '../../lib/tree'
+import { ColumnsMenu } from '../ColumnsMenu'
 import type { ListNav } from '../listNav'
 import {
   Cell,
@@ -51,8 +52,24 @@ export function ItemList({
 }: Props) {
   const rows = table.getRowModel().rows
   const onSelect = useRowToggle(table)
-  const { counted, extras } = layout
   const columns = useColumns('pane', layout.tracks)
+  const { shown } = columns
+  // Stacked rows show every field.
+  const counted = layout.counted && shown.has(filtered ? 'folder' : 'files')
+  const sized = stacked || shown.has('size')
+  const extras = useMemo(
+    () => (stacked ? layout.extras : layout.extras.filter((extra) => shown.has(extra.id))),
+    [stacked, layout.extras, shown],
+  )
+  const labels = useMemo(
+    () => ({
+      files: 'Files',
+      folder: 'Folder',
+      size: 'Size',
+      ...Object.fromEntries(layout.extras.map((extra) => [extra.id, extra.label])),
+    }),
+    [layout.extras],
+  )
 
   const header = (
     <HeaderRow columns={columns} table={selectable ? table : undefined} stacked={stacked}>
@@ -63,7 +80,7 @@ export function ItemList({
         ) : (
           <ColumnHeader label="Files" end={!stacked} column={table.getColumn('files')} />
         ))}
-      <ColumnHeader label="Size" end={!stacked} column={table.getColumn('size')} />
+      {sized && <ColumnHeader label="Size" end={!stacked} column={table.getColumn('size')} />}
       {extras.map((extra) => (
         <ColumnHeader
           key={extra.id}
@@ -72,6 +89,7 @@ export function ItemList({
           column={table.getColumn(extra.id)}
         />
       ))}
+      {!stacked && <ColumnsMenu columns={columns} labels={labels} />}
     </HeaderRow>
   )
 
@@ -83,6 +101,7 @@ export function ItemList({
           folder={item}
           stacked={stacked}
           counted={counted}
+          sized={sized}
           extras={extras}
           selectable={selectable}
           disabled={!row.getCanSelect()}
@@ -97,6 +116,7 @@ export function ItemList({
         file={item}
         stacked={stacked}
         counted={counted}
+        sized={sized}
         extras={extras}
         folder={filtered ? folderOf(item) : undefined}
         separator={separator}
@@ -133,6 +153,7 @@ function ExtraCells({ item, extras }: { item: Item; extras: readonly ExtraColumn
 type RowProps = {
   stacked: boolean
   counted: boolean
+  sized: boolean
   extras: readonly ExtraColumn[]
   selectable: boolean
   disabled: boolean
@@ -154,6 +175,7 @@ function Row({
   onClick,
   stacked,
   counted,
+  sized,
   extras,
   selectable,
   disabled,
@@ -208,8 +230,9 @@ function Row({
         {label}
       </Flex>
       {counted && countCell}
-      <Cell end>{size}</Cell>
+      {sized && <Cell end>{size}</Cell>}
       <ExtraCells item={item} extras={extras} />
+      <div className="table-cell" />
     </GridRow>
   )
 }

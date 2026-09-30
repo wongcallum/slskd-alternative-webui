@@ -26,11 +26,13 @@ export const treeSearch = <const T extends string>(extraIds: readonly T[]) => ({
 
 export const treeSearchDefaults = { path: '', q: '' } as const
 
-// Each view adds its own columns after the name, files or folder, and size. A wide one only shows from lg.
+// Each view adds its own columns after the name, files or folder, and size. A wide one only shows from lg, and a narrow
+// width applies below md.
 export type ExtraColumn = {
   id: string
   label: string
   width: number
+  narrowWidth?: number
   wide?: boolean
   end?: boolean
   value: (item: Item) => number
@@ -81,7 +83,9 @@ export function paneLayout(
     growing('name', !counted ? 180 : filtered ? 240 : 280),
     ...(counted ? [filtered ? growing('folder', 160, 0.7) : sized('files', 90)] : []),
     sized('size', 100),
-    ...extras.map((extra) => sized(extra.id, extra.width)),
+    ...extras.map((extra) => sized(extra.id, counted ? extra.width : (extra.narrowWidth ?? extra.width))),
+    // The columns menu, since there's no actions column to put it in.
+    fixed(40),
   ]
   return { tracks, counted, extras }
 }
@@ -118,6 +122,7 @@ export const audioColumns: ExtraColumn[] = [
     id: 'quality',
     label: 'Quality',
     width: 170,
+    narrowWidth: 140,
     value: (item) => item.quality,
     render: (item) => item.qualityLabel,
     title: (item) => item.qualityLabel,

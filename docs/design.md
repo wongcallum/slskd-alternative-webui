@@ -139,12 +139,17 @@ The whole app works from the keyboard, for sighted keyboard users first. `?` lis
   the row is wider than the list, the name column is at its minimum, so the minimum moves instead.
   - Rejected: TanStack Table's column resizing, whose handler only changes the dragged column (see the facts), so
     beside a growing name column the edge would drift from the pointer.
+- A menu at the end of the header hides columns other than the name, checkbox and actions columns, and they're kept
+  like widths. A column a layout drops stays dropped, and stacked layouts ignore the choice.
 - **Accepted gaps:**
   - Columns don't resize by touch, since a handle would catch swipes along the header.
   - Columns whose header doesn't sort, on the list of searches, Shares, Events and Logs, can't be resized from the
     keyboard.
   - The Users and Browse lists don't resize. A column grows on each side of the others, so no edge between them could
     follow the pointer.
+  - Only Transfers, search results and folder panes hide columns.
+  - The folder pane gives up 40px at the end of its rows for the menu, since it has no actions column. Below md,
+    Quality narrows to make room beside the tree, which cuts a folder's range of qualities short.
 
 ## Features
 

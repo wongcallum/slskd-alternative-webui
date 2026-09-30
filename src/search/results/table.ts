@@ -4,7 +4,6 @@ import { createAtom } from '../../lib/store'
 import {
   type Expansion,
   groupFeatures,
-  type Layout,
   type LayoutTracks,
   sortByName,
   sortByPath,
@@ -82,8 +81,9 @@ export const tracks: LayoutTracks = {
   ],
 }
 
-export const columnsOf = (layout: Layout) =>
-  layout === 'medium' ? columnIds.filter((id) => id !== 'length') : columnIds
+// Stacked, the sort strip has every column.
+export const columnsOf = (stacked: boolean, shown: ReadonlySet<string>) =>
+  stacked ? columnIds : columnIds.filter((id) => shown.has(id))
 
 // Stacked folders take three lines, so the user, speed and queue fit beside the four actions.
 export const stackedSize = (row: TableRow) => (row.original.kind === 'group' ? stackedHeight3 : stackedHeight)

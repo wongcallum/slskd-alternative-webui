@@ -19,7 +19,7 @@ import {
 } from '../ui/table'
 import { UserCell, UserMenu } from '../users/UserMenu'
 import { type Lookup, lookUpPositions, retry } from './actions'
-import { fraction, sizeOf, timeOf } from './table'
+import { fraction, sizeOf, timeKey, timeOf } from './table'
 import {
   type Direction,
   type Group,
@@ -66,6 +66,7 @@ type FileRowProps = {
   section: Section
   direction: Direction
   layout: Layout
+  shown: ReadonlySet<string>
   selected: boolean
   pending: boolean
   lookup?: Lookup
@@ -79,6 +80,7 @@ export const FileRow = memo(function FileRow({
   section,
   direction,
   layout,
+  shown,
   selected,
   pending,
   lookup,
@@ -133,11 +135,11 @@ export const FileRow = memo(function FileRow({
       <div className="table-cell" style={{ paddingLeft: 36 }} title={file.filename}>
         <Text size="2">{file.name}</Text>
       </div>
-      <div className="table-cell" />
-      <div className="table-cell">{status}</div>
-      <Cell end>{size}</Cell>
-      {section === 'active' && <Cell end>{speed}</Cell>}
-      {layout === 'wide' && <Cell>{time > 0 && <Ago time={time} />}</Cell>}
+      {shown.has('user') && <div className="table-cell" />}
+      {shown.has('status') && <div className="table-cell">{status}</div>}
+      {shown.has('size') && <Cell end>{size}</Cell>}
+      {shown.has('speed') && <Cell end>{speed}</Cell>}
+      {shown.has(timeKey[section]) && <Cell>{time > 0 && <Ago time={time} />}</Cell>}
       <ActionsCell gap="1">{actions}</ActionsCell>
     </GridRow>
   )
@@ -227,6 +229,7 @@ type GroupRowProps = {
   group: Group
   direction: Direction
   layout: Layout
+  shown: ReadonlySet<string>
   expanded: boolean
   selected: boolean
   partial: boolean
@@ -239,6 +242,7 @@ export const GroupRow = memo(function GroupRow({
   group,
   direction,
   layout,
+  shown,
   expanded,
   selected,
   partial,
@@ -318,18 +322,20 @@ export const GroupRow = memo(function GroupRow({
       <GroupNameCell expanded={expanded} name={group.name} title={group.directory}>
         {count}
       </GroupNameCell>
-      <UserCell username={group.username} />
-      <Flex className="table-cell" align="center" gap="2">
-        {section === 'active' && <Bar value={fraction(group)} />}
-        <Text size="1" color="gray" style={{ flexShrink: 0 }}>
-          {done}
-        </Text>
-        {failed}
-        {cancelled}
-      </Flex>
-      <Cell end>{size}</Cell>
-      {section === 'active' && <Cell end>{speed}</Cell>}
-      {layout === 'wide' && <Cell>{group.time > 0 && <Ago time={group.time} />}</Cell>}
+      {shown.has('user') && <UserCell username={group.username} />}
+      {shown.has('status') && (
+        <Flex className="table-cell" align="center" gap="2">
+          {section === 'active' && <Bar value={fraction(group)} />}
+          <Text size="1" color="gray" style={{ flexShrink: 0 }}>
+            {done}
+          </Text>
+          {failed}
+          {cancelled}
+        </Flex>
+      )}
+      {shown.has('size') && <Cell end>{size}</Cell>}
+      {shown.has('speed') && <Cell end>{speed}</Cell>}
+      {shown.has(timeKey[section]) && <Cell>{group.time > 0 && <Ago time={group.time} />}</Cell>}
       <ActionsCell gap="1">{actions}</ActionsCell>
     </GridRow>
   )

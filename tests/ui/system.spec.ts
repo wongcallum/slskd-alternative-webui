@@ -27,7 +27,7 @@ const widths = (row: Locator) =>
       .map((child) => Math.round(child.getBoundingClientRect().width)),
   )
 
-test('a column is resized from its edge or the keyboard and kept, and a double-click on its edge resets it', async ({
+test('a column is resized from its edge or the keyboard or hidden and kept, and a double-click on its edge resets it', async ({
   page,
   slskd,
 }) => {
@@ -43,13 +43,17 @@ test('a column is resized from its edge or the keyboard and kept, and a double-c
   // The checkbox column comes with the options, which can arrive after the listing.
   await expect(pane.getByRole('checkbox', { name: 'Select all' })).toBeVisible()
   const sort = pane.getByRole('button', { name: 'Size', exact: true })
-  const size = header.locator('.table-cell').filter({ has: page.getByRole('button', { name: 'Size', exact: true }) })
+  const cell = (label: string) =>
+    header.locator('.table-cell').filter({ has: page.getByRole('button', { name: label, exact: true }) })
+  const indexOf = (label: string) =>
+    cell(label).evaluate((each) => [...(each.parentElement?.children ?? [])].indexOf(each))
+  const size = cell('Size')
   const edge = async () => {
     const box = await size.boundingBox()
     return { x: box!.x, y: box!.y + box!.height / 2 }
   }
 
-  const index = await size.evaluate((cell) => [...(cell.parentElement?.children ?? [])].indexOf(cell))
+  const index = await indexOf('Size')
   const before = await widths(header)
   expect(before[index]).toBe(100)
   const start = await edge()
@@ -69,6 +73,24 @@ test('a column is resized from its edge or the keyboard and kept, and a double-c
   await page.keyboard.press('Shift+ArrowRight')
   await expect.poll(async () => (await widths(header))[index]).toBe(170)
   await expect(sort).toHaveAccessibleName('Size')
+
+  const resized = await widths(header)
+  const name = await indexOf('Name')
+  await pane.getByRole('button', { name: 'Columns', exact: true }).click()
+  await page.getByRole('menuitemcheckbox', { name: 'Size' }).click()
+  await page.keyboard.press('Escape')
+  await expect(sort).toBeHidden()
+  const hidden = await widths(header)
+  expect(hidden).toHaveLength(resized.length - 1)
+  expect(hidden[name]).toBe(resized[name]! + resized[index]!)
+  expect(await widths(row)).toEqual(hidden)
+
+  await page.reload()
+  await expect(row).toBeVisible()
+  await expect.poll(() => widths(header)).toEqual(hidden)
+  await pane.getByRole('button', { name: 'Columns (1 hidden)' }).click()
+  await page.getByRole('menuitem', { name: 'Show all columns' }).click()
+  await expect.poll(() => widths(header)).toEqual(resized)
 
   const { x, y } = await edge()
   await page.mouse.dblclick(x, y)

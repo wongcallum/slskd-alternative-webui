@@ -68,7 +68,8 @@ export const columnLabels: Record<Section, Record<ColumnId, string>> = {
   finished: { name: 'Name', user: 'User', status: 'Status', size: 'Size', speed: 'Speed', time: 'Ended' },
 }
 
-// The sections share their widths, which keeps their columns in line. Requested and Ended keep theirs apart.
+// The sections share their widths and hidden columns, which keeps their columns in line. Requested and Ended are
+// kept apart.
 export const tracks: Record<Exclude<Layout, 'stacked'>, Record<Section, readonly Track[]>> = {
   wide: {
     active: [
@@ -112,8 +113,18 @@ export const tracks: Record<Exclude<Layout, 'stacked'>, Record<Section, readonly
   },
 }
 
-export const columnsOf = (section: Section, layout: Layout) =>
-  layout === 'medium' ? columnIds[section].filter((id) => id !== 'time') : columnIds[section]
+export const timeKey = { active: 'requested', finished: 'ended' } as const
+
+const keyOf = (section: Section, id: ColumnId) => (id === 'time' ? timeKey[section] : id)
+
+// Stacked, the sort strip has every column.
+export const columnsOf = (section: Section, stacked: boolean, shown: ReadonlySet<string>) =>
+  stacked ? columnIds[section] : columnIds[section].filter((id) => shown.has(keyOf(section, id)))
+
+const labelsOf = (section: Section) =>
+  Object.fromEntries(columnIds[section].map((id) => [keyOf(section, id), columnLabels[section][id]]))
+
+export const trackLabels = { active: labelsOf('active'), finished: labelsOf('finished') }
 
 export const barHeight = 48
 

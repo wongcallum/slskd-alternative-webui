@@ -7,6 +7,7 @@ import { countFiles } from '../lib/files'
 import { formatSpeed, plural } from '../lib/format'
 import { useFrom } from '../lib/media'
 import { useAtom } from '../lib/store'
+import { ColumnsMenu } from '../ui/ColumnsMenu'
 import { type Choices, ChoiceSelect, ConfirmButton, ConfirmDialog, disabledProps, Tip } from '../ui/controls'
 import { type ListKey, useListKeys } from '../ui/keys'
 import { RowScope, useListNav } from '../ui/listNav'
@@ -38,6 +39,7 @@ import {
   openSections,
   type SectionTable,
   type TableRow,
+  trackLabels,
   tracks,
   twoLineBarHeight,
 } from './table'
@@ -251,6 +253,7 @@ export function TransferList(props: ListProps) {
           group={original}
           direction={direction}
           layout={layout}
+          shown={columns[section].shown}
           {...groupState(row)}
           gate={gates.soulseek}
           onSelect={onSelect[section]}
@@ -264,6 +267,7 @@ export function TransferList(props: ListProps) {
         section={section}
         direction={direction}
         layout={layout}
+        shown={columns[section].shown}
         selected={row.getIsSelected()}
         pending={pending.has(original.id)}
         lookup={lookupMap.get(original.id)}
@@ -505,7 +509,7 @@ function SectionHeader({
       )}
       {open && (
         <HeaderRow columns={columns} table={table} stacked={stacked}>
-          {columnsOf(section, layout).map((id) => (
+          {columnsOf(section, stacked, columns.shown).map((id) => (
             <ColumnHeader
               key={id}
               label={columnLabels[section][id]}
@@ -513,7 +517,7 @@ function SectionHeader({
               column={table.getColumn(id)}
             />
           ))}
-          {!stacked && <div />}
+          {!stacked && <ColumnsMenu columns={columns} labels={trackLabels[section]} />}
         </HeaderRow>
       )}
     </div>
