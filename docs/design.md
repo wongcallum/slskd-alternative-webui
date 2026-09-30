@@ -167,6 +167,11 @@ The whole app works from the keyboard, for sighted keyboard users first. `?` lis
 - Speeds stay out of the page title, since one that changes every second is noise in the tab strip.
 - A privileged account has a star by its name in the bar. How long is left is in the Soulseek popover, since a tooltip
   inside the popover's button couldn't be reached.
+- While not logged in, the Soulseek popover shows why the last connection attempt failed, which slskd only logs (see the
+  facts), with a link to the log. It's slskd's own text, and the bar keeps its short label, since the messages are long
+  and carry addresses. The log is followed only while that popover is open.
+  - Rejected: `SoulseekClientDisconnected` events, which miss a missing username and failed DNS lookups.
+  - **Accepted gap:** once the failure has left slskd's 100-record buffer, there's no reason to show.
 
 ### Relay agents
 

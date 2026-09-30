@@ -1,5 +1,6 @@
 import { StarFilledIcon } from '@radix-ui/react-icons'
-import { Button, DataList, Flex, IconButton, Popover, Text, VisuallyHidden } from '@radix-ui/themes'
+import { Button, DataList, Flex, IconButton, Link, Popover, Text, VisuallyHidden } from '@radix-ui/themes'
+import { Link as RouterLink } from '@tanstack/react-router'
 import { useState } from 'react'
 
 import { describeError } from '../lib/api'
@@ -7,10 +8,11 @@ import { formatAge } from '../lib/format'
 import { applicationHub, type HubStatus, metricsHub, searchHub, useHub, useWatchedHub } from '../lib/hubs'
 import { useFreshness } from '../lib/store'
 import { type Application, application, describePrivileges, useApplication } from '../system/application'
+import { useLogs } from '../system/logs'
 import { useOptions } from '../system/options/options'
 import { type Color, disabledProps } from '../ui/controls'
 import { StatusDot } from '../ui/status'
-import { connect, disconnect, reconnect } from './soulseek'
+import { connect, connectionError, disconnect, reconnect } from './soulseek'
 
 const hubStates: Record<HubStatus['state'], string> = {
   stopped: 'Not in use',
@@ -131,6 +133,7 @@ function SoulseekPanel({ data, error, known }: ReturnType<typeof useApplication>
   const agent = data?.relayMode === 'Agent'
   const vpn = useOptions()?.vpn === true
   const actions = agent ? [] : actionsFor(data)
+  const failing = data !== undefined && !agent && !data.isLoggedIn
 
   async function run(action: Action) {
     setPending(action)
@@ -157,6 +160,7 @@ function SoulseekPanel({ data, error, known }: ReturnType<typeof useApplication>
             <DataList.Value>{data?.state ?? 'Unknown'}</DataList.Value>
           </DataList.Item>
         )}
+        {failing && <LastError />}
         {data !== undefined && vpn && !agent && (
           <DataList.Item>
             <DataList.Label>VPN</DataList.Label>
@@ -203,8 +207,8 @@ function SoulseekPanel({ data, error, known }: ReturnType<typeof useApplication>
           Changed Soulseek settings apply after a reconnect.
         </Text>
       )}
-      {actions.length > 0 && (
-        <Flex gap="2">
+      {(actions.length > 0 || failing) && (
+        <Flex gap="2" align="center">
           {actions.map((action) => (
             <Button
               key={action}
@@ -218,6 +222,13 @@ function SoulseekPanel({ data, error, known }: ReturnType<typeof useApplication>
               {actionLabels[action]}
             </Button>
           ))}
+          {failing && (
+            <Link asChild size="1" ml="auto">
+              <RouterLink to="/system/logs" search={{ q: 'slskd.Application', level: 'warning' }}>
+                View logs
+              </RouterLink>
+            </Link>
+          )}
         </Flex>
       )}
       {!known && (
@@ -231,5 +242,18 @@ function SoulseekPanel({ data, error, known }: ReturnType<typeof useApplication>
         </Text>
       )}
     </Flex>
+  )
+}
+
+function LastError() {
+  const records = useLogs().data?.records
+  const error = records && connectionError(records)
+  return (
+    error !== undefined && (
+      <DataList.Item>
+        <DataList.Label>Last error</DataList.Label>
+        <DataList.Value>{error}</DataList.Value>
+      </DataList.Item>
+    )
   )
 }

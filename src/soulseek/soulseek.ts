@@ -4,6 +4,7 @@ import { api, describeError } from '../lib/api'
 import { waitFor } from '../lib/store'
 import { sessionSignal } from '../session/session'
 import { application, useApplication } from '../system/application'
+import type { LogRecord } from '../system/logs'
 
 // The reason actions that need Soulseek are disabled, if they are.
 export function useSoulseekGate() {
@@ -37,4 +38,26 @@ export function describePeerError(error: unknown) {
     if (message.includes('Failed to establish a direct or indirect')) return "Couldn't connect to them"
   }
   return describeError(error)
+}
+
+// slskd keeps the reason for a failed connection only in its log. A later attempt, stop or login makes it stale.
+const staleAfter = [
+  'Attempting to connect to the Soulseek server',
+  'Reconnection attempt cancelled',
+  'Connected to the Soulseek server',
+  'Disconnected from the Soulseek server: disconnected by the user',
+]
+
+const failure =
+  /^(?:Failed to reconnect: |Disconnected from the Soulseek server[:;] |Not connecting to the Soulseek server; (?=username))"?/
+
+export function connectionError(records: readonly LogRecord[]) {
+  for (const record of records) {
+    if (record.context !== 'slskd.Application') continue
+    if (staleAfter.some((prefix) => record.firstLine.startsWith(prefix))) return undefined
+    if (record.level !== 'Error' && record.level !== 'Warning') continue
+    const match = failure.exec(record.firstLine)
+    if (match !== null) return record.firstLine.slice(match[0].length)
+  }
+  return undefined
 }

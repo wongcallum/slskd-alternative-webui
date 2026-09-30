@@ -4,15 +4,17 @@ import { expect, jsonString, logInPage, test } from '../fixtures'
 import { sleep } from '../slskd'
 import { startLoggedIn } from '../soulseek'
 
-test('connecting without a Soulseek login shows when it retries, until stopped', async ({ page, api }) => {
+test('connecting without a Soulseek login shows when it retries and why, until stopped', async ({ page, api }) => {
   await page.goto('searches')
   await logInPage(page)
   try {
     await page.getByRole('button', { name: 'Disconnected' }).click()
     await page.getByRole('button', { name: 'Connect', exact: true }).click()
     await expect(page.getByRole('button', { name: /^Retrying at \d/ })).toBeVisible()
+    await expect(page.getByText(/^Username may not be null or an empty string/)).toBeVisible()
     await page.getByRole('button', { name: 'Stop trying' }).click()
     await expect(page.getByRole('button', { name: 'Disconnected' })).toBeVisible()
+    await expect(page.getByText(/^Username may not be null/)).toBeHidden()
   } finally {
     await api.delete('server', jsonString('stopped by a test'))
   }

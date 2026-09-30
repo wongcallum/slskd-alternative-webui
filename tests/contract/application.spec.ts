@@ -1,4 +1,4 @@
-import { contextFor, expect, test } from '../fixtures'
+import { contextFor, expect, jsonString, test } from '../fixtures'
 import { openHub } from '../hub'
 import { timeZone } from '../slskd'
 import * as schemas from './schemas'
@@ -52,6 +52,40 @@ test('logs come over REST, and from the logs hub as a buffer and then one at a t
     schemas.parse(schemas.logs, hub.received('LOG'))
   } finally {
     await hub.stop()
+  }
+})
+
+test('a failed Soulseek connection is only explained in the log, until stopping cancels it', async ({ api }) => {
+  const soulseekLogs = async () =>
+    schemas
+      .parse(schemas.logs, await (await api.get('logs')).json())
+      .filter((log) => log.context === 'slskd.Application')
+  const started = Date.now()
+  try {
+    await api.put('server')
+    let failedAt = 0
+    await expect
+      .poll(async () => {
+        const failed = (await soulseekLogs()).find(
+          (log) =>
+            Date.parse(log.timestamp) >= started - 1000 &&
+            log.level === 'Error' &&
+            log.message.startsWith('Failed to reconnect: "Username may not be null'),
+        )
+        failedAt = failed === undefined ? 0 : Date.parse(failed.timestamp)
+        return failedAt
+      })
+      .toBeGreaterThan(0)
+    await api.delete('server', jsonString('stopped by a test'))
+    await expect
+      .poll(async () =>
+        (await soulseekLogs()).some(
+          (log) => Date.parse(log.timestamp) >= failedAt && log.message === 'Reconnection attempt cancelled',
+        ),
+      )
+      .toBe(true)
+  } finally {
+    await api.delete('server', jsonString('stopped by a test'))
   }
 })
 

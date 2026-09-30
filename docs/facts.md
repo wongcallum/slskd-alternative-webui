@@ -663,6 +663,28 @@ closed`, with a group per port. `exceptions` returns dates without the `Z`. `exc
   `connectionWatchdog`, pushing `STATE` about 10 times a second until a `DELETE`.
 - `DELETE /server` stops the watchdog, aborts any attempt and, if connected, disconnects intentionally, so
   there's no auto-reconnect. It always returns 204.
+- **Why an attempt failed is only in the log.** Neither `STATE` nor `GET /server` carries it. All these records have
+  the context `slskd.Application` (`Core/ConnectionWatchdog.cs:109`, `Application.cs:966-1004`):
+  - Each failed attempt logs an Error `Failed to reconnect: {Message}` with the exception's message, such as
+    `Username may not be null or an empty string (Parameter 'username')`,
+    `Failed to connect: Failed to connect to 127.0.0.1:1025: Connection refused`,
+    `Failed to resolve address 'nonexistent.invalid': Name or service not known` or
+    `The server rejected login attempt: INVALIDPASS`.
+  - Once the socket connected, an Error `Disconnected from the Soulseek server: …` comes first, which names a wrong
+    password or another client logging in as the same user. A lost VPN has `;` after "server" instead of `:`.
+  - Each attempt starts with `Attempting to connect to the Soulseek server...`, with `(#n)` from the second.
+    Stopping during the backoff or an attempt logs `Reconnection attempt cancelled`, and a login logs
+    `Connected to the Soulseek server`.
+  - At startup, missing credentials log a Warning starting
+    `Not connecting to the Soulseek server; username and/or password invalid.`
+  - A templated string is quoted, and the log sink trims only the closing quote (`Program.cs:1282`), so the message
+    reads `Failed to reconnect: "Username may not…` with a lone opening quote.
+  - A retry logs 3 or 4 records at Information and up, so the latest failure usually outlasts even the 5 min
+    backoff in the 100-record buffer, unless something else floods it.
+- A wrong password or being kicked stops the watchdog, so slskd stays disconnected: the TCP connect succeeding stops
+  it (`Application.cs:930`) and neither error restarts it. Anything failing before that retries.
+- `SoulseekClientDisconnected` is raised for a failed attempt only once it reached the TCP connect. A missing
+  username or a failed DNS lookup raises none.
 - The controller returns 403 in relay agent mode.
 
 ## Relay
