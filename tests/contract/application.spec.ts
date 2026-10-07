@@ -1,7 +1,15 @@
+import type { APIRequestContext } from '@playwright/test'
+
 import { contextFor, expect, jsonString, test } from '../fixtures'
 import { openHub } from '../hub'
 import { timeZone } from '../slskd'
 import * as schemas from './schemas'
+
+// slskd 0.26.0 has no logs/live, and the app falls back to logs on its 404.
+async function logBuffer(api: APIRequestContext) {
+  const live = await api.get('logs/live')
+  return schemas.parse(schemas.logs, await (live.status() === 404 ? await api.get('logs') : live).json())
+}
 
 test('the state comes over REST, and from the application hub as it connects', async ({ slskd, api, token }) => {
   schemas.parse(schemas.state, await (await api.get('application')).json())
@@ -38,7 +46,7 @@ test('the metrics hub sends transfer counts as it connects', async ({ slskd, tok
 })
 
 test('logs come over REST, and from the logs hub as a buffer and then one at a time', async ({ slskd, api, token }) => {
-  const logs = schemas.parse(schemas.logs, await (await api.get('logs')).json())
+  const logs = await logBuffer(api)
   expect(logs.length).toBeGreaterThan(0)
   // They're in slskd's local time, which shows the harness put slskd in its zone.
   expect(logs.every((log) => log.timestamp.endsWith(timeZone.offset))).toBe(true)
@@ -56,10 +64,7 @@ test('logs come over REST, and from the logs hub as a buffer and then one at a t
 })
 
 test('a failed Soulseek connection is only explained in the log, until stopping cancels it', async ({ api }) => {
-  const soulseekLogs = async () =>
-    schemas
-      .parse(schemas.logs, await (await api.get('logs')).json())
-      .filter((log) => log.context === 'slskd.Application')
+  const soulseekLogs = async () => (await logBuffer(api)).filter((log) => log.context === 'slskd.Application')
   const started = Date.now()
   try {
     await api.put('server')

@@ -341,6 +341,9 @@ observed on throwaway instances of the dev build and the 0.26.0 release binary.
 
 ## Logs
 
+- REST serves the buffer at `GET /logs` in 0.26.0, and at `GET /logs/live` since slskd#1865 (master `2d432e5`), which
+  also limits it to the Administrator role. Each version 404s the other's route, with an empty body
+  (`Core/API/Controllers/LogsController.cs`).
 - The buffer is the last 100 records, held in memory (`Program.cs`, `LogBuffer`), so a restart empties it.
 - A record (`Common/Logging/LogRecord.cs`, filled in by the `DelegatingSink` in `Program.cs`):
   - `timestamp` is the server's local time with its offset.

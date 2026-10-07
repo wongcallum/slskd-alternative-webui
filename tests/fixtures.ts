@@ -139,6 +139,9 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
     page.on('console', (message) => {
       if (message.type() !== 'error') return
       if (failedRequests && /^(Failed to load resource|WebSocket connection)/.test(message.text())) return
+      // On slskd 0.26.0, the app's first request for the log buffer in each page load is a 404 at logs/live.
+      const status404 = message.text().startsWith('Failed to load resource: the server responded with a status of 404')
+      if (status404 && message.location().url.endsWith('/api/v0/logs/live')) return
       errors.push(message.text())
     })
     await use(page)
