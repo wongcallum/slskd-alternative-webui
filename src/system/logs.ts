@@ -1,9 +1,11 @@
+import { isHTTPError } from 'ky'
+
 import { api } from '../lib/api'
 import { followHub, logsHub, useLiveResource, type Via } from '../lib/hubs'
 import { createResource } from '../lib/store'
 import { queryMatcher } from '../lib/text'
 
-// GET /logs omits a null subContext, while the hub keeps it.
+// REST omits a null subContext, while the hub keeps it.
 export type RawLog = { timestamp: string; context: string; subContext?: string | null; level: Level; message: string }
 
 const levels = ['Verbose', 'Debug', 'Information', 'Warning', 'Error', 'Fatal'] as const
@@ -57,6 +59,20 @@ function toRecord(raw: RawLog, key: string): LogRecord {
   }
 }
 
+// slskd 0.26.0 serves the buffer at logs, and later ones only at logs/live.
+let bufferPath = 'logs/live'
+
+async function getBuffer(signal: AbortSignal) {
+  const path = bufferPath
+  try {
+    return await api.get(path, { signal }).text()
+  } catch (error) {
+    if (!isHTTPError(error) || error.response.status !== 404) throw error
+    bufferPath = path === 'logs' ? 'logs/live' : 'logs'
+    return api.get(bufferPath, { signal }).text()
+  }
+}
+
 const byNewest = (a: LogRecord, b: LogRecord) => b.time - a.time || b.id - a.id
 
 // Every buffer overlaps what's held, and a record logged while the hub connects can arrive both buffered and pushed.
@@ -94,9 +110,9 @@ export const logs = createResource<Logs>((sink) => {
     }),
   ]
   const following = followHub(logsHub, sink, {
-    snapshot: async (signal) => merge('hub', await api.get('logs', { signal }).json<RawLog[]>()),
+    snapshot: async (signal) => merge('hub', JSON.parse(await getBuffer(signal)) as RawLog[]),
     request: async (signal, measure) => {
-      const text = await api.get('logs', { signal }).text()
+      const text = await getBuffer(signal)
       return measure(() => merge('poll', JSON.parse(text) as RawLog[]))
     },
     interval: logPollInterval,
