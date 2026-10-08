@@ -36,7 +36,7 @@ export type RawUser = { username: string; directories: { directory: string; file
 
 export type Transfer = RawTransfer & { kind: 'file'; username: string; directory: string; name: string; search: string }
 
-type Folder = { total: number; succeeded: number; failed: number; cancelled: number }
+type Folder = { total: number; succeeded: number; succeededBytes: number; failed: number; cancelled: number }
 
 export type Group = {
   kind: 'group'
@@ -108,8 +108,9 @@ const toTransfer = (raw: RawTransfer, username: string, directory: string): Tran
 })
 
 function buildGroup(section: Section, username: string, directory: string, files: Transfer[], folder: Folder): Group {
-  let size = 0
-  let bytesTransferred = 0
+  // An active group's progress counts the folder's succeeded files, which sit in the finished group.
+  let size = section === 'active' ? folder.succeededBytes : 0
+  let bytesTransferred = size
   let speed = 0
   let time = 0
   let failed = 0
@@ -163,6 +164,7 @@ function merge(
       old.files.length === files.length &&
       old.folder.total === folder.total &&
       old.folder.succeeded === folder.succeeded &&
+      old.folder.succeededBytes === folder.succeededBytes &&
       old.folder.failed === folder.failed &&
       old.folder.cancelled === folder.cancelled &&
       files.every((file) => previous?.byId.get(file.id) === file)
@@ -174,6 +176,7 @@ function merge(
       const active: Transfer[] = []
       const finished: Transfer[] = []
       let succeeded = 0
+      let succeededBytes = 0
       let cancelled = 0
       for (const raw of files) {
         const old = previous?.byId.get(raw.id)
@@ -189,8 +192,10 @@ function merge(
         byId.set(file.id, file)
         if (isFinished(file.state)) {
           finished.push(file)
-          if (isSucceeded(file.state)) succeeded++
-          else if (isCancelled(file.state)) cancelled++
+          if (isSucceeded(file.state)) {
+            succeeded++
+            succeededBytes += file.size
+          } else if (isCancelled(file.state)) cancelled++
         } else {
           active.push(file)
           if (isTransferring(file.state)) totals.transferring++
@@ -201,7 +206,7 @@ function merge(
       totals.succeeded += succeeded
       totals.failed += failed
       totals.cancelled += cancelled
-      const folder = { total: files.length, succeeded, failed, cancelled }
+      const folder = { total: files.length, succeeded, succeededBytes, failed, cancelled }
       if (active.length > 0) place('active', username, directory, active, folder)
       if (finished.length > 0) place('finished', username, directory, finished, folder)
     }
