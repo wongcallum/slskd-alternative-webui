@@ -41,7 +41,8 @@ test('a column is resized from its edge or the keyboard or hidden and kept, and 
   const row = pane.getByRole('row', { name: /Resized\.flac/ }).locator('.table-row')
   await expect(row).toBeVisible()
   // The checkbox column comes with the options, which can arrive after the listing.
-  await expect(pane.getByRole('checkbox', { name: 'Select all' })).toBeVisible()
+  const selectAll = pane.getByRole('checkbox', { name: 'Select all' })
+  await expect(selectAll).toBeVisible()
   const sort = pane.getByRole('button', { name: 'Size', exact: true })
   const cell = (label: string) =>
     header.locator('.table-cell').filter({ has: page.getByRole('button', { name: label, exact: true }) })
@@ -67,7 +68,7 @@ test('a column is resized from its edge or the keyboard or hidden and kept, and 
   expect(await widths(row)).toEqual(dragged)
 
   await page.reload()
-  await expect(row).toBeVisible()
+  await expect(selectAll).toBeVisible()
   expect(await widths(header)).toEqual(dragged)
   await sort.focus()
   await page.keyboard.press('Shift+ArrowRight')
