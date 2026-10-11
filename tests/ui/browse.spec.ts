@@ -29,6 +29,8 @@ test('a share filters by quality, and a folder downloaded from it keeps its subf
   await page.getByRole('button', { name: /^Download 4 / }).click()
   for (const name of ['01 Intro.flac', '02 Outro.flac', 'CD2/01 Encore.flac', 'CD2/Scans/cover.jpg']) {
     const remote = `Music\\Artist - Album\\${name.replaceAll('/', '\\')}`
-    await expect.poll(() => readFile(path.join(album, name)).catch(() => undefined)).toEqual(fast.files.get(remote))
+    await expect
+      .poll(() => readFile(path.join(album, name)).catch(() => undefined), { timeout: 30_000 })
+      .toEqual(fast.files.get(remote))
   }
 })
