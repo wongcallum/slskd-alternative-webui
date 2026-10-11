@@ -91,8 +91,8 @@ function detectSeparator(directories: readonly InputDirectory[]) {
   return slashes > backslashes ? '/' : '\\'
 }
 
-// Files are left in the listed order, and sorted in place the first time a folder is shown or matched: sorting them
-// all takes longer than the rest of the build.
+// Files are left in the listed order, and sorted in place the first time they're needed in order: sorting them all
+// takes longer than the rest of the build.
 const sorted = new WeakSet<Folder>()
 
 export function sortedFiles(folder: Folder) {
@@ -297,7 +297,7 @@ export function matchesUnder(folder: Folder, matches: Matches) {
 export function filesUnder(folder: Folder, withLocked = false) {
   const files: TreeFile[] = []
   function visit(current: Folder) {
-    for (const file of current.files) if (withLocked || !file.locked) files.push(file)
+    for (const file of sortedFiles(current)) if (withLocked || !file.locked) files.push(file)
     for (const child of current.folders) visit(child)
   }
   visit(folder)
