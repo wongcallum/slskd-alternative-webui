@@ -237,32 +237,48 @@ function fileMatcher(tree: Tree, terms: Terms) {
   }
 }
 
+// Every path the next terms match, the previous ones matched too.
+const narrows = (next: Terms | undefined, previous: Terms | undefined) =>
+  previous === undefined ||
+  (next !== undefined &&
+    previous.include.every((term) => next.include.some((each) => each.includes(term))) &&
+    previous.exclude.every((term) => next.exclude.some((each) => term.includes(each))))
+
+const sameCriteria = (a: Criteria, b: Criteria) =>
+  a.quality === b.quality && a.lossy === b.lossy && a.size === b.size && a.length === b.length
+
+// A tree's last match, from which a narrower query, such as one being typed, only has to look through what it found.
+const lastMatches = new WeakMap<Tree, { terms?: Terms; criteria: Criteria; matches: Matches }>()
+
 export function matchTree(tree: Tree, query: string, criteria: Criteria): Matches | undefined {
   const terms = queryTerms(query)
   const judged = judging(criteria)
   if (terms === undefined && !judged) return undefined
+  const last = lastMatches.get(tree)
+  const previous =
+    last !== undefined && sameCriteria(last.criteria, criteria) && narrows(terms, last.terms) ? last.matches : undefined
   const matcher = terms && fileMatcher(tree, terms)
   const own = new Map<Folder, TreeFile[]>()
-  const counts = new Map<Folder, number>()
-  const visit = (folder: Folder): number => {
-    let count = 0
-    const files = sortedFiles(folder)
-    const matches = matcher?.(folder) ?? true
+  const visit = (folder: Folder, files: TreeFile[]) => {
+    const matches = files.length === 0 || (matcher?.(folder) ?? true)
     let matched = matches === true ? files : matches === false ? [] : files.filter(matches)
     if (judged) {
       matched = matched.filter((file) => passes(criteria, file))
       if (!matched.some(hasAttributes)) matched = []
     }
-    if (matched.length > 0) {
-      own.set(folder, matched)
-      count += matched.length
-    }
-    for (const child of folder.folders) count += visit(child)
-    if (count > 0) counts.set(folder, count)
-    return count
+    if (matched.length > 0) own.set(folder, matched)
   }
-  visit(tree.top)
-  return { own, counts }
+  if (previous === undefined) for (const folder of tree.byPath.values()) visit(folder, sortedFiles(folder))
+  else for (const [folder, files] of previous.own) visit(folder, files)
+  const counts = new Map<Folder, number>()
+  for (const [folder, matched] of own) {
+    for (let current: Folder | undefined = folder; current !== undefined; current = current.parent) {
+      counts.set(current, (counts.get(current) ?? 0) + matched.length)
+    }
+  }
+  const matches = { own, counts }
+  lastMatches.set(tree, { terms, criteria, matches })
+  return matches
 }
 
 export function matchesUnder(folder: Folder, matches: Matches) {
