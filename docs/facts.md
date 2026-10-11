@@ -676,8 +676,12 @@ closed`, with a group per port. `exceptions` returns dates without the `Z`. `exc
   - Once the socket connected, an Error `Disconnected from the Soulseek server: …` comes first, which names a wrong
     password or another client logging in as the same user. A lost VPN has `;` after "server" instead of `:`.
   - Each attempt starts with `Attempting to connect to the Soulseek server...`, with `(#n)` from the second.
-    Stopping during the backoff or an attempt logs `Reconnection attempt cancelled`, and a login logs
-    `Connected to the Soulseek server`.
+    Stopping during the backoff, or during an attempt that the stop cancels, logs `Reconnection attempt cancelled`,
+    and a login logs `Connected to the Soulseek server`.
+  - A stop that lands as an attempt fails for another reason logs nothing more: the attempt logs its
+    `Failed to reconnect`, and the loop then sees the watchdog is off and returns (`Core/ConnectionWatchdog.cs:259`).
+    Observed with a missing username in 3 of 60 stops sent 1–5 ms before a retry, and in CI. `isAttemptingConnection`
+    goes false either way.
   - At startup, missing credentials log a Warning starting
     `Not connecting to the Soulseek server; username and/or password invalid.`
   - A templated string is quoted, and the log sink trims only the closing quote (`Program.cs:1282`), so the message

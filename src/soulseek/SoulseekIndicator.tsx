@@ -160,7 +160,7 @@ function SoulseekPanel({ data, error, known }: ReturnType<typeof useApplication>
             <DataList.Value>{data?.state ?? 'Unknown'}</DataList.Value>
           </DataList.Item>
         )}
-        {failing && <LastError />}
+        {failing && <LastError attempting={data.attemptingConnection} />}
         {data !== undefined && vpn && !agent && (
           <DataList.Item>
             <DataList.Label>VPN</DataList.Label>
@@ -245,9 +245,9 @@ function SoulseekPanel({ data, error, known }: ReturnType<typeof useApplication>
   )
 }
 
-function LastError() {
+function LastError({ attempting }: { attempting: boolean }) {
   const records = useLogs().data?.records
-  const error = records && connectionError(records)
+  const error = records && connectionError(records, attempting)
   return (
     error !== undefined && (
       <DataList.Item>
