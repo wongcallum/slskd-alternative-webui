@@ -1,5 +1,6 @@
 import { MinusIcon, PlusIcon, TargetIcon } from '@radix-ui/react-icons'
 import { Button, Flex } from '@radix-ui/themes'
+import { useDebouncedValue } from '@tanstack/react-pacer'
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 
 import { type Criteria, unjudged } from '../../lib/criteria'
@@ -38,7 +39,9 @@ export function TreeView<S extends string>({
   const [treeShown, setTreeShown] = useState(false)
   const [reveal, setReveal] = useState(0)
   const filter = useFilterText(search.q, (q) => onSearchChange({ q }))
-  const matches = useMemo(() => matchTree(tree, filter.query, criteria), [tree, filter.query, criteria])
+  // A big share takes long enough to filter that each letter typed quickly would hold up the next.
+  const [query] = useDebouncedValue(filter.query, { wait: 150 })
+  const matches = useMemo(() => matchTree(tree, query, criteria), [tree, query, criteria])
   const folder = useMemo(() => nearestFolder(tree, search.path), [tree, search.path])
   const { sorting, onSortingChange } = useSortParam(search.sort, (sort) => onSearchChange({ sort }))
   useEffect(() => expandTo(tree, folder, false), [tree, folder])
