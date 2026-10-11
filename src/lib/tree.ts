@@ -1,6 +1,6 @@
 import { type Criteria, hasAttributes, judging, passes } from './criteria'
 import { describeRange, qualityOf, type RawFile, widenRange } from './files'
-import { byName, queryMatcher } from './text'
+import { byName, matchesTerms, queryTerms, type Terms } from './text'
 
 type InputFile = RawFile & { modifiedAt?: number; hidden?: boolean; link?: boolean }
 
@@ -212,19 +212,43 @@ export function nearestFolder(tree: Tree, path: string) {
 // Matching files per folder, and the recursive count of matches for every folder that leads to one.
 export type Matches = { own: ReadonlyMap<Folder, TreeFile[]>; counts: ReadonlyMap<Folder, number> }
 
+const pattern = (term: string) => new RegExp(term.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&'), 'iu')
+
+// A file matches a term when its path does. Terms without the separator can't span the folder and the name, so a term
+// in the folder's path covers all its files, and the rest are tested against each name without building its path.
+function fileMatcher(tree: Tree, terms: Terms) {
+  const { separator } = tree
+  const patterns = new Map([...terms.include, ...terms.exclude].map((term) => [term, pattern(term)]))
+  const spanning = [...patterns.keys()].some((term) => term.includes(separator))
+  const tester = (include: readonly string[]) => {
+    const wanted = include.map((term) => patterns.get(term) ?? pattern(term))
+    const unwanted = terms.exclude.map((term) => patterns.get(term) ?? pattern(term))
+    return (file: TreeFile) =>
+      wanted.every((each) => each.test(file.name)) && !unwanted.some((each) => each.test(file.name))
+  }
+  const anywhere = tester(terms.include)
+  return (folder: Folder): ((file: TreeFile) => boolean) | boolean => {
+    const path = folder.search
+    if (spanning) return (file) => matchesTerms(terms, path + separator + file.name.toLowerCase())
+    if (terms.exclude.some((term) => path.includes(term))) return false
+    if (!terms.include.some((term) => path.includes(term))) return anywhere
+    const include = terms.include.filter((term) => !path.includes(term))
+    return include.length + terms.exclude.length === 0 || tester(include)
+  }
+}
+
 export function matchTree(tree: Tree, query: string, criteria: Criteria): Matches | undefined {
-  const matches = queryMatcher(query)
+  const terms = queryTerms(query)
   const judged = judging(criteria)
-  if (matches === undefined && !judged) return undefined
+  if (terms === undefined && !judged) return undefined
+  const matcher = terms && fileMatcher(tree, terms)
   const own = new Map<Folder, TreeFile[]>()
   const counts = new Map<Folder, number>()
   const visit = (folder: Folder): number => {
     let count = 0
     const files = sortedFiles(folder)
-    let matched =
-      matches === undefined
-        ? files
-        : files.filter((file) => matches(folder.search + tree.separator + file.name.toLowerCase()))
+    const matches = matcher?.(folder) ?? true
+    let matched = matches === true ? files : matches === false ? [] : files.filter(matches)
     if (judged) {
       matched = matched.filter((file) => passes(criteria, file))
       if (!matched.some(hasAttributes)) matched = []

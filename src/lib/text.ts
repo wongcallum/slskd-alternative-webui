@@ -19,8 +19,10 @@ export const byName = <T extends { name: string }>(a: T, b: T) => compareExactly
 
 export const byUsername = <T extends { username: string }>(a: T, b: T) => compareExactly(a.username, b.username)
 
+export type Terms = { include: string[]; exclude: string[] }
+
 // Undefined when the query has no words to match.
-export function queryMatcher(query: string) {
+export function queryTerms(query: string): Terms | undefined {
   const include: string[] = []
   const exclude: string[] = []
   for (const term of query.toLowerCase().split(/\s+/)) {
@@ -28,6 +30,13 @@ export function queryMatcher(query: string) {
       if (term !== '') include.push(term)
     } else if (term.length > 1) exclude.push(term.slice(1))
   }
-  if (include.length + exclude.length === 0) return undefined
-  return (text: string) => include.every((term) => text.includes(term)) && !exclude.some((term) => text.includes(term))
+  return include.length + exclude.length === 0 ? undefined : { include, exclude }
+}
+
+export const matchesTerms = ({ include, exclude }: Terms, text: string) =>
+  include.every((term) => text.includes(term)) && !exclude.some((term) => text.includes(term))
+
+export function queryMatcher(query: string) {
+  const terms = queryTerms(query)
+  return terms && ((text: string) => matchesTerms(terms, text))
 }
