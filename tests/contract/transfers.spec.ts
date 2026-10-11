@@ -117,6 +117,8 @@ test("an enqueue for a user who isn't online is a 404", async ({ api }) => {
 })
 
 test('an enqueue is refused with a 429 while two others are being handled', async ({ api, peers: { fast } }) => {
+  // Inserting the big batch takes about 2 s, but over 15 s on a loaded machine.
+  test.setTimeout(90_000)
   const tag = randomUUID()
   // slskd can be slow to take requests while it inserts a big batch, so now and then both small ones get in after it.
   await expect(async () => {
@@ -139,7 +141,7 @@ test('an enqueue is refused with a 429 while two others are being handled', asyn
     const small = await Promise.all([post('a', 1), post('b', 1)])
     expect((await big).status()).toBe(201)
     expect(small.map((response) => response.status()).sort((a, b) => a - b)).toEqual([201, 429])
-  }).toPass({ timeout: 15_000 })
+  }).toPass({ timeout: 60_000 })
   // The peer rejects every file. Clearing them keeps the list short for the tests after.
   await expect
     .poll(
