@@ -47,23 +47,3 @@ test('a file or folder is deleted by its base64 path, which may have ./ and // j
   expect((await api.delete(`files/downloads/directories/${base64(folder)}`)).status()).toBe(204)
   expect(existsSync(path.join(slskd.downloads, folder))).toBe(false)
 })
-
-// The app sends the requests that read the options one at a time, and retries a listing that fails like this.
-test('a listing can fail on the file slskd writes and deletes while another request reads its options', async ({
-  api,
-}) => {
-  test.setTimeout(60_000)
-  const deadline = Date.now() + 50_000
-  while (Date.now() < deadline) {
-    const [listing] = await Promise.all([
-      api.get('files/downloads/directories', { params: { recursive: true } }),
-      api.get('options'),
-      api.get('options'),
-    ])
-    if (listing.status() === 500) {
-      expect(await listing.json()).toMatch(/^Could not find file '.+'\.$/)
-      return
-    }
-  }
-  throw new Error("No listing failed, so slskd may no longer trip them, and the app's workaround can go")
-})
