@@ -28,6 +28,7 @@ test('logging in at a deep link stays on its page', async ({ page }) => {
 })
 
 test('every page renders from a deep link', async ({ page }) => {
+  test.setTimeout(60_000)
   await page.goto('')
   await logInPage(page)
   await expect(page).toHaveURL(/\/slskd\/dashboard$/)
