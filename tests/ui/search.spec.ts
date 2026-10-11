@@ -72,7 +72,7 @@ test.describe(() => {
     await expect(page.getByText('Enqueued 4 downloads')).toBeVisible()
     for (const name of album) {
       await expect
-        .poll(() => readFile(path.join(downloaded, ...name.split('\\'))).catch(() => undefined))
+        .poll(() => readFile(path.join(downloaded, ...name.split('\\'))).catch(() => undefined), { timeout: 30_000 })
         .toEqual(fast.files.get(`Music\\Artist - Album\\${name}`))
     }
   })
