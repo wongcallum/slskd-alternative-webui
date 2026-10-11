@@ -56,12 +56,14 @@ export function useAppKeys() {
     { meta: { name: 'Show these keys', group: 'app' } },
   )
   useHotkeySequences(
-    (agent === false ? pages : pages.filter(([, to]) => to === '/system')).map(([key, to, label]) => ({
+    // The list keeps every page so a sequence keeps its place in it: the hook re-registers one that moves, which
+    // drops a pending g.
+    pages.map(([key, to, label]) => ({
       sequence: ['G', key],
       callback: (event) => {
         if (!inOverlay(event)) void navigate({ to })
       },
-      options: { meta: { name: `Go to ${label}`, group: 'app' } },
+      options: { enabled: agent === false || to === '/system', meta: { name: `Go to ${label}`, group: 'app' } },
     })),
   )
 }
@@ -159,7 +161,9 @@ function Contents() {
   const { hotkeys, sequences } = useHotkeyRegistrations()
   const anywhere = rowsOf([
     ...hotkeys.filter(inGroup('app')).map(view),
-    ...sequences.filter(inGroup('app')).map((each) => ({ name: each.options.meta?.name, keys: each.sequence })),
+    ...sequences
+      .filter((each) => inGroup('app')(each) && each.options.enabled !== false)
+      .map((each) => ({ name: each.options.meta?.name, keys: each.sequence })),
   ])
   const page = rowsOf([...hotkeys.filter(inGroup('page')).map(view), ...hotkeys.filter(inGroup('list')).map(view)])
   const fixed = (keys: typeof listKeys) => keys.map(([each, name]) => ({ name, keys: each.map((key) => [key]) }))
