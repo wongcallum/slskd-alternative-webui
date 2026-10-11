@@ -1,12 +1,6 @@
 import { ChevronDownIcon, ChevronRightIcon, LockClosedIcon } from '@radix-ui/react-icons'
 import { Box, Text } from '@radix-ui/themes'
-import {
-  createExpandedRowModel,
-  type ExpandedStateList,
-  rowExpandingFeature,
-  tableFeatures,
-  useTable,
-} from '@tanstack/react-table'
+import type { ExpandedStateList } from '@tanstack/react-table'
 import { type ComponentType, memo, useCallback, useMemo, useState } from 'react'
 
 import { useFrom, useTouch } from '../../lib/media'
@@ -15,10 +9,8 @@ import type { Folder, Matches, Tree as FolderTree } from '../../lib/tree'
 import { focusList } from '../focus'
 import { useListKeys } from '../keys'
 import { useListNav } from '../listNav'
-import { type Expansion, expandedState, isExpanded, rowId, stop, toggleExpanded, VirtualTable } from '../table'
+import { type Expansion, isExpanded, rowId, stop, toggleExpanded, VirtualTable } from '../table'
 import { type KeysProps, upKeys } from './keys'
-
-const treeFeatures = tableFeatures({ rowExpandingFeature, expandedRowModel: createExpandedRowModel() })
 
 const expansions = createAtom<ReadonlyMap<string, Expansion>>(new Map())
 
@@ -42,10 +34,6 @@ export function updateExpansion(tree: FolderTree, change: (expansion: Expansion)
   })
 }
 
-function* parentsIn(tree: FolderTree) {
-  for (const folder of tree.byPath.values()) if (folder.folders.length > 0) yield folder
-}
-
 export function expandTo(tree: FolderTree, folder: Folder, self: boolean) {
   updateExpansion(tree, (expansion) => {
     const closed: Folder[] = []
@@ -57,6 +45,33 @@ export function expandTo(tree: FolderTree, folder: Folder, self: boolean) {
     for (const each of closed) toggled[each.id] = true
     return { ...expansion, toggled }
   })
+}
+
+type FolderRow = {
+  id: string
+  folder: Folder
+  depth: number
+  index: number
+  siblings: number
+  parent: boolean
+  open: boolean
+}
+
+// Built by hand rather than with TanStack, whose row models visit every folder in the share, open or not.
+function visibleRows(tree: FolderTree, matches: Matches | undefined, expansion: Expansion) {
+  const rows: FolderRow[] = []
+  const childrenOf = (folder: Folder) =>
+    matches === undefined ? folder.folders : folder.folders.filter((each) => matches.counts.has(each))
+  const visit = (folders: Folder[], depth: number) => {
+    for (const [index, folder] of folders.entries()) {
+      const children = childrenOf(folder)
+      const open = matches !== undefined || isExpanded(expansion, folder.id)
+      rows.push({ id: folder.id, folder, depth, index, siblings: folders.length, parent: children.length > 0, open })
+      if (open && children.length > 0) visit(children, depth + 1)
+    }
+  }
+  visit(childrenOf(tree.top), 0)
+  return rows
 }
 
 type TreeProps = {
@@ -77,25 +92,7 @@ export function Tree({ tree, selected, matches, onOpen, onUp, reveal, Keys }: Tr
   const touch = useTouch()
   const stored = useAtom(expansions).get(tree.key)
   const expansion = useMemo(() => stored ?? initialExpansion(tree), [stored, tree])
-  const expanded = useMemo(
-    () => matches !== undefined || expandedState(expansion, parentsIn(tree)),
-    [tree, matches, expansion],
-  )
-  const roots = useMemo(
-    () => (matches === undefined ? tree.top.folders : tree.top.folders.filter((each) => matches.counts.has(each))),
-    [tree, matches],
-  )
-  const table = useTable({
-    features: treeFeatures,
-    columns: [],
-    data: roots,
-    getRowId: (folder) => folder.id,
-    getSubRows: (folder) =>
-      matches === undefined ? folder.folders : folder.folders.filter((each) => matches.counts.has(each)),
-    autoResetExpanded: false,
-    state: { expanded },
-  })
-  const rows = table.getRowModel().rows
+  const rows = useMemo(() => visibleRows(tree, matches, expansion), [tree, matches, expansion])
   const onToggle = useCallback(
     (folder: Folder) => updateExpansion(tree, (current) => toggleExpanded(current, folder.id)),
     [tree],
@@ -110,17 +107,17 @@ export function Tree({ tree, selected, matches, onOpen, onUp, reveal, Keys }: Tr
     role: 'tree',
     label: 'Folders',
     depth: (row) => row.depth,
-    canToggle: (row) => !filtered && row.original.folders.length > 0,
-    isOpen: (row) => row.getIsExpanded(),
-    onToggle: (row) => onToggle(row.original),
+    canToggle: (row) => !filtered && row.parent,
+    isOpen: (row) => row.open,
+    onToggle: (row) => onToggle(row.folder),
     // Enter opens a folder, and on the open one goes into it.
-    onEnter: (row) => (row.original === selected ? focusList('pane') : onOpen(row.original)),
+    onEnter: (row) => (row.folder === selected ? focusList('pane') : onOpen(row.folder)),
     aria: (row) => ({
       'aria-level': row.depth + 1,
-      'aria-setsize': (row.getParentRow()?.subRows ?? roots).length,
+      'aria-setsize': row.siblings,
       'aria-posinset': row.index + 1,
-      'aria-expanded': row.subRows.length > 0 ? row.getIsExpanded() : undefined,
-      'aria-selected': row.original === selected,
+      'aria-expanded': row.parent ? row.open : undefined,
+      'aria-selected': row.folder === selected,
     }),
   })
   useListKeys(nav.containerRef, upKeys(onUp))
@@ -148,7 +145,7 @@ export function Tree({ tree, selected, matches, onOpen, onUp, reveal, Keys }: Tr
           target={nav.containerRef}
           tree
           selection={() => {
-            const folder = nav.focused()?.original
+            const folder = nav.focused()?.folder
             return folder && { tree, folder, items: [folder], clear: noop }
           }}
         />
@@ -160,12 +157,12 @@ export function Tree({ tree, selected, matches, onOpen, onUp, reveal, Keys }: Tr
         reveal={{ key: `${selected.id}\n${matches === undefined}`, index: selectedIndex }}
         nav={nav}
         renderItem={(row) => {
-          const folder = row.original
+          const folder = row.folder
           return (
             <TreeRow
               folder={folder}
               depth={row.depth}
-              expanded={matches !== undefined || isExpanded(expansion, folder.id)}
+              expanded={row.open}
               selected={folder === selected}
               count={matches?.counts.get(folder) ?? folder.fileCount}
               filtered={matches !== undefined}
