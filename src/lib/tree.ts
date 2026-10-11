@@ -21,6 +21,7 @@ export type TreeFile = {
   hidden: boolean
   link: boolean
   modifiedAt?: number
+  search: string
 }
 
 // Totals are recursive. The tree's top is a folder too, with an empty path.
@@ -189,6 +190,7 @@ export function buildTree({
           hidden: file.hidden === true,
           link: file.link === true,
           modifiedAt: file.modifiedAt,
+          search: filename.slice(prefix.length).toLowerCase(),
         })
       }
     }
@@ -212,24 +214,19 @@ export function nearestFolder(tree: Tree, path: string) {
 // Matching files per folder, and the recursive count of matches for every folder that leads to one.
 export type Matches = { own: ReadonlyMap<Folder, TreeFile[]>; counts: ReadonlyMap<Folder, number> }
 
-const pattern = (term: string) => new RegExp(term.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&'), 'iu')
-
 // A file matches a term when its path does. Terms without the separator can't span the folder and the name, so a term
 // in the folder's path covers all its files, and the rest are tested against each name without building its path.
 function fileMatcher(tree: Tree, terms: Terms) {
   const { separator } = tree
-  const patterns = new Map([...terms.include, ...terms.exclude].map((term) => [term, pattern(term)]))
-  const spanning = [...patterns.keys()].some((term) => term.includes(separator))
-  const tester = (include: readonly string[]) => {
-    const wanted = include.map((term) => patterns.get(term) ?? pattern(term))
-    const unwanted = terms.exclude.map((term) => patterns.get(term) ?? pattern(term))
-    return (file: TreeFile) =>
-      wanted.every((each) => each.test(file.name)) && !unwanted.some((each) => each.test(file.name))
+  const spanning = [...terms.include, ...terms.exclude].some((term) => term.includes(separator))
+  const tester = (include: string[]) => {
+    const remaining = { include, exclude: terms.exclude }
+    return (file: TreeFile) => matchesTerms(remaining, file.search)
   }
   const anywhere = tester(terms.include)
   return (folder: Folder): ((file: TreeFile) => boolean) | boolean => {
     const path = folder.search
-    if (spanning) return (file) => matchesTerms(terms, path + separator + file.name.toLowerCase())
+    if (spanning) return (file) => matchesTerms(terms, path + separator + file.search)
     if (terms.exclude.some((term) => path.includes(term))) return false
     if (!terms.include.some((term) => path.includes(term))) return anywhere
     const include = terms.include.filter((term) => !path.includes(term))
