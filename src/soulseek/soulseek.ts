@@ -51,13 +51,15 @@ const staleAfter = [
 const failure =
   /^(?:Failed to reconnect: |Disconnected from the Soulseek server[:;] |Not connecting to the Soulseek server; (?=username))"?/
 
-export function connectionError(records: readonly LogRecord[]) {
+export function connectionError(records: readonly LogRecord[], attempting: boolean) {
   for (const record of records) {
     if (record.context !== 'slskd.Application') continue
     if (staleAfter.some((prefix) => record.firstLine.startsWith(prefix))) return undefined
     if (record.level !== 'Error' && record.level !== 'Warning') continue
     const match = failure.exec(record.firstLine)
-    if (match !== null) return record.firstLine.slice(match[0].length)
+    // A stop that lands as an attempt fails ends the retries without logging that they were cancelled.
+    if (match === null || (!attempting && match[0].startsWith('Failed to reconnect'))) continue
+    return record.firstLine.slice(match[0].length)
   }
   return undefined
 }

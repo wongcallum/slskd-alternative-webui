@@ -63,32 +63,26 @@ test('logs come over REST, and from the logs hub as a buffer and then one at a t
   }
 })
 
-test('a failed Soulseek connection is only explained in the log, until stopping cancels it', async ({ api }) => {
-  const soulseekLogs = async () => (await logBuffer(api)).filter((log) => log.context === 'slskd.Application')
+test('a failed Soulseek connection is only explained in the log, and is retried until stopped', async ({ api }) => {
+  const attempting = async () =>
+    schemas.parse(schemas.state, await (await api.get('application')).json()).connectionWatchdog.isAttemptingConnection
   const started = Date.now()
   try {
     await api.put('server')
-    let failedAt = 0
     await expect
-      .poll(async () => {
-        const failed = (await soulseekLogs()).find(
+      .poll(async () =>
+        (await logBuffer(api)).some(
           (log) =>
+            log.context === 'slskd.Application' &&
             Date.parse(log.timestamp) >= started - 1000 &&
             log.level === 'Error' &&
             log.message.startsWith('Failed to reconnect: "Username may not be null'),
-        )
-        failedAt = failed === undefined ? 0 : Date.parse(failed.timestamp)
-        return failedAt
-      })
-      .toBeGreaterThan(0)
-    await api.delete('server', jsonString('stopped by a test'))
-    await expect
-      .poll(async () =>
-        (await soulseekLogs()).some(
-          (log) => Date.parse(log.timestamp) >= failedAt && log.message === 'Reconnection attempt cancelled',
         ),
       )
       .toBe(true)
+    expect(await attempting()).toBe(true)
+    await api.delete('server', jsonString('stopped by a test'))
+    await expect.poll(attempting).toBe(false)
   } finally {
     await api.delete('server', jsonString('stopped by a test'))
   }

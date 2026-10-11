@@ -82,6 +82,7 @@ export type Application = {
   isConnected: boolean
   isLoggedIn: boolean
   isTransitioning: boolean
+  attemptingConnection: boolean
   retryingAt?: number
   username?: string
   privilegeSeconds: number
@@ -150,6 +151,7 @@ function fromState(via: Via, state: RawState): Application {
     isConnected: server.isConnected,
     isLoggedIn: server.isLoggedIn,
     isTransitioning: server.isTransitioning,
+    attemptingConnection: state.connectionWatchdog.isAttemptingConnection,
     retryingAt:
       state.connectionWatchdog.isAttemptingConnection && state.connectionWatchdog.nextAttemptAt
         ? toTime(state.connectionWatchdog.nextAttemptAt)
