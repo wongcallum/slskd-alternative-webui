@@ -90,8 +90,18 @@ function detectSeparator(directories: readonly InputDirectory[]) {
   return slashes > backslashes ? '/' : '\\'
 }
 
-// Files are left in the listed order, and sorted where a folder is shown: sorting them all takes longer than the
-// rest of the build.
+// Files are left in the listed order, and sorted in place the first time a folder is shown or filtered: sorting them
+// all takes longer than the rest of the build.
+const sorted = new WeakSet<Folder>()
+
+export function sortedFiles(folder: Folder) {
+  if (!sorted.has(folder)) {
+    folder.files.sort(byName)
+    sorted.add(folder)
+  }
+  return folder.files
+}
+
 function total(folder: Folder) {
   folder.folders.sort(byName)
   for (const file of folder.files) {
@@ -210,16 +220,17 @@ export function matchTree(tree: Tree, query: string, criteria: Criteria): Matche
   const counts = new Map<Folder, number>()
   const visit = (folder: Folder): number => {
     let count = 0
+    const files = sortedFiles(folder)
     let matched =
       matches === undefined
-        ? folder.files
-        : folder.files.filter((file) => matches(folder.search + tree.separator + file.name.toLowerCase()))
+        ? files
+        : files.filter((file) => matches(folder.search + tree.separator + file.name.toLowerCase()))
     if (judged) {
       matched = matched.filter((file) => passes(criteria, file))
       if (!matched.some(hasAttributes)) matched = []
     }
     if (matched.length > 0) {
-      own.set(folder, matched.sort(byName))
+      own.set(folder, matched)
       count += matched.length
     }
     for (const child of folder.folders) count += visit(child)
