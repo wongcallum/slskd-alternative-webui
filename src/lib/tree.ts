@@ -91,7 +91,7 @@ function detectSeparator(directories: readonly InputDirectory[]) {
   return slashes > backslashes ? '/' : '\\'
 }
 
-// Files are left in the listed order, and sorted in place the first time a folder is shown or filtered: sorting them
+// Files are left in the listed order, and sorted in place the first time a folder is shown or matched: sorting them
 // all takes longer than the rest of the build.
 const sorted = new WeakSet<Folder>()
 
@@ -256,16 +256,22 @@ export function matchTree(tree: Tree, query: string, criteria: Criteria): Matche
     last !== undefined && sameCriteria(last.criteria, criteria) && narrows(terms, last.terms) ? last.matches : undefined
   const matcher = terms && fileMatcher(tree, terms)
   const own = new Map<Folder, TreeFile[]>()
-  const visit = (folder: Folder, files: TreeFile[]) => {
+  const filter = (folder: Folder, files: TreeFile[]) => {
     const matches = files.length === 0 || (matcher?.(folder) ?? true)
     let matched = matches === true ? files : matches === false ? [] : files.filter(matches)
     if (judged) {
       matched = matched.filter((file) => passes(criteria, file))
       if (!matched.some(hasAttributes)) matched = []
     }
+    return matched
+  }
+  // Only folders with a match are sorted, since sorting every folder makes the first filter several times slower.
+  const visit = (folder: Folder, files: TreeFile[]) => {
+    let matched = filter(folder, files)
+    if (matched.length > 0 && !sorted.has(folder)) matched = filter(folder, sortedFiles(folder))
     if (matched.length > 0) own.set(folder, matched)
   }
-  if (previous === undefined) for (const folder of tree.byPath.values()) visit(folder, sortedFiles(folder))
+  if (previous === undefined) for (const folder of tree.byPath.values()) visit(folder, folder.files)
   else for (const [folder, files] of previous.own) visit(folder, files)
   const counts = new Map<Folder, number>()
   for (const [folder, matched] of own) {
