@@ -13,8 +13,15 @@ import {
 
 import { nameOf } from '../../lib/files'
 import { plural } from '../../lib/format'
-import { byName } from '../../lib/text'
-import { type Folder, type Item, type Matches, matchesUnder, relativePath, type Tree } from '../../lib/tree'
+import {
+  type Folder,
+  type Item,
+  type Matches,
+  matchesUnder,
+  relativePath,
+  sortedFiles,
+  type Tree,
+} from '../../lib/tree'
 import { barHeight, SelectionActions, toolbarStyle } from '../controls'
 import { useListKeys } from '../keys'
 import { useListNav } from '../listNav'
@@ -80,7 +87,7 @@ export function FolderPane({
   )
   const items = useMemo<Item[]>(() => {
     if (matches !== undefined) return sortItems(matchesUnder(folder, matches), sorting, extras, folderOf)
-    const files = sorting.length === 0 ? [...folder.files].sort(byName) : folder.files
+    const files = sorting.length === 0 ? sortedFiles(folder) : folder.files
     return [...sortItems(folder.folders, sorting, extras, folderOf), ...sortItems(files, sorting, extras, folderOf)]
   }, [folder, matches, sorting, extras, folderOf])
   const columns = useMemo(() => paneColumns(extras), [extras])
