@@ -341,9 +341,12 @@ observed on throwaway instances of the dev build and the 0.26.0 release binary.
 
 ## Logs
 
-- REST serves the buffer at `GET /logs` in 0.26.0, and at `GET /logs/live` since slskd#1865 (master `2d432e5`), which
-  also limits it to the Administrator role. Each version 404s the other's route, with an empty body
+- REST serves the buffer at `GET /logs` in 0.26.0, and at `GET /logs/live` from 0.26.1 (slskd#1865), which also limits
+  it to the Administrator role. Each version 404s the other's route, with an empty body
   (`Core/API/Controllers/LogsController.cs`).
+- From 0.26.1 (slskd#1865), `GET /logs/files` lists the `.log` files in `logs` under the app directory (404 when it
+  doesn't exist), and `GET /logs/files/{filename}` returns one as `text/plain`, both Administrator only. A file holds
+  a day, kept for `retention.logs` days (14 by default), and its lines have local times without an offset.
 - The buffer is the last 100 records, held in memory (`Program.cs`, `LogBuffer`), so a restart empties it.
 - A record (`Common/Logging/LogRecord.cs`, filled in by the `DelegatingSink` in `Program.cs`):
   - `timestamp` is the server's local time with its offset.
@@ -1083,7 +1086,9 @@ Paths are relative to `slskd/src/web/src`.
   - After Restart or Shut Down, the hub's reconnecting replaces the whole app with "Lost connection to slskd", and
     after about 32 s of retries it asks for a refresh.
   - Logs keeps the newest 500 records, newest first, and each `BUFFER` replaces them. It shows the time (`HH:mm:ss` in
-    the browser's time zone), the level and the message, with no source and no filter, and keys rows by timestamp.
+    the browser's time zone), the level and the message, with no source and no filter. Before 0.26.1 it keys rows by
+    timestamp. From 0.26.1 (slskd#1865) that's the Live tab, keyed by a counter, and a History tab lists the log files
+    to open in a new window or download.
   - Shares has two tables: the shares (host, local path, directories, files, alias, remote path), and the excluded
     paths. While a scan runs, both are replaced by a loader with the percentage.
     - Rescan turns yellow while `scanPending`, and Cancel replaces it during a scan. `cancelled`, `faulted`, the
@@ -1111,8 +1116,8 @@ Paths are relative to `slskd/src/web/src`.
   card, with a select-all per directory. Per-file actions are a click on the state (retry when failed, queue
   position when queued), and bulk Retry/Cancel/Remove act on the selection or on "all errored/queued/succeeded"
   from the header. Nothing asks for confirmation. Retry sends one obsolete per-user POST per file in parallel,
-  which loses the batch and its destination, and most get 429 beyond two files. Uploads show a Retry for failed selections that would download the file
-  from the peer instead.
+  which loses the batch and its destination, and most get 429 beyond two files. Before 0.26.1 (slskd#1857), uploads
+  show a Retry for failed selections that would download the file from the peer instead.
 - Search (`components/Search/`):
   - One route, `/searches/:id?`. The list comes only from the search hub. It shows every search newest first, with a
     state icon, text, files, locked, responses, the end time (time only), and Stop (running) or Delete (finished).
