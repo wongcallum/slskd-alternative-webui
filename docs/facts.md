@@ -1,7 +1,7 @@
 # Verified facts
 
 What slskd and our libraries actually do. Each library section names the version it was checked against.
-The slskd sections are verified against slskd `e3d377d4` (2026-09-20). Most of those items come from
+The slskd sections are verified against the slskd revision pinned in `devenv.lock`. Most of those items come from
 reading the source; the build-contract items were also confirmed against a running instance. slskd paths
 are relative to `slskd/src/slskd`, and line numbers drift over time. "Observed on the test network" means seen
 between slskd instances logged in to the tests' local Soulfind server, where the peer is always slskd.
