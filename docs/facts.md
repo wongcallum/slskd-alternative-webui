@@ -879,7 +879,7 @@ is by name only. An offline user gets a 404 with a JSON string, `"User <u> appea
     `ESCAPE`, so `_` and `%` in the name are wildcards and ASCII case is ignored, and it strips each name to the
     file's. So `directory + '\' + filename` is only right for the folder's own files, and nothing tells them apart.
     Subfolders and siblings were observed on the test network, and the rest seen by running `ListFiles`. It's the
-    same in 0.26.0 and at master `e3d377d`. slskd#1189 (closed as a duplicate) and #1311 (open, to send subfolders
+    same in 0.26.0 and 0.26.1. slskd#1189 (closed as a duplicate) and #1311 (open, to send subfolders
     as entries of their own) cover subfolders but not the rest.
   - Nicotine+, SoulseekQt, aioslsk and Seeker send only the folder's own files, and Soulseek NS its subfolders as
     entries of their own. That's from their source or their maintainers, not checked on a network. Nothing in the
