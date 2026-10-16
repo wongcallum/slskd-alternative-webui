@@ -262,7 +262,11 @@ observed on throwaway instances of the dev build and the 0.26.0 release binary.
   logger, web, most flags and about 60 more in `Core/Options.cs`), or on `PUT /options/yaml` while
   `no_config_watch` is on. Only a new process clears it. Observed: editing `instance_name` in the YAML set it.
 - `pendingReconnect` is set when the Soulseek address, port, username or password changes while connected, and any
-  disconnect clears it.
+  disconnect clears it. While logged in, so is a change to any `soulseek.connection` option (`mtu` from 0.26.1,
+  slskd#1875) or turning off `distributed_network` or its children: slskd hands Soulseek.NET 10.0.2 new connection
+  options, which it compares by reference (`Application.cs`, `OptionsMonitor_OnChange`; `SN:SoulseekClient.cs`,
+  `ReconfigureOptionsInternalAsync`). Observed on Soulfind for `timeout.connect`, `mtu` and
+  `distributed_network.disable_children`.
 - `shares.scanPending` is set when `shares.directories` or `shares.filters` change, or when a scan faults, and a
   scan that ends any other way clears it, a cancelled one included (see [Scanning](#scanning)). Changes are compared
   as sets, so reordering the entries or adding a duplicate doesn't set it. While a scan runs it comes from the share
