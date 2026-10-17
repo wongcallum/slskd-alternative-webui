@@ -181,8 +181,9 @@ Everything is under `/transfers`, and returns 403 in relay agent mode.
   next reconnect's negotiate gets 401.
 - Stock UI stores the token under `slskd-token` (sessionStorage, or localStorage with "remember me"), and stores `'n/a'` when
   auth is disabled. Any 401 outside `/session`, `/server` and `/application` clears it and reloads.
-  The `/server` and `/application` exemptions are leftovers: they fixed redirect loops in 2021 (8b1f5d46,
-  70b14335), when stock polled those endpoints before login. Stock no longer calls either.
+  The `/server` and `/application` exemptions fixed redirect loops in 2021 (8b1f5d46, 70b14335), when stock polled
+  those endpoints before login. Stock now calls those exact paths only to connect, disconnect, restart and shut down
+  (`web/src/lib/server.js`, `web/src/lib/application.js`, `web/src/lib/api.js`).
 
 ## Shutdown
 
