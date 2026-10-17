@@ -5,28 +5,61 @@ on:
     - cron: '0 6 * * 1'
   workflow_dispatch:
 
+concurrency: bump-slskd
+
 jobs:
   bump:
     runs-on: ubuntu-24.04
     steps:
+      # With the default GITHUB_TOKEN, the push wouldn't trigger the Test workflow.
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.BUMP_TOKEN }}
       - uses: cachix/install-nix-action@v31
       - run: nix profile add nixpkgs#devenv
 
-      - name: Update the slskd input
-        id: update
+      - name: Bump slskd on the pull request branch
+        env:
+          GH_TOKEN: ${{ secrets.BUMP_TOKEN }}
         run: |
-          echo "old=$(jq -r .nodes.slskd.locked.rev devenv.lock | cut -c1-7)" >> "$GITHUB_OUTPUT"
-          devenv update slskd
-          echo "new=$(jq -r .nodes.slskd.locked.rev devenv.lock | cut -c1-7)" >> "$GITHUB_OUTPUT"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          pin() { git show "$1:devenv.lock" | jq -r .nodes.slskd.locked.rev; }
 
-      # With the default GITHUB_TOKEN, the pull request wouldn't trigger the Test workflow.
-      - uses: peter-evans/create-pull-request@v8
-        with:
-          token: ${{ secrets.BUMP_TOKEN }}
-          branch: bump-slskd
-          delete-branch: true
-          add-paths: devenv.lock
-          commit-message: Bump slskd to ${{ steps.update.outputs.new }}
-          title: Bump slskd to ${{ steps.update.outputs.new }}
-          body: https://github.com/slskd/slskd/compare/${{ steps.update.outputs.old }}...${{ steps.update.outputs.new }}
+          pr=$(gh pr list --head bump-slskd --state open --json number,isCrossRepository \
+            --jq '[.[] | select(.isCrossRepository | not)][0].number // empty')
+          if [ -n "$pr" ]; then
+            git checkout -B bump-slskd origin/bump-slskd
+            # Review commits stay, so bring master in rather than rebuilding the branch. A devenv.lock conflict is
+            # master's, since devenv update slskd below sets the pin again.
+            if ! git merge --no-edit origin/master; then
+              git checkout origin/master -- devenv.lock
+              if [ -n "$(git diff --name-only --diff-filter=U)" ]; then
+                echo "::error::Merging master into bump-slskd conflicts"
+                exit 1
+              fi
+              git commit --no-edit --cleanup=strip
+            fi
+          else
+            git checkout -B bump-slskd origin/master
+          fi
+
+          devenv update slskd
+          new=$(jq -r .nodes.slskd.locked.rev devenv.lock)
+          if ! git diff --quiet devenv.lock; then
+            git commit -m "Bump slskd to ${new:0:7}" devenv.lock
+          fi
+
+          if [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/master)" ]; then
+            exit 0
+          fi
+          title="Bump slskd to ${new:0:7}"
+          body="https://github.com/slskd/slskd/compare/$(pin origin/master)...$new"
+          if [ -z "$pr" ]; then
+            git push --force origin bump-slskd
+            gh pr create --head bump-slskd --title "$title" --body "$body"
+          elif [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/bump-slskd)" ]; then
+            git push origin bump-slskd
+            gh pr edit "$pr" --title "$title" --body "$body"
+          fi
