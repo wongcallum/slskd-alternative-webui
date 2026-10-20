@@ -106,11 +106,13 @@ Everything is under `/transfers`, and returns 403 in relay agent mode.
   An slskd peer answers with an estimate that counts from 0, so 0 means next: the file's place among that user's
   queued files, plus files of other users likely to go first (`Transfers/Uploads/UploadQueue.cs`,
   `EstimatePosition`). Observed 0, 1 and 2 on the test network.
-  From 0.26.1 (slskd#1871), an slskd peer never answers for a file we've asked it for before, a retry included,
+  In 0.26.1 (slskd#1871), an slskd peer never answers for a file we've asked it for before, a retry included,
   so it's the timeout. It finds the upload with `SingleOrDefault` over every record for that user and file, finished
   and removed ones included, which throws once there are two (`Application.cs`, `PlaceInQueueResolver`, and
-  `Transfers/Uploads/UploadService.cs`, `Find`). Observed on the test network: on 0.26.1 a re-requested file got the
-  500 and a fresh one a 200; before it, both got a 200.
+  `Transfers/Uploads/UploadService.cs`, `Find`). From slskd#1892 (unreleased), it takes the most recently enqueued of
+  those records that isn't removed, and doesn't answer if that one isn't queued. Observed on the test network, with
+  the peer's first upload cancelled: on 0.26.1 a re-requested file got the 500 and a fresh one a 200; before it and
+  from slskd#1892, both got a 200.
 - `POST downloads/batches` takes `{id?, searchId?, username, files: [{filename, size}], options?: {destination?}}`.
   - It returns `{batch, failures: [{filename, message}]}` with 201 (all enqueued), 207 (partial) or 200 (none).
     Failures include `"Skipped: Already in progress"` when the file's current record isn't `Completed`.
