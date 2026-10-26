@@ -429,8 +429,9 @@ of the dev build sharing up to 64k files.
 
 ### Endpoints
 
-Everything is in `API/Controllers/SharesController.cs`, takes a JWT or any API key with no role check, and works in
-relay agent mode.
+Everything is in `API/Controllers/SharesController.cs`, takes a JWT or any API key, and works in relay agent mode. Up
+to 0.26.2 there's no role check. From slskd#1911 (unreleased), `PUT` and `DELETE /shares` need a ReadWrite or
+Administrator key.
 
 - `GET /shares` returns `{"local": Share[], "<agent>": Share[]}`, keyed by host, with the exclusions and the longest
   `localPath` first (`Types/Share.cs`).
@@ -493,13 +494,15 @@ checked on a throwaway instance of the dev build.
 
 ### Endpoints
 
-Everything is in `API/FilesController.cs` and `FileService.cs`, takes a JWT or any API key with no role check, and works
-in relay agent mode.
+Everything is in `API/FilesController.cs` and `FileService.cs`, takes a JWT or any API key, and works in relay agent
+mode. Up to 0.26.2 there's no role check. From slskd#1911 (unreleased), deleting needs a ReadWrite or Administrator
+key.
 
 - `GET /files/{downloads|incomplete}/directories` lists that directory, and `.../directories/{path}` a folder in it.
   `DELETE .../directories/{path}` deletes a folder with everything in it, and `DELETE .../files/{path}` a file.
-- **`{path}` is standard base64 of the UTF-8 path relative to the root**, padding included. `+` works raw or as `%2B`,
-  but a `/` in the base64 can't be sent: raw it splits the route, and `%2F` reaches the decoder undecoded (a 500).
+- **`{path}` is standard base64 of the UTF-8 path relative to the root**, padding included. `+` works raw or as `%2B`.
+  Raw, a `/` in the base64 splits the route. Up to 0.26.2, `%2F` reaches the decoder undecoded (a 500), so a `/` can't
+  be sent. From slskd#1911 (unreleased), `%2F` works.
 - A listing is `{name, fullName, attributes, createdAt, modifiedAt, files, directories}`. Files are
   `{name, fullName, length, attributes, createdAt, modifiedAt}`, and child directories have no `files`, `directories`
   or `length`.
@@ -517,7 +520,9 @@ in relay agent mode.
   - A broken link lists as a file, and unreadable folders are skipped.
 - **Errors:**
   - A missing folder, or a file where a folder was expected, is an empty 404.
-  - Anything else is a 500 with a JSON string. That includes a path outside the roots and bad base64.
+  - Up to 0.26.2, anything else is a 500 with a JSON string, a path outside the roots included. From slskd#1911
+    (unreleased), a path outside the roots is an empty 403, deleting a root is a 400 with a JSON string, and anything
+    else is still a 500 with a JSON string.
   - The check is on the resolved path, so either root's endpoint reaches the other through `..` (observed).
   - A trailing `/` in a configured directory makes everything below that root a 500.
   - **A listing fails when another request reads the options at the same time.** Reading them validates them, which
