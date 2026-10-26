@@ -562,7 +562,8 @@ configuration and the debug view were checked on the dev build with `SLSKD_REMOT
   keys that are always null: `permissions`, `global`, `groups` and `integration`. `GET /options/startup` is the object
   bound once at startup, so it only differs after a live reload.
 - Redaction (`Common/Redactor.cs`) replaces every non-null `[Secret]` string with `"*****"`, so `*****` means set and a
-  missing key means unset. Webhook headers and URLs, `logger.loki` and usernames aren't secrets.
+  missing key means unset. Usernames aren't secrets. Up to 0.26.2, neither are webhook header values and URLs,
+  `logger.loki`, or scripts' `command` and `args`. From slskd#1911 (unreleased), they are.
 - The keys of `relay.agents`, `transfers.groups.user_defined`, `web.authentication.api_keys`, `integrations.webhooks`
   and `integrations.scripts` are names the user chose. They come back lowercased with `_` and `-` dropped, like every
   key slskd reads from YAML (observed: a group `My_Group` came back as `mygroup`), and JSON leaves them alone, since no
