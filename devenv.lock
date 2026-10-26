@@ -44,11 +44,11 @@
     "slskd": {
       "flake": false,
       "locked": {
-        "lastModified": 1792368360,
-        "narHash": "sha256-qNwn9+pKGAt4sQMutRGvJSuj2dc4Lgtjc35KnzpUo0s=",
+        "lastModified": 1792963387,
+        "narHash": "sha256-3l1FOb5ZWwiOI/pEwIRlTZxRTgEeiYfm7C8uffUHUa4=",
         "owner": "slskd",
         "repo": "slskd",
-        "rev": "6a450e411a2e03a57aa6f7ae95e62252d847ec71",
+        "rev": "2b827344d11e7490b323defa898264cadbdb6089",
         "type": "github"
       },
       "original": {
