@@ -1054,8 +1054,9 @@ string.
     drops them in `send_pm`.
   - It activates the conversation before sending, so a failed send leaves an active conversation with no messages.
 - `PUT /conversations/{u}` acknowledges all of its unread messages, `PUT /conversations/{u}/{id}` one, and
-  `DELETE /conversations/{u}` acknowledges all and then closes it. Their 404s never fire, because the lookup isn't
-  awaited, so an unknown user or id succeeds.
+  `DELETE /conversations/{u}` acknowledges all and then closes it. Up to 0.26.2, their 404s never fire, because the
+  lookup isn't awaited, so an unknown user or id succeeds. From slskd#1911 (unreleased), each is an empty 404 for an
+  unknown user, and `PUT` for an unknown id.
 
 ### Acknowledging
 
