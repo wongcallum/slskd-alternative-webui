@@ -109,10 +109,10 @@ Everything is under `/transfers`, and returns 403 in relay agent mode.
   In 0.26.1 (slskd#1871), an slskd peer never answers for a file we've asked it for before, a retry included,
   so it's the timeout. It finds the upload with `SingleOrDefault` over every record for that user and file, finished
   and removed ones included, which throws once there are two (`Application.cs`, `PlaceInQueueResolver`, and
-  `Transfers/Uploads/UploadService.cs`, `Find`). From slskd#1892 (unreleased), it takes the most recently enqueued of
+  `Transfers/Uploads/UploadService.cs`, `Find`). From 0.26.2 (slskd#1892), it takes the most recently enqueued of
   those records that isn't removed, and doesn't answer if that one isn't queued. Observed on the test network, with
   the peer's first upload cancelled: on 0.26.1 a re-requested file got the 500 and a fresh one a 200; before it and
-  from slskd#1892, both got a 200.
+  from 0.26.2, both got a 200.
 - `POST downloads/batches` takes `{id?, searchId?, username, files: [{filename, size}], options?: {destination?}}`.
   - It returns `{batch, failures: [{filename, message}]}` with 201 (all enqueued), 207 (partial) or 200 (none).
     Failures include `"Skipped: Already in progress"` when the file's current record isn't `Completed`.
@@ -429,8 +429,9 @@ of the dev build sharing up to 64k files.
 
 ### Endpoints
 
-Everything is in `API/Controllers/SharesController.cs`, takes a JWT or any API key with no role check, and works in
-relay agent mode.
+Everything is in `API/Controllers/SharesController.cs`, takes a JWT or any API key, and works in relay agent mode. Up
+to 0.26.2 there's no role check. From slskd#1911 (unreleased), `PUT` and `DELETE /shares` need a ReadWrite or
+Administrator key.
 
 - `GET /shares` returns `{"local": Share[], "<agent>": Share[]}`, keyed by host, with the exclusions and the longest
   `localPath` first (`Types/Share.cs`).
@@ -493,13 +494,15 @@ checked on a throwaway instance of the dev build.
 
 ### Endpoints
 
-Everything is in `API/FilesController.cs` and `FileService.cs`, takes a JWT or any API key with no role check, and works
-in relay agent mode.
+Everything is in `API/FilesController.cs` and `FileService.cs`, takes a JWT or any API key, and works in relay agent
+mode. Up to 0.26.2 there's no role check. From slskd#1911 (unreleased), deleting needs a ReadWrite or Administrator
+key.
 
 - `GET /files/{downloads|incomplete}/directories` lists that directory, and `.../directories/{path}` a folder in it.
   `DELETE .../directories/{path}` deletes a folder with everything in it, and `DELETE .../files/{path}` a file.
-- **`{path}` is standard base64 of the UTF-8 path relative to the root**, padding included. `+` works raw or as `%2B`,
-  but a `/` in the base64 can't be sent: raw it splits the route, and `%2F` reaches the decoder undecoded (a 500).
+- **`{path}` is standard base64 of the UTF-8 path relative to the root**, padding included. `+` works raw or as `%2B`.
+  Raw, a `/` in the base64 splits the route. Up to 0.26.2, `%2F` reaches the decoder undecoded (a 500), so a `/` can't
+  be sent. From slskd#1911 (unreleased), `%2F` works.
 - A listing is `{name, fullName, attributes, createdAt, modifiedAt, files, directories}`. Files are
   `{name, fullName, length, attributes, createdAt, modifiedAt}`, and child directories have no `files`, `directories`
   or `length`.
@@ -517,7 +520,9 @@ in relay agent mode.
   - A broken link lists as a file, and unreadable folders are skipped.
 - **Errors:**
   - A missing folder, or a file where a folder was expected, is an empty 404.
-  - Anything else is a 500 with a JSON string. That includes a path outside the roots and bad base64.
+  - Up to 0.26.2, anything else is a 500 with a JSON string, a path outside the roots included. From slskd#1911
+    (unreleased), a path outside the roots is an empty 403, deleting a root is a 400 with a JSON string, and anything
+    else is still a 500 with a JSON string.
   - The check is on the resolved path, so either root's endpoint reaches the other through `..` (observed).
   - A trailing `/` in a configured directory makes everything below that root a 500.
   - **A listing fails when another request reads the options at the same time.** Reading them validates them, which
@@ -557,7 +562,8 @@ configuration and the debug view were checked on the dev build with `SLSKD_REMOT
   keys that are always null: `permissions`, `global`, `groups` and `integration`. `GET /options/startup` is the object
   bound once at startup, so it only differs after a live reload.
 - Redaction (`Common/Redactor.cs`) replaces every non-null `[Secret]` string with `"*****"`, so `*****` means set and a
-  missing key means unset. Webhook headers and URLs, `logger.loki` and usernames aren't secrets.
+  missing key means unset. Usernames aren't secrets. Up to 0.26.2, neither are webhook header values and URLs,
+  `logger.loki`, or scripts' `command` and `args`. From slskd#1911 (unreleased), they are.
 - The keys of `relay.agents`, `transfers.groups.user_defined`, `web.authentication.api_keys`, `integrations.webhooks`
   and `integrations.scripts` are names the user chose. They come back lowercased with `_` and `-` dropped, like every
   key slskd reads from YAML (observed: a group `My_Group` came back as `mygroup`), and JSON leaves them alone, since no
@@ -1048,8 +1054,9 @@ string.
     drops them in `send_pm`.
   - It activates the conversation before sending, so a failed send leaves an active conversation with no messages.
 - `PUT /conversations/{u}` acknowledges all of its unread messages, `PUT /conversations/{u}/{id}` one, and
-  `DELETE /conversations/{u}` acknowledges all and then closes it. Their 404s never fire, because the lookup isn't
-  awaited, so an unknown user or id succeeds.
+  `DELETE /conversations/{u}` acknowledges all and then closes it. Up to 0.26.2, their 404s never fire, because the
+  lookup isn't awaited, so an unknown user or id succeeds. From slskd#1911 (unreleased), each is an empty 404 for an
+  unknown user, and `PUT` for an unknown id.
 
 ### Acknowledging
 
