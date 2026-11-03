@@ -1,3 +1,5 @@
+import { parseFromWebStream } from '@discoveryjs/json-ext'
+
 import { sleep } from '../lib/api'
 import type { InputDirectory } from '../lib/tree'
 
@@ -112,9 +114,9 @@ export async function packShare({ directories, lockedDirectories }: RawShare) {
 }
 
 export async function unpackShare(blob: Blob): Promise<RawShare> {
-  const text = await new Response(blob.stream().pipeThrough(new DecompressionStream('gzip'))).text()
+  const blocks = (await parseFromWebStream(blob.stream().pipeThrough(new DecompressionStream('gzip')))) as Block[]
   const share: RawShare = { directories: [], lockedDirectories: [] }
-  for (const block of JSON.parse(text) as Block[]) {
+  for (const block of blocks) {
     const [locked, names, counts, filenames, sizes, bitRates, bitDepths, sampleRates, lengths, variable] = block
     const list = locked ? share.lockedDirectories : share.directories
     let index = 0

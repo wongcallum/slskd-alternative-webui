@@ -76,6 +76,12 @@ The one exception is acknowledging private messages while their conversation is 
   - Rejected: packing in a worker, which parses the response a second time and took 11–12 s on a throttled CPU.
   - Rejected: brotli, which Chrome's `CompressionStream` lacks.
 - There's no `navigator.storage.persist()`, because Firefox would prompt for it.
+- A browse response and a stored share are parsed with json-ext as they stream in, because a big share's JSON can be
+  longer than V8's longest string (see the facts).
+  - Rejected: parsers that tokenise in JavaScript (`@streamparser/json`, `jsonriver`, `stream-json`), which held the
+    main thread for the whole parse, 32–33 s for a 611 MB share in Chrome.
+  - Accepted gap: in Firefox, json-ext freezes the page for the whole parse, so a mid-sized share freezes it longer
+    than `response.json()` did (1.4 s against 0.7 s for 75 MB). Yielding between chunks didn't help.
 
 ### Health
 
