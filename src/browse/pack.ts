@@ -19,17 +19,44 @@ type Block = [
 ]
 
 const blockFiles = 16_384
+const blockFolders = 16_384
+const runFolders = 16_384
 
 const byName = (a: InputDirectory, b: InputDirectory) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)
 
+// Sorting a big share's folders in one go holds the main thread for too long, so they're sorted in runs, a task each,
+// and the runs are merged as the blocks are made.
+async function sortedRuns(list: InputDirectory[]) {
+  const runs = []
+  for (let start = 0; start < list.length; start += runFolders) {
+    runs.push(list.slice(start, start + runFolders).sort(byName))
+    await sleep(0)
+  }
+  return runs
+}
+
+function* merged(runs: InputDirectory[][]) {
+  const heads = runs.map((folders) => ({ folders, index: 0 }))
+  for (;;) {
+    let first: (typeof heads)[number] | undefined
+    for (const head of heads) {
+      const folder = head.folders[head.index]
+      if (folder !== undefined && (first === undefined || byName(folder, first.folders[first.index]!) < 0)) {
+        first = head
+      }
+    }
+    if (first === undefined) return
+    yield first.folders[first.index++]!
+  }
+}
+
+type Lists = (readonly [runs: InputDirectory[][], locked: boolean])[]
+
 // Sorted, so that neighbouring folders share their paths' prefixes.
-function* blocksOf({ directories, lockedDirectories }: RawShare) {
-  for (const [list, locked] of [
-    [directories, false],
-    [lockedDirectories, true],
-  ] as const) {
+function* blocksOf(lists: Lists) {
+  for (const [runs, locked] of lists) {
     let block: Block | undefined
-    for (const { name, files } of list.toSorted(byName)) {
+    for (const { name, files } of merged(runs)) {
       block ??= [locked, [], [], [], [], [], [], [], [], []]
       const [, names, counts, filenames, sizes, bitRates, bitDepths, sampleRates, lengths, variable] = block
       names.push(name)
@@ -44,7 +71,7 @@ function* blocksOf({ directories, lockedDirectories }: RawShare) {
         lengths.push(file.length ?? null)
         variable.push(file.isVariableBitRate ?? null)
       }
-      if (filenames.length >= blockFiles) {
+      if (filenames.length >= blockFiles || names.length >= blockFolders) {
         yield block
         block = undefined
       }
@@ -54,9 +81,9 @@ function* blocksOf({ directories, lockedDirectories }: RawShare) {
 }
 
 // The JSON text a column at a time, since a whole block stringified and gzipped in one task takes too long.
-function* piecesOf(share: RawShare) {
+function* piecesOf(lists: Lists) {
   let separator = '['
-  for (const block of blocksOf(share)) {
+  for (const block of blocksOf(lists)) {
     for (const [index, column] of block.entries()) {
       const start = index === 0 ? `${separator}[` : ','
       yield start + JSON.stringify(column) + (index === block.length - 1 ? ']' : '')
@@ -67,8 +94,11 @@ function* piecesOf(share: RawShare) {
 }
 
 // One piece per task, so packing a big share never holds the main thread for long.
-export function packShare(share: RawShare) {
-  const pieces = piecesOf(share)
+export async function packShare({ directories, lockedDirectories }: RawShare) {
+  const pieces = piecesOf([
+    [await sortedRuns(directories), false],
+    [await sortedRuns(lockedDirectories), true],
+  ])
   const text = new ReadableStream<string>({
     async pull(controller) {
       await sleep(0)
