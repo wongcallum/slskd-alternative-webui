@@ -1389,13 +1389,13 @@ runs were noisy: building the same tree took 0.6–2.4 s from run to run.
   | -------------------------- | ------- | --------- | --------- | ----------- | --------------- | -------------- |
   | The response Blob          | 44.9 MB | 490 (231) | 748 (403) | 1672 (869)  | 3771 (2093)     | 6839 (2033)    |
   | The response, gzipped      | 4.6 MB  | 602 (213) | 849 (404) | 2196 (810)  | 4122 (2332)     | 5256 (1499)    |
-  | Columns in blocks, gzipped | 2.44 MB | 299 (194) | 397 (192) | 950 (616)   | 2480 (1903)     | 1315 (838)     |
+  | Columns in blocks, gzipped | 2.44 MB | 293 (187) | 352 (156) | 936 (609)   | 1748 (1400)     | 2251 (900)     |
 
 - Firefox's `blob.text()` on the 44.9 MB Blob took about 4 s under the cgroup.
 - Packing on the main thread, stringifying and gzipping a block of 16k files in one task took 20–28 ms (235 ms at
   4×), and a column at a time at most 19–26 ms (87 ms at 4×). The yields add up to 0.7 s, since nested `setTimeout`s
-  are clamped to 4 ms. Packing and storing a column at a time took 0.7 s with a longest task of 45–52 ms, 1.9 s and
-  81 ms at 4×, and 2.7–2.9 s and 183–214 ms under the cgroup.
+  are clamped to 4 ms. Packing and storing a column at a time took 0.7 s with a longest task of 29–50 ms, 1.9 s and
+  83 ms at 4×, and 2.2–2.3 s and 180–211 ms under the cgroup.
 - Packing in a worker doesn't block, but the worker parses the response again: 11–12 s in all under the cgroup.
 
 ## Browser APIs
