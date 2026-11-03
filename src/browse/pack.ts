@@ -3,7 +3,7 @@ import type { InputDirectory } from '../lib/tree'
 
 export type RawShare = { directories: InputDirectory[]; lockedDirectories: InputDirectory[] }
 
-// Columns compress far better than slskd's objects, so a share is stored as blocks of columns, gzipped (see the facts).
+// Columns compress far better than slskd's objects, so we store a share as blocks of columns, gzipped (see the facts).
 // An attribute the peer didn't send is null.
 type Block = [
   locked: boolean,
@@ -24,8 +24,8 @@ const runFolders = 16_384
 
 const byName = (a: InputDirectory, b: InputDirectory) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)
 
-// Sorting a big share's folders in one go holds the main thread for too long, so they're sorted in runs, a task each,
-// and the runs are merged as the blocks are made.
+// Sorting all of a big share's folders in one task holds the main thread too long, so each run gets its own task, and
+// `merged` merges the runs as `blocksOf` makes the blocks.
 async function sortedRuns(list: InputDirectory[]) {
   const runs = []
   for (let start = 0; start < list.length; start += runFolders) {
@@ -52,7 +52,7 @@ function* merged(runs: InputDirectory[][]) {
 
 type Lists = (readonly [runs: InputDirectory[][], locked: boolean])[]
 
-// Sorted, so that neighbouring folders share their paths' prefixes.
+// Folders go in name order, so that neighbouring folders share their paths' prefixes.
 function* blocksOf(lists: Lists) {
   for (const [runs, locked] of lists) {
     let block: Block | undefined
@@ -80,7 +80,7 @@ function* blocksOf(lists: Lists) {
   }
 }
 
-// The JSON text a column at a time, since a whole block stringified and gzipped in one task takes too long.
+// Yields the JSON a column at a time, since stringifying and gzipping a whole block in one task takes too long.
 function* piecesOf(lists: Lists) {
   let separator = '['
   for (const block of blocksOf(lists)) {
@@ -93,7 +93,7 @@ function* piecesOf(lists: Lists) {
   yield separator === '[' ? '[]' : ']'
 }
 
-// One piece per task, so packing a big share never holds the main thread for long.
+// `pull` takes one piece per task, so packing a big share never holds the main thread for long.
 export async function packShare({ directories, lockedDirectories }: RawShare) {
   const pieces = piecesOf([
     [await sortedRuns(directories), false],
