@@ -52,6 +52,7 @@ jobs:
           fi
 
           if [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/master)" ]; then
+            echo "::notice::slskd is still at ${new:0:7}, which master already pins"
             exit 0
           fi
           title="Bump slskd to ${new:0:7}"
@@ -62,4 +63,6 @@ jobs:
           elif [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/bump-slskd)" ]; then
             git push origin bump-slskd
             gh pr edit "$pr" --title "$title" --body "$body"
+          else
+            echo "::notice::#$pr already bumps slskd to ${new:0:7}"
           fi
