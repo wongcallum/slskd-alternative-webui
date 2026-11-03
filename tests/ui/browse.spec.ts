@@ -6,7 +6,7 @@ import { expect, logInPage, test } from '../fixtures'
 // The page polls a browse's status, which is a 404 until the peer starts replying.
 test.use({ config: { soulseek: true }, failedRequests: true })
 
-test('a share filters by quality, and a folder downloaded from it keeps its subfolders', async ({
+test('a share filters by quality, a folder downloaded from it keeps its subfolders, and it opens again from the cache', async ({
   page,
   slskd,
   peers: { fast },
@@ -33,4 +33,7 @@ test('a share filters by quality, and a folder downloaded from it keeps its subf
       .poll(() => readFile(path.join(album, name)).catch(() => undefined), { timeout: 30_000 })
       .toEqual(fast.files.get(remote))
   }
+  // Nothing browses on load, so the share can only come from the cache.
+  await page.reload()
+  await expect(page.getByRole('treeitem', { name: /Artist - Album 4$/ })).toBeVisible()
 })

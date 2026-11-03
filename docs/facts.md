@@ -1371,6 +1371,35 @@ share of 200k files in 15k directories (54 MB of JSON), with `idb` 8.0.3. "Block
   in Safari.
 - `idb` 8.0.3 is 1.4 KB with a typed `DBSchema`, where `idb-keyval` allows one store per database and Dexie is 32.6 KB.
 
+### Packing shares
+
+Measured in Chromium 155 and Playwright's Firefox 155 with on-disk profiles, on a synthetic share modelled on the
+[browsed peer](#browse): 168k files in 16k directories, with full paths in `filename`, 44.9 MB of JSON. Throttled is
+Chromium's CDP 4×, and a cgroup holding the whole browser to 2 cores at 25% each. CDP's throttling slows only the
+page's main thread, not workers or other processes. Figures are medians of 7 runs, or 5 throttled, and the cgroup
+runs were noisy: building the same tree took 0.6–2.4 s from run to run.
+
+- `CompressionStream` takes `gzip`, `deflate` and `deflate-raw` in both. Firefox also takes `brotli`, which took
+  111 s on this share, and Chromium throws.
+- Gzipped, slskd's response is 4.6 MB. Keeping only the fields we read makes it 3.2 MB, an array per file 2.8 MB, and
+  a column per field 2.36 MB, or 2.44 MB in blocks of 16k files.
+- Reading, building the tree included, in ms, with the longest task in brackets:
+
+  | Stored as                  | Size    | Chromium  | Firefox   | Chromium 4× | Chromium cgroup | Firefox cgroup |
+  | -------------------------- | ------- | --------- | --------- | ----------- | --------------- | -------------- |
+  | The response Blob          | 44.9 MB | 490 (231) | 748 (403) | 1672 (869)  | 3771 (2093)     | 6839 (2033)    |
+  | The response, gzipped      | 4.6 MB  | 602 (213) | 849 (404) | 2196 (810)  | 4122 (2332)     | 5256 (1499)    |
+  | Columns in blocks, gzipped | 2.44 MB | 293 (187) | 352 (156) | 936 (609)   | 1748 (1400)     | 2251 (900)     |
+
+- Firefox's `blob.text()` on the 44.9 MB Blob took about 4 s under the cgroup.
+- On the main thread, stringifying and gzipping a block of 16k files in one task took 20–28 ms, or 235 ms at 4×. A
+  column per task took at most 19–26 ms, or 87 ms at 4×. Browsers clamp nested `setTimeout`s to 4 ms, so the yields
+  add up to 0.7 s.
+- Packing and storing a column per task took 0.7 s, with a longest task of 29–50 ms. At 4× it took 1.9 s with a
+  longest task of 83 ms, and under the cgroup 2.2–2.3 s with a longest task of 180–211 ms.
+- Packing in a worker doesn't block, but the worker parses the response again, and took 11–12 s in all under the
+  cgroup.
+
 ## Browser APIs
 
 - Chromium keeps a failed dynamic `import()` in its module map: importing the same URL again fails at once, without a

@@ -1,6 +1,7 @@
 import * as v from 'valibot'
 
-import type { RawShare as RawBrowse, RawProgress } from '../../src/browse/browse'
+import type { RawProgress } from '../../src/browse/browse'
+import type { RawShare as RawBrowse } from '../../src/browse/pack'
 import type { RawConversation, RawPrivateMessage } from '../../src/chat/conversations'
 import type { RawAvailableRoom } from '../../src/chat/JoinRoomDialog'
 import type { RawRoomMessage, RawRoomUser } from '../../src/chat/rooms'
