@@ -3,10 +3,11 @@ import { isHTTPError } from 'ky'
 import { api, describeError, sleep } from '../lib/api'
 import { announce as announceChange, createRecordList, type Database, db, onAnnounce, removeUser } from '../lib/db'
 import { createAtom, without } from '../lib/store'
-import { buildTree, type Folder, type InputDirectory, relativePath, type Tree, type TreeFile } from '../lib/tree'
+import { buildTree, type Folder, relativePath, type Tree, type TreeFile } from '../lib/tree'
 import { sessionSignal } from '../session/session'
 import { describePeerError } from '../soulseek/soulseek'
 import { createDownloads, enqueueDownloads } from '../transfers/enqueue'
+import { packShare, type RawShare, unpackShare } from './pack'
 
 export type ShareRecord = {
   username: string
@@ -20,10 +21,7 @@ export type ShareRecord = {
 }
 
 // Parsing, building and the first render are separate tasks, so the page can paint between them.
-export type RawShare = { directories: InputDirectory[]; lockedDirectories: InputDirectory[] }
-
-async function parseShare(username: string, blob: Blob) {
-  const raw = JSON.parse(await blob.text()) as RawShare
+async function build(username: string, raw: RawShare) {
   await sleep(0)
   const share = buildTree({ key: `user\n${username}`, name: username, ...raw })
   await sleep(0)
@@ -81,7 +79,11 @@ async function readShare(username: string) {
     ])
     if (record === undefined || blob === undefined) return settle({ status: 'missing' })
     if (!current()) return undefined
-    return settle({ status: 'ready', share: await parseShare(username, blob), fetchedAt: record.fetchedAt })
+    return settle({
+      status: 'ready',
+      share: await build(username, await unpackShare(blob)),
+      fetchedAt: record.fetchedAt,
+    })
   } catch (error) {
     return settle({ status: 'failed', error })
   }
@@ -150,6 +152,34 @@ async function store(record: ShareRecord, blob: Blob) {
 }
 
 const announce = (username: string) => announceChange({ type: 'share', username })
+
+// Packing takes longer than building the tree, so a browsed share shows before it's stored.
+async function keep(username: string, raw: RawShare, ready: Ready) {
+  const signal = sessionSignal()
+  const { share, fetchedAt } = ready
+  try {
+    const blob = await packShare(raw)
+    await store(
+      {
+        username,
+        fetchedAt,
+        openedAt: fetchedAt,
+        folders: share.folderCount,
+        files: share.top.fileCount,
+        locked: share.top.lockedCount,
+        size: share.top.size,
+        bytes: blob.size,
+      },
+      blob,
+    )
+    announce(username)
+  } catch (error) {
+    if (!signal.aborted && loadedShares.get().get(username) === ready) {
+      setLoaded(username, { ...ready, notCached: describeError(error) })
+    }
+  }
+  void loadShareList()
+}
 
 // Another tab stored or deleted a share, so a copy here that came from the old cache is dropped and read again.
 async function resync(username: string) {
@@ -265,33 +295,14 @@ async function fetchShare(username: string): Promise<Ready | Failure | undefined
     })
     arrived = true
     set({ phase: 'loading', loaded: 0 })
-    const blob = await response.blob()
+    const raw = await response.json<RawShare>()
     set({ phase: 'processing' })
-    const share = await parseShare(username, blob)
+    const share = await build(username, raw)
     if (signal.aborted) return undefined
-    const now = Date.now()
-    const record: ShareRecord = {
-      username,
-      fetchedAt: now,
-      openedAt: now,
-      folders: share.folderCount,
-      files: share.top.fileCount,
-      locked: share.top.lockedCount,
-      size: share.top.size,
-      bytes: blob.size,
-    }
-    let notCached: string | undefined
-    try {
-      await store(record, blob)
-    } catch (error) {
-      notCached = describeError(error)
-    }
-    if (signal.aborted) return undefined
-    const ready: Ready = { status: 'ready', share, fetchedAt: now, notCached }
+    const ready: Ready = { status: 'ready', share, fetchedAt: Date.now() }
     setLoaded(username, ready)
     shareDownloadsOf(username).set((state) => ({ ...state, marks: new Map() }))
-    void loadShareList()
-    if (notCached === undefined) announce(username)
+    void keep(username, raw, ready)
     return ready
   } catch (error) {
     if (signal.aborted) return undefined

@@ -68,7 +68,13 @@ The one exception is acknowledging private messages while their conversation is 
 - We share an origin with stock, so everything we persist (localStorage keys, the IndexedDB database and the
   `BroadcastChannel`) is prefixed `slskd-alt`.
 - Browsed shares and user lookups survive the session ending.
-- Shares are stored as the response Blob, which costs the main thread nothing to write (see the facts).
+- Shares are stored packed: their folders and files as columns of JSON, gzipped, which is about 18 times smaller than
+  slskd's response and quicker to read back (see the facts). Packing yields after each column, and a browsed share
+  shows before it's packed.
+  - Rejected: storing the response Blob as is, which cost nothing to write but took 45 MB for a big share and is
+    slower to read. Gzipping it unchanged made reads slower still.
+  - Rejected: packing in a worker, which parses the response a second time and took 11–12 s on a throttled CPU.
+  - Rejected: brotli, which Chrome's `CompressionStream` lacks.
 - There's no `navigator.storage.persist()`, because Firefox would prompt for it.
 
 ### Health
