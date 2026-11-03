@@ -36,7 +36,6 @@
     "linkify-react": "^4.3.3",
     "linkifyjs": "^4.3.3",
     "p-limit": "^7.3.3",
-    "p-map": "^7.0.8",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "recharts": "^3.10.1",
@@ -53,7 +52,6 @@
     "oxfmt": "^0.70.0",
     "oxlint": "^1.85.0",
     "oxlint-tsgolint": "^7.0.2002",
-    "playwright-core": "^1.63.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.0"
   }

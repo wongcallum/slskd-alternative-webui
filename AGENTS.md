@@ -12,7 +12,7 @@
 - Read the docs instead of trusting your training knowledge.
 - Throwaway scripts, screenshots and dumps go in `/tmp`.
 - Read README.md, docs/design.md and docs/facts.md
-- Browser checks: `playwright-core` with `executablePath: process.env.CHROMIUM`, run from the repo root as `node --input-type=module <<'EOF'`.
+- Browser checks: `chromium` from `@playwright/test` with `executablePath: process.env.CHROMIUM`, run from the repo root as `node --input-type=module <<'EOF'`.
   Never run `playwright install`. If `$CHROMIUM` is unset, run under `devenv shell --`.
 - Requests for the page must send `Accept: text/html`, or slskd returns the raw file.
 - slskd variants: `devenv down` (a running manager ignores new config), then e.g. `devenv up -d -O processes.slskd.env.SLSKD_NO_AUTH:string true`.

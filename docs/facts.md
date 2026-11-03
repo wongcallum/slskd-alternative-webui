@@ -1306,6 +1306,13 @@ Checked against the `@radix-ui/themes` 3.3.0 package source.
 - `Checkbox` ignores Enter, so only Space toggles it (`@radix-ui/react-checkbox` 1.3.11).
 - In a `TabNav`, arrow keys move focus between the links a task after the key (a `setTimeout` in
   `@radix-ui/react-navigation-menu` 1.2.22).
+- `styles.css` has all 30 colour scales, which are 35 of its 86 kB gzipped. The docs' alternative is `tokens/base.css`,
+  a file per scale, `components.css` and `utilities.css`. The default theme is `indigo` with `slate` gray, and a
+  `color` prop accepts a scale that wasn't imported but then has no colour
+  ([docs](https://www.radix-ui.com/themes/docs/theme/color)). The docs import `base.css` first, but `tokens.css` has
+  it after the scales: `gray.css` sets `--gray-*` on `.light` and `.dark`, which a `Theme` with an explicit
+  appearance has, and `base.css` maps them onto the theme's gray with a selector of the same specificity, so it has to
+  come later (observed in Chromium).
 - next-themes 0.4.6, which the Radix docs recommend, is unneeded: its anti-flash script does nothing when rendered
   client-side only (React 19 doesn't run rendered `<script>`s).
 

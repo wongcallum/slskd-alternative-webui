@@ -1,4 +1,4 @@
-import pMap from 'p-map'
+import pLimit from 'p-limit'
 
 import { sessionSignal } from '../session/session'
 import { describeError } from './api'
@@ -67,20 +67,17 @@ export async function actOnEach<T extends { id: string }>(
 ) {
   const errors: string[] = []
   try {
-    await pMap(
-      items,
-      async (item) => {
-        try {
-          await act(item, operation.signal)
-        } catch (error) {
-          if (operation.signal.aborted) throw error
-          errors.push(`${name(item)}: ${describeError(error)}`)
-        } finally {
-          operation.advance([item.id])
-        }
-      },
-      { concurrency, signal: operation.signal },
-    )
+    await pLimit(concurrency).map(items, async (item) => {
+      operation.signal.throwIfAborted()
+      try {
+        await act(item, operation.signal)
+      } catch (error) {
+        if (operation.signal.aborted) throw error
+        errors.push(`${name(item)}: ${describeError(error)}`)
+      } finally {
+        operation.advance([item.id])
+      }
+    })
   } catch {
     return undefined
   }
