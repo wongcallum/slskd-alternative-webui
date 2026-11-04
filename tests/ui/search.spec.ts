@@ -24,7 +24,7 @@ async function searchAlbumIntro(page: Page, fast: Peer) {
   await expect(page.getByRole('button', { name: fast.username, exact: true })).toBeVisible()
 }
 
-test('a search shows the files peers share once stopped, and downloads one', async ({
+test('a search shows the files peers share once stopped, and downloads their folder', async ({
   page,
   slskd,
   peers: { fast },
