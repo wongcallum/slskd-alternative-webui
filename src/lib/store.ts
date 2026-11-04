@@ -1,8 +1,8 @@
 import { functionalUpdate } from '@tanstack/react-table'
 import { useSyncExternalStore } from 'react'
 
-import { onSessionEnd } from '../session/session'
 import { createListeners } from './listeners'
+import { onSessionEnd } from './session'
 
 type Snapshot<T> = { data?: T; error?: unknown }
 
@@ -22,6 +22,8 @@ export type Resource<T> = {
   getInterval: () => number | undefined
   isRunning: () => boolean
   refresh: () => void
+  // Changes the data held while the resource runs, as a push would, such as with the result of an action.
+  amend(update: (data: T) => T): void
   // For one that will never be used again, which the session's end would otherwise keep until then.
   dispose: () => void
 }
@@ -32,7 +34,7 @@ export function shallowEqual<T extends object>(a: T, b: T) {
 }
 
 // The previous array while nothing in it changed, since every push and poll carries new ones.
-export const sameItems = <T>(previous: readonly T[] | undefined, next: readonly T[]) =>
+export const keepItems = <T>(previous: readonly T[] | undefined, next: readonly T[]) =>
   previous !== undefined && previous.length === next.length && previous.every((each, i) => Object.is(each, next[i]))
     ? previous
     : next
@@ -45,6 +47,7 @@ export function createResource<T extends object>(start: (sink: Sink<T>) => Sourc
   const listeners = createListeners()
   let subscribers = 0
   let source: Source | undefined
+  let live: Sink<T> | undefined
   let stopTimer: ReturnType<typeof setTimeout> | undefined
 
   function emit(next: Snapshot<T>) {
@@ -83,7 +86,10 @@ export function createResource<T extends object>(start: (sink: Sink<T>) => Sourc
     subscribe(listener) {
       const unwatch = listeners.add(listener)
       clearTimeout(stopTimer)
-      if (++subscribers === 1) source ??= start(createSink())
+      if (++subscribers === 1 && source === undefined) {
+        live = createSink()
+        source = start(live)
+      }
       return () => {
         unwatch()
         if (--subscribers > 0) return
@@ -91,6 +97,7 @@ export function createResource<T extends object>(start: (sink: Sink<T>) => Sourc
         stopTimer = setTimeout(() => {
           source?.stop()
           source = undefined
+          live = undefined
         })
       }
     },
@@ -100,22 +107,30 @@ export function createResource<T extends object>(start: (sink: Sink<T>) => Sourc
     getInterval: () => interval,
     isRunning: () => source !== undefined,
     refresh: () => source?.refresh?.(),
+    amend(update) {
+      if (live === undefined || snapshot.data === undefined) return
+      const next = update(snapshot.data)
+      if (next !== snapshot.data) live.set(next)
+    },
     dispose: unlisten,
   }
 }
 
-// One resource per key, such as a room, made when it's first asked for.
-export function createResourceMap<T>(create: (key: string) => Resource<T>) {
+// One resource per key, such as a room, made when it's first asked for. A key that isn't a string needs an id.
+export function createResourceMap<K, T>(
+  create: (key: K) => Resource<T>,
+  ...[id = String]: K extends string ? [id?: (key: K) => string] : [id: (key: K) => string]
+) {
   const resources = new Map<string, Resource<T>>()
   return {
-    get: (key: string) => {
-      let resource = resources.get(key)
-      if (resource === undefined) resources.set(key, (resource = create(key)))
+    get: (key: K) => {
+      let resource = resources.get(id(key))
+      if (resource === undefined) resources.set(id(key), (resource = create(key)))
       return resource
     },
-    forget(key: string) {
-      resources.get(key)?.dispose()
-      resources.delete(key)
+    forget(key: K) {
+      resources.get(id(key))?.dispose()
+      resources.delete(id(key))
     },
   }
 }
@@ -190,6 +205,10 @@ export function poll<T>(
 // Resolves true once the data passes, or false at the timeout. The resource keeps running meanwhile.
 export function waitFor<T>(resource: Resource<T>, passes: (data: T) => boolean, signal: AbortSignal, timeout: number) {
   return new Promise<boolean>((resolve, reject) => {
+    if (signal.aborted) {
+      reject(signal.reason)
+      return
+    }
     const timer = setTimeout(() => finish(() => resolve(false)), timeout)
     const check = () => {
       const { data } = resource.getSnapshot()

@@ -2,11 +2,11 @@ import { isHTTPError } from 'ky'
 import { useMemo } from 'react'
 
 import { api } from '../lib/api'
+import { application, ownUsername } from '../lib/application'
 import { toTime } from '../lib/format'
 import { createAtom, createResource, createResourceMap, poll, type Resource, useAtom, useResource } from '../lib/store'
 import { createStoredAtom } from '../lib/stored'
 import { byUsername, compareExactly } from '../lib/text'
-import { application, ownUsername } from '../system/application'
 import { lastOpen, mentionMatcher, type Message, reuseMessages } from './messages'
 
 export type RawRoomMessage = { timestamp: string; username: string; message: string; self?: boolean }
@@ -40,7 +40,10 @@ export function setOpenRoom(room: string | undefined) {
 // already holds, so joining a busy room doesn't count 250 messages as unread.
 const roomsSeen = createStoredAtom<Readonly<Record<string, number>>>(
   'slskd-alt-rooms-seen',
-  (stored) => (typeof stored === 'object' && stored !== null ? (stored as Record<string, number>) : undefined),
+  (stored) =>
+    typeof stored === 'object' && stored !== null
+      ? Object.fromEntries(Object.entries(stored).filter(([, time]) => Number.isFinite(time)))
+      : undefined,
   {},
 )
 
@@ -85,7 +88,7 @@ function settlePending(room: string, messages: readonly Message[]) {
   if (left.length !== list.length) setPending(room, () => left)
 }
 
-function toMessages(room: string, raws: RawRoomMessage[], previous?: readonly Message[]): RoomMessages {
+function toMessages(raws: RawRoomMessage[], previous?: readonly Message[]): RoomMessages {
   const mentions = mentionMatcher(ownUsername.get())
   const counts = new Map<string, number>()
   const messages = raws.map((raw): Message => {
@@ -103,21 +106,25 @@ function toMessages(room: string, raws: RawRoomMessage[], previous?: readonly Me
       mention: !self && mentions(raw.message),
     }
   })
-  const reused = reuseMessages(previous, messages)
-  if (roomsSeen.get()[room] === undefined) markSeen(room, reused.at(-1)?.time ?? 0)
-  settlePending(room, reused)
-  return { messages: reused }
+  return { messages: reuseMessages(previous, messages) }
+}
+
+function received(room: string, messages: readonly Message[]) {
+  if (roomsSeen.get()[room] === undefined) markSeen(room, messages.at(-1)?.time ?? 0)
+  settlePending(room, messages)
 }
 
 // Every joined room is polled while the chat page is open, to show which have news, and the open one more often.
-const messageResources = createResourceMap((room) => {
+const messageResources = createResourceMap((room: string) => {
   const resource: Resource<RoomMessages> = createResource((sink) =>
     poll(
       sink,
       async (signal, measure) => {
         const text = await api.get(`${path(room)}/messages`, { signal }).text()
         const previous = resource.getSnapshot().data?.messages
-        return measure(() => toMessages(room, JSON.parse(text) as RawRoomMessage[], previous))
+        const data = measure(() => toMessages(JSON.parse(text) as RawRoomMessage[], previous))
+        received(room, data.messages)
+        return data
       },
       () => (room === openRoom ? roomPollInterval : backgroundInterval),
     ),
@@ -137,7 +144,7 @@ function toUser(raw: RawRoomUser): RoomUser {
   }
 }
 
-const userResources = createResourceMap((room) =>
+const userResources = createResourceMap((room: string) =>
   createResource<RoomUsers>((sink) => {
     let last: { text: string; data: RoomUsers } | undefined
     return poll(

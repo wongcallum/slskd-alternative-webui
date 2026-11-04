@@ -23,16 +23,7 @@ import {
 } from '../ui/table'
 import { UserCell, UserMenu } from '../users/UserMenu'
 import { type DashboardSearch, type Measure, type Range, type UserSort, userSorts } from './params'
-import {
-  type Folder,
-  type Leader,
-  leaderboards,
-  leadersKey,
-  type Reason,
-  type Report,
-  reports,
-  type Totals,
-} from './reports'
+import { type Folder, type Leader, leaderboards, type Reason, type Report, reports, type Totals } from './reports'
 
 export const loadChart = () => import('./Chart')
 
@@ -258,7 +249,7 @@ const userColumns: Record<UserSort, string> = { files: 'Files', size: 'Size', sp
 const leaderTemplate = 'minmax(0, 1fr) 64px 88px 100px'
 
 function LeaderCards({ range, sort, onSort }: { range: Range; sort: UserSort; onSort: (sort: UserSort) => void }) {
-  const resource = leaderboards.get(leadersKey(range, sort))
+  const resource = leaderboards.get({ range, sort })
   const { data, error } = useResource(resource)
   const table = (leaders: readonly Leader[] | undefined) =>
     leaders === undefined ? (

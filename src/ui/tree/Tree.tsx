@@ -9,7 +9,7 @@ import type { Folder, Matches, Tree as FolderTree } from '../../lib/tree'
 import { focusList } from '../focus'
 import { useListKeys } from '../keys'
 import { useListNav } from '../listNav'
-import { type Expansion, isExpanded, rowId, stop, toggleExpanded, VirtualTable } from '../table'
+import { type Expansion, isExpanded, rowId, stopPropagation, toggleExpanded, VirtualTable } from '../table'
 import { type KeysProps, upKeys } from './keys'
 
 const expansions = createAtom<ReadonlyMap<string, Expansion>>(new Map())
@@ -214,7 +214,7 @@ const TreeRow = memo(function TreeRow({
           tabIndex={-1}
           aria-hidden
           onClick={(event) => {
-            stop(event)
+            stopPropagation(event)
             onToggle(folder)
           }}
         >

@@ -7,7 +7,7 @@ import { describeError } from '../lib/api'
 import { formatAge, formatTime, useAgo } from '../lib/format'
 import { type Atom, isStale, type Resource, useAtom, useFreshness, useResource, useWatchedResource } from '../lib/store'
 import { ActionButton, type Color, Tip } from './controls'
-import { stop } from './table'
+import { stopPropagation } from './table'
 
 export function StatusDot({ color }: { color: Color }) {
   return (
@@ -173,7 +173,7 @@ export function DismissibleText({
         color="gray"
         aria-label="Dismiss"
         onClick={(event) => {
-          stop(event)
+          stopPropagation(event)
           onDismiss()
         }}
       >

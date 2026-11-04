@@ -1,8 +1,9 @@
 import { Flex, Text } from '@radix-ui/themes'
 
+import type { Presence } from '../lib/db'
 import type { Color } from '../ui/controls'
 import { DismissibleText, StatusDot } from '../ui/status'
-import { dismissLookupErrors, type LookupErrors, type Presence } from './users'
+import { dismissLookupErrors, type LookupErrors } from './users'
 
 const presenceColors: Record<Presence, Color> = { Online: 'green', Away: 'amber', Offline: 'gray' }
 

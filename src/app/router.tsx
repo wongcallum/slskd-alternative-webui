@@ -21,13 +21,13 @@ import { chatSearch, chatSearchDefaults, roomsSearch, roomsSearchDefaults } from
 import { RoomView } from '../chat/RoomView'
 import { DashboardPage, loadChart } from '../dashboard/DashboardPage'
 import { dashboardSearch, dashboardSearchDefaults } from '../dashboard/params'
+import { onSessionEnd } from '../lib/session'
 import { useResource } from '../lib/store'
 import { searchesSearch, searchesSearchDefaults } from '../search/params'
 import { resultsSearch, resultsSearchDefaults } from '../search/results/params'
 import { ResultsPage } from '../search/results/ResultsPage'
 import { searches } from '../search/searches'
 import { SearchesPage } from '../search/SearchesPage'
-import { onSessionEnd } from '../session/session'
 import { SessionGate } from '../session/SessionGate'
 import { FilesPage } from '../system/files/FilesPage'
 import { filesSearch, filesSearchDefaults } from '../system/files/params'
@@ -324,8 +324,9 @@ export const router = createRouter({
   stringifySearch: stringifySearchWith(String),
 })
 
-// Titles come from snapshots the session's end has just cleared, like a search's text.
-onSessionEnd(() => void router.invalidate())
+// Titles come from snapshots the session's end clears, like a search's text, so they're read again once every
+// listener has run.
+onSessionEnd(() => queueMicrotask(() => void router.invalidate()))
 
 trackHistory(router.history)
 

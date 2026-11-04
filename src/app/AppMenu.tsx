@@ -3,17 +3,17 @@ import { DropdownMenu, Flex, IconButton, Text } from '@radix-ui/themes'
 import { useNavigate } from '@tanstack/react-router'
 
 import { useUnread } from '../chat/ChatBadge'
+import { application, releaseNotes, useIsAgent } from '../lib/application'
 import { plural } from '../lib/format'
 import { useTouch } from '../lib/media'
+import { logout, useSession } from '../lib/session'
 import { useAtom, useResource } from '../lib/store'
-import { logout, useSession } from '../session/session'
-import { application, releaseNotes, useIsAgent } from '../system/application'
+import { themeChoice } from '../lib/theme'
 import { SpeedValue } from '../transfers/TransferSpeeds'
 import { useIsActive } from '../ui/nav'
 import { CornerDot } from '../ui/status'
 import { keysOpen } from './keys'
 import { sections } from './sections'
-import { themeChoice } from './theme'
 
 const themes = [
   ['system', 'System'],

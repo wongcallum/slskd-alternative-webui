@@ -1,26 +1,20 @@
 import { Flex, Text } from '@radix-ui/themes'
 import { type ReactNode, useMemo } from 'react'
 
-import { entriesByUser } from '../lib/db'
+import { entriesByUser, type UserEntry } from '../lib/db'
+import type { UserRecord } from '../lib/db'
 import { useAtom } from '../lib/store'
 import { useSoulseekGate } from '../soulseek/soulseek'
 import { Ago, Busy } from '../ui/status'
 import { Cell, type Layout } from '../ui/table'
-import { UserListPage, UserListRow } from '../ui/UserList'
+import { UserListPage, UserListRow } from '../ui/userList'
 import { LookUpBox } from './LookUpBox'
-import { LookupErrorLine, PresenceLabel } from './LookupStatus'
-import {
-  deleteUser,
-  lookedUpAt,
-  lookUp,
-  type LookupErrors,
-  lookupErrors,
-  lookups,
-  type UserRecord,
-  useUserList,
-} from './users'
+import { LookupErrorLine, PresenceLabel } from './lookupStatus'
+import { deleteUser, lookedUpAt, lookUp, type LookupErrors, lookupErrors, lookups, useUserList } from './users'
 
-type Entry = { username: string; record?: UserRecord; startedAt?: number; errors?: LookupErrors }
+type Fields = { record: UserRecord; startedAt: number; errors: LookupErrors }
+
+type Entry = UserEntry<Fields>
 
 const templates = {
   wide: 'minmax(200px, 1fr) 100px 90px 80px 100px minmax(240px, 1.2fr) 76px',
@@ -44,7 +38,7 @@ export function UsersPage() {
   const entries = useMemo(() => {
     const time = (entry: Entry) =>
       Math.max(entry.record === undefined ? 0 : lookedUpAt(entry.record), entry.errors?.at ?? 0)
-    return entriesByUser<Entry>((entryOf) => {
+    return entriesByUser<Fields>((entryOf) => {
       for (const record of list.records.values()) entryOf(record.username).record = record
       for (const [username, startedAt] of running) entryOf(username).startedAt = startedAt
       for (const [username, errors] of failed) entryOf(username).errors = errors

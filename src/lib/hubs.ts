@@ -1,9 +1,9 @@
 import { type HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signalr'
 import { useSyncExternalStore } from 'react'
 
-import { getSession } from '../session/session'
 import { api } from './api'
 import { createListeners } from './listeners'
+import { getSession } from './session'
 import { type Measure, poll, type Resource, type Sink, type Source, useResource, useStale } from './store'
 import { urlBase } from './urlBase'
 

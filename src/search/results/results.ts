@@ -2,11 +2,11 @@ import { browse, cachedShare } from '../../browse/browse'
 import { api, describeError } from '../../lib/api'
 import { type Criteria, hasAttributes, judging, passes, unjudged } from '../../lib/criteria'
 import { describeRange, lastSeparator, nameOf, qualityOf, type RawFile, widenRange } from '../../lib/files'
+import { sessionSignal } from '../../lib/session'
 import { createAtom } from '../../lib/store'
 import { byName, byUsername, comparePaths, queryMatcher } from '../../lib/text'
 import { filesUnder, type TreeFile } from '../../lib/tree'
-import { sessionSignal } from '../../session/session'
-import { type Batch, createDownloads, enqueueDownloads } from '../../transfers/enqueue'
+import { type Batch, createDownloads, destinationOf, enqueueDownloads } from '../../transfers/enqueue'
 
 export type RawResponse = {
   username: string
@@ -66,6 +66,10 @@ export type Results = {
 
 const directoryOf = (filename: string) => filename.slice(0, Math.max(0, lastSeparator(filename)))
 
+// A folder's id ends in a newline, which no filename does, so it can't be a file's.
+const fileId = (username: string, filename: string) => `${username}\n${filename}`
+const folderId = (username: string, directory: string) => `${username}\n${directory}\n`
+
 // A folder is rated by its worst file, ignoring files without attributes such as cover art.
 function qualityRange(files: ResultFile[]): [number, string] {
   const range: { worst?: ResultFile; best?: ResultFile } = {}
@@ -77,7 +81,7 @@ function toFile(raw: RawFile, peer: Peer, locked: boolean, matched: boolean): Re
   const [quality, qualityLabel] = qualityOf(raw)
   return {
     kind: 'file',
-    id: `${peer.username}\n${raw.filename}`,
+    id: fileId(peer.username, raw.filename),
     peer,
     username: peer.username,
     directory: directoryOf(raw.filename),
@@ -154,7 +158,7 @@ function toResults(responses: RawResponse[]): Results {
     ] as const) {
       for (const raw of raws) {
         const file = toFile(raw, peer, isLocked, true)
-        const id = `${peer.username}\n${file.directory}\n`
+        const id = folderId(peer.username, file.directory)
         let folder = folders.get(id)
         if (folder === undefined) folders.set(id, (folder = { peer, directory: file.directory, files: new Map() }))
         if (folder.files.has(file.id)) continue
@@ -296,11 +300,15 @@ export async function fetchFolder(searchId: string, group: ResultGroup, fresh: b
   const previous = entries.get().get(searchId)?.folders.get(group.id)
   const set = (fetch: FolderFetch) =>
     update(searchId, (entry) => ({ ...entry, folders: new Map(entry.folders).set(group.id, fetch) }))
+  const fail = (error: string) => set({ ...previous, pending: false, missing: false, error, failedAt: Date.now() })
   set({ ...previous, pending: true })
   try {
     const outcome = (fresh ? undefined : await cachedShare(group.username)) ?? (await browse(group.username))
-    if (outcome === undefined) return
-    if (!('share' in outcome)) throw new Error(outcome.error)
+    if (outcome === undefined || signal.aborted) return
+    if (!('share' in outcome)) {
+      fail(outcome.error)
+      return
+    }
     const folder = outcome.share.byPath.get(group.directory)
     if (folder === undefined) {
       set({ pending: false, fetchedAt: outcome.fetchedAt, missing: true, failedAt: Date.now() })
@@ -319,9 +327,7 @@ export async function fetchFolder(searchId: string, group: ResultGroup, fresh: b
       .sort(byName)
     set({ pending: false, files, fetchedAt: outcome.fetchedAt })
   } catch (error) {
-    if (!signal.aborted) {
-      set({ ...previous, pending: false, missing: false, error: describeError(error), failedAt: Date.now() })
-    }
+    if (!signal.aborted) fail(describeError(error))
   }
 }
 
@@ -350,9 +356,7 @@ export function download(searchId: string, files: ResultFile[]) {
     if (batch === undefined) {
       const destination =
         root &&
-        [nameOf(root.directory), ...file.directory.slice(root.directory.length + 1).split(/[\\/]/)]
-          .filter((segment) => segment !== '')
-          .join('/')
+        destinationOf([nameOf(root.directory), ...file.directory.slice(root.directory.length + 1).split(/[\\/]/)])
       batches.set(key, (batch = { username: file.username, label: file.username, files: [], searchId, destination }))
     }
     batch.files.push(file)

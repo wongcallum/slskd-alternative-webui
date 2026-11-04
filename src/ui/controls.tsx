@@ -34,13 +34,13 @@ import { type Atom, useAtom } from '../lib/store'
 import { focusList, returnToList } from './focus'
 import { displayKey } from './keys'
 import { useRowTabIndex } from './listNav'
-import { stop } from './table'
+import { stopPropagation } from './table'
 
 export type Color = NonNullable<TextProps['color']>
 
 export const toolbarStyle = { boxShadow: 'inset 0 -1px 0 0 var(--gray-a5)' }
 
-export const barHeight = '48px'
+export const barHeight = 48
 
 // Below sm, selection actions take a line of their own under the rest.
 export function Toolbar({ gap = '3', children }: { gap?: FlexProps['gap']; children: ReactNode }) {
@@ -53,7 +53,7 @@ export function Toolbar({ gap = '3', children }: { gap?: FlexProps['gap']; child
       px="4"
       py="2"
       flexShrink="0"
-      minHeight={barHeight}
+      minHeight={`${barHeight}px`}
       style={toolbarStyle}
     >
       {children}
@@ -103,8 +103,8 @@ export function Tip({ content, tap = true, children }: { content?: ReactNode; ta
   }
   return (
     <Popover.Root>
-      <Popover.Trigger onClick={stop}>{trigger}</Popover.Trigger>
-      <Popover.Content size="1" maxWidth="320px" onClick={stop}>
+      <Popover.Trigger onClick={stopPropagation}>{trigger}</Popover.Trigger>
+      <Popover.Content size="1" maxWidth="320px" onClick={stopPropagation}>
         <Text as="p" size="2" style={{ whiteSpace: 'pre-line', overflowWrap: 'anywhere' }}>
           {content}
         </Text>
@@ -339,7 +339,7 @@ export function useFilterText(q: string, onChange: (q: string) => void) {
 
 // ↓ and Escape go to the list the field filters, to the row the keyboard was last on. In a dialog, Escape closes it
 // first.
-export const toList = (list?: string) =>
+export const onKeyDownToList = (list?: string) =>
   list === undefined
     ? undefined
     : (event: KeyboardEvent) => {
@@ -380,7 +380,8 @@ export function FilterField({
       value={value}
       onChange={(event) => onChange(event.target.value)}
       onKeyDown={(event) => {
-        if (event.key !== 'Enter' || onEnter === undefined || event.nativeEvent.isComposing) toList(list)?.(event)
+        if (event.key !== 'Enter' || onEnter === undefined || event.nativeEvent.isComposing)
+          onKeyDownToList(list)?.(event)
         else {
           event.preventDefault()
           onEnter()

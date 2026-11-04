@@ -1,7 +1,7 @@
 import { Link, Tooltip } from '@radix-ui/themes'
 
+import { application, releaseNotes } from '../lib/application'
 import { useResource } from '../lib/store'
-import { application, releaseNotes } from './application'
 
 export function UpdateNotice() {
   const { data } = useResource(application)

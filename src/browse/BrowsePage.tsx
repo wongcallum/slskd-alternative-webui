@@ -1,20 +1,22 @@
 import { Text } from '@radix-ui/themes'
 import { type ReactNode, useMemo } from 'react'
 
-import { entriesByUser } from '../lib/db'
+import { entriesByUser, type UserEntry } from '../lib/db'
 import { formatBytes, plural } from '../lib/format'
 import { useAtom } from '../lib/store'
 import { useSoulseekGate } from '../soulseek/soulseek'
 import { Ago } from '../ui/status'
 import { Cell, type Layout } from '../ui/table'
-import { UserListPage, UserListRow } from '../ui/UserList'
+import { UserListPage, UserListRow } from '../ui/userList'
 import { type Browse, browse, browses, deleteShare, type Failure, failures, loadedShares, useShareList } from './browse'
-import { BrowseProgress, FailureLine } from './BrowseStatus'
+import { BrowseProgress, FailureLine } from './browseStatus'
 import { UserBox } from './UserBox'
 
 type Stats = { folders: number; files: number; locked: number; size: number; fetchedAt: number }
 
-type Entry = { username: string; stats?: Stats; notCached?: string; browse?: Browse; failure?: Failure }
+type Fields = { stats: Stats; notCached: string; browse: Browse; failure: Failure }
+
+type Entry = UserEntry<Fields>
 
 const templates = {
   wide: 'minmax(200px, 1fr) 90px 100px 100px 90px 110px minmax(240px, 1.2fr) 76px',
@@ -39,7 +41,7 @@ export function BrowsePage() {
 
   const entries = useMemo(() => {
     const time = (entry: Entry) => entry.stats?.fetchedAt ?? entry.failure?.at ?? 0
-    return entriesByUser<Entry>((entryOf) => {
+    return entriesByUser<Fields>((entryOf) => {
       for (const record of list.records.values()) entryOf(record.username).stats = record
       for (const [username, loaded] of memory) {
         if (loaded.status !== 'ready' || loaded.notCached === undefined) continue

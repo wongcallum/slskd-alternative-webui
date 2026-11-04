@@ -152,7 +152,7 @@ export function FolderPane({
         px="4"
         py="2"
         flexShrink="0"
-        minHeight={barHeight}
+        minHeight={`${barHeight}px`}
         style={toolbarStyle}
       >
         <Flex align="center" gap="3" minWidth="0" style={{ overflow: 'hidden' }}>

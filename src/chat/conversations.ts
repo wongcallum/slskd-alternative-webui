@@ -1,10 +1,10 @@
 import { isHTTPError } from 'ky'
 
 import { api } from '../lib/api'
+import { application } from '../lib/application'
 import { toTime } from '../lib/format'
 import { createResource, createResourceMap, poll, type Resource } from '../lib/store'
 import { byUsername } from '../lib/text'
-import { application } from '../system/application'
 import { lastOpen, type Message, reuseMessages } from './messages'
 
 export type RawConversation = { username: string; unAcknowledgedMessageCount: number }
@@ -85,7 +85,7 @@ async function acknowledge(username: string, signal: AbortSignal) {
 // until the conversation is in the list or a message is sent.
 const unstarted = new Set<string>()
 
-const messageResources = createResourceMap((username) => {
+const messageResources = createResourceMap((username: string) => {
   const resource: Resource<ConversationMessages> = createResource((sink) => {
     let first = true
     let newFrom: string | undefined

@@ -2,13 +2,13 @@ import { Box, Button, Callout, Flex, SegmentedControl, Text } from '@radix-ui/th
 import { lazy, type ReactNode, Suspense, useEffect, useMemo, useState } from 'react'
 
 import { describeError } from '../../lib/api'
+import { pendingItems, useApplication } from '../../lib/application'
 import type { SearchProps } from '../../lib/params'
 import { useAtom, useResource } from '../../lib/store'
 import { ActionButton, barHeight, disabledProps, Tip, toolbarStyle } from '../../ui/controls'
 import { Preformatted } from '../../ui/details'
 import { Fetched, FetchedResource, Freshness, Loading, Polling } from '../../ui/status'
 import { YamlView } from '../../ui/YamlView'
-import { pendingItems, useApplication } from '../application'
 import { PendingCallout, PendingCallouts } from '../PendingCallouts'
 import { SystemPage } from '../SystemPage'
 import { type Check, checkConfig } from './check'
@@ -123,7 +123,16 @@ function Toolbar({ control, children }: { control: ReactNode; children?: ReactNo
   const { data, known } = useApplication()
   return (
     <>
-      <Flex align="center" gap="3" px="4" py="2" flexShrink="0" minHeight={barHeight} wrap="wrap" style={toolbarStyle}>
+      <Flex
+        align="center"
+        gap="3"
+        px="4"
+        py="2"
+        flexShrink="0"
+        minHeight={`${barHeight}px`}
+        wrap="wrap"
+        style={toolbarStyle}
+      >
         {control}
         <Flex ml="auto" align="center" gap="3" minWidth="0">
           {children}
@@ -221,7 +230,8 @@ function FileView({ control, gate, known }: { control: ReactNode; gate?: string;
   if (text === undefined) {
     if (waiting(gate)) content = <Loading />
     else if (!available) content = <Unavailable>{gate}, so the file can't be read or saved here.</Unavailable>
-    else if (file.readError !== undefined) content = <Unavailable>Can't read the file: {file.readError}</Unavailable>
+    else if (file.readError !== undefined)
+      content = <Unavailable>Can't read the file: {describeError(file.readError)}</Unavailable>
     else content = <Loading />
   } else {
     content = (
@@ -256,7 +266,7 @@ function FileView({ control, gate, known }: { control: ReactNode; gate?: string;
           error={file.base === undefined ? undefined : file.readError}
           loading={file.reading}
           label={dirty ? 'Discard my changes' : 'Reload'}
-          gate={gate}
+          gate={gate ?? (file.saving ? 'Saving' : undefined)}
           onRefresh={dirty ? discard : () => void readFile()}
         />
       }
@@ -287,9 +297,11 @@ function ConflictCallout({ gate, saving }: { gate?: string; saving: boolean }) {
             color="amber"
             onClick={() => void save({ overwrite: true })}
           />
-          <Button size="1" variant="soft" color="gray" onClick={discard}>
-            Discard my changes
-          </Button>
+          <Tip content={saving ? 'Saving' : undefined}>
+            <Button size="1" variant="soft" color="gray" {...disabledProps(saving)} onClick={discard}>
+              Discard my changes
+            </Button>
+          </Tip>
         </Flex>
       </PendingCallout>
     </Box>

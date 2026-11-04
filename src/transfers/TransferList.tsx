@@ -8,7 +8,7 @@ import { formatSpeed, plural } from '../lib/format'
 import { useFrom } from '../lib/media'
 import { useAtom } from '../lib/store'
 import { ColumnsMenu } from '../ui/ColumnsMenu'
-import { type Choices, ChoiceSelect, ConfirmButton, ConfirmDialog, disabledProps, Tip } from '../ui/controls'
+import { type Choices, ChoiceSelect, ConfirmButton, ConfirmDialog, disabledProps, Tip, barHeight } from '../ui/controls'
 import { type ListKey, useListKeys } from '../ui/keys'
 import { RowScope, useListNav } from '../ui/listNav'
 import {
@@ -20,8 +20,9 @@ import {
   type Layout,
   rowHeight,
   stackedHeight,
-  stackedHeight3,
+  stackedThreeLineHeight,
   toggleExpanded,
+  tracksFor,
   useLayout,
   useRowToggle,
   useSelectionKeys,
@@ -31,7 +32,6 @@ import { type Columns, columnsVar, useColumns } from '../ui/widths'
 import { actions, cancel, clearFinished, lookups, remove, retry } from './actions'
 import { FileRow, GroupRow } from './rows'
 import {
-  barHeight,
   columnLabels,
   columnsOf,
   expansions,
@@ -67,10 +67,8 @@ const isRow = (item: ListItem): item is RowItem => item.type === 'row'
 type ListProps = {
   direction: Direction
   data: Transfers
-  active: Group[]
-  finished: Group[]
-  activeTable: SectionTable
-  finishedTable: SectionTable
+  groups: Record<Section, Group[]>
+  tables: Record<Section, SectionTable>
   filtered: boolean
   selected: Transfer[]
   show: Show
@@ -79,10 +77,10 @@ type ListProps = {
 }
 
 export function TransferList(props: ListProps) {
-  const { direction, activeTable, finishedTable, gates } = props
+  const { direction, data, groups, tables, filtered, selected, show, onShowChange, gates } = props
   const layout = useLayout()
   const twoLines = !useFrom('sm')
-  const sectionTracks = tracks[layout === 'stacked' ? 'medium' : layout]
+  const sectionTracks = tracksFor(tracks, layout)
   const columns = {
     active: useColumns('transfers', sectionTracks.active),
     finished: useColumns('transfers', sectionTracks.finished),
@@ -92,8 +90,8 @@ export function TransferList(props: ListProps) {
   const lookupMap = useAtom(lookups)
   // A second retry would re-enqueue what the first hasn't reached yet, and they'd share one progress count.
   const retryGate = running.retry === undefined ? gates.soulseek : 'A retry is running'
-  const activeRows = activeTable.getRowModel().rows
-  const finishedRows = finishedTable.getRowModel().rows
+  const activeRows = tables.active.getRowModel().rows
+  const finishedRows = tables.finished.getRowModel().rows
   const items = useMemo(() => {
     const list: ListItem[] = []
     for (const [section, rows] of [
@@ -114,13 +112,13 @@ export function TransferList(props: ListProps) {
     (twoLines ? twoLineBarHeight : barHeight) + (open[section] ? columnsHeight : 0)
   const scrollRef = useRef<HTMLDivElement>(null)
   const stickyRef = useRef(0)
-  const onSelect = { active: useRowToggle(activeTable), finished: useRowToggle(finishedTable) }
+  const onSelect = { active: useRowToggle(tables.active), finished: useRowToggle(tables.finished) }
   const onToggle = useCallback(
     (section: Section, id: string) =>
       expansions[direction].set((state) => ({ ...state, [section]: toggleExpanded(state[section], id) })),
     [direction],
   )
-  const keys = { active: useSelectionKeys(activeTable), finished: useSelectionKeys(finishedTable) }
+  const keys = { active: useSelectionKeys(tables.active), finished: useSelectionKeys(tables.finished) }
   const nav = useListNav<ListItem>({
     name: 'transfers',
     items,
@@ -161,7 +159,7 @@ export function TransferList(props: ListProps) {
     [nav.containerRef],
   )
   const chosen = () => {
-    if (props.selected.length > 0) return props.selected
+    if (selected.length > 0) return selected
     const item = nav.focused()
     if (item === undefined || !isRow(item)) return []
     const original = item.row.original
@@ -199,7 +197,7 @@ export function TransferList(props: ListProps) {
       if (index === finishedHeader) return headerHeight('finished')
       const item = itemAt(index)
       if (layout !== 'stacked' || item.type !== 'row') return rowHeight
-      return item.row.original.kind === 'group' ? stackedHeight3 : stackedHeight
+      return item.row.original.kind === 'group' ? stackedThreeLineHeight : stackedHeight
     },
     // A new key function is what makes the virtualizer measure again, so a new layout has to make one.
     getItemKey: useCallback(
@@ -223,11 +221,18 @@ export function TransferList(props: ListProps) {
     if (item.type === 'header') {
       return (
         <SectionHeader
-          {...props}
+          direction={direction}
+          section={item.section}
+          data={data}
+          table={tables[item.section]}
+          groups={groups[item.section]}
+          filtered={filtered}
+          show={show}
+          onShowChange={onShowChange}
+          gates={gates}
           columns={columns[item.section]}
           layout={layout}
           twoLines={twoLines}
-          section={item.section}
           open={open[item.section]}
         />
       )
@@ -236,7 +241,7 @@ export function TransferList(props: ListProps) {
       return (
         <Flex align="center" height="100%" px="4">
           <Text size="2" color="gray">
-            {props.filtered || (item.section === 'finished' && props.show !== 'all')
+            {filtered || (item.section === 'finished' && show !== 'all')
               ? 'Nothing matches.'
               : item.section === 'active'
                 ? `Nothing ${direction === 'download' ? 'downloading' : 'uploading'} or queued.`
@@ -386,13 +391,22 @@ function CancelMenu({ direction, files, gate }: { direction: Direction; files: T
   )
 }
 
+type SectionHeaderProps = Pick<ListProps, 'direction' | 'data' | 'filtered' | 'show' | 'onShowChange' | 'gates'> & {
+  section: Section
+  table: SectionTable
+  groups: Group[]
+  columns: Columns
+  layout: Layout
+  twoLines: boolean
+  open: boolean
+}
+
 function SectionHeader({
   direction,
+  section,
   data,
-  active,
-  finished,
-  activeTable,
-  finishedTable,
+  table,
+  groups,
   filtered,
   show,
   onShowChange,
@@ -400,12 +414,9 @@ function SectionHeader({
   columns,
   layout,
   twoLines,
-  section,
   open,
-}: ListProps & { columns: Columns; layout: Layout; twoLines: boolean; section: Section; open: boolean }) {
+}: SectionHeaderProps) {
   const { running } = useAtom(actions[direction])
-  const table = section === 'active' ? activeTable : finishedTable
-  const groups = section === 'active' ? active : finished
   let summary: string
   let speed: string | undefined
   if (filtered || (section === 'finished' && show !== 'all')) {

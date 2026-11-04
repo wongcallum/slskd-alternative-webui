@@ -19,8 +19,8 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
 import { router } from './app/router'
-import { useAppearance } from './app/theme'
-import { startSession } from './session/session'
+import { startSession } from './lib/session'
+import { useAppearance } from './lib/theme'
 
 startSession()
 

@@ -1,6 +1,6 @@
 import * as v from 'valibot'
 
-import type { RawState } from '../../src/system/application'
+import type { RawState } from '../../src/lib/application'
 import { expect, test } from '../fixtures'
 import { openHub } from '../hub'
 import { logIn, sleep, start } from '../slskd'

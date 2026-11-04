@@ -30,7 +30,7 @@ import {
   rowSelected,
   StackedRow,
   stackedHeight,
-  stop,
+  stopPropagation,
   tracksFor,
   useListLayout,
   useRowToggle,
@@ -176,7 +176,7 @@ const SearchRow = memo(function SearchRow({ search, layout, selected, pending, g
   const tabIndex = useRowTabIndex()
   const link = (
     <Link asChild size="2" weight="medium" truncate>
-      <RouterLink to="/searches/$id" params={{ id: search.id }} tabIndex={tabIndex} onClick={stop}>
+      <RouterLink to="/searches/$id" params={{ id: search.id }} tabIndex={tabIndex} onClick={stopPropagation}>
         {search.text}
       </RouterLink>
     </Link>

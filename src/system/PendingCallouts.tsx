@@ -4,12 +4,12 @@ import { Link as RouterLink } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 
 import { browses } from '../browse/browse'
+import { type Application, rescanNeeded, stateGate } from '../lib/application'
+import { useSession } from '../lib/session'
 import { useAtom } from '../lib/store'
 import { useRun } from '../lib/useRun'
-import { useSession } from '../session/session'
 import { reconnect } from '../soulseek/soulseek'
 import { ActionButton, ConfirmButton } from '../ui/controls'
-import { type Application, rescanNeeded, stateGate } from './application'
 import { lifecycle, restart } from './lifecycle'
 
 export function PendingCallout({ error, children }: { error?: string; children: ReactNode }) {

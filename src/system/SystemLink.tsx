@@ -2,10 +2,10 @@ import { GearIcon } from '@radix-ui/react-icons'
 import { IconButton, Tooltip } from '@radix-ui/themes'
 import { Link } from '@tanstack/react-router'
 
+import { application, pendingItems } from '../lib/application'
 import { useResource } from '../lib/store'
 import { useIsActive } from '../ui/nav'
 import { CornerDot } from '../ui/status'
-import { application, pendingItems } from './application'
 
 export function SystemLink() {
   const { data } = useResource(application)

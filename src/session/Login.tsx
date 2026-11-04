@@ -4,7 +4,7 @@ import { type ReactNode, type SubmitEvent, useRef, useState } from 'react'
 
 import { describeError } from '../lib/api'
 import { useTouch } from '../lib/media'
-import { login } from './session'
+import { login } from '../lib/session'
 
 export function CardScreen({ children }: { children: ReactNode }) {
   return (

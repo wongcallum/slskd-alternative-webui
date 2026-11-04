@@ -21,7 +21,7 @@ import {
   ToolbarEnd,
   useFilterText,
 } from '../../ui/controls'
-import { AmountField, FiltersButton } from '../../ui/Filters'
+import { AmountField, FiltersButton } from '../../ui/filters'
 import { Empty } from '../../ui/status'
 import { collapsed, expandedState, groupFeatures } from '../../ui/table'
 import { countFilters, hiddenUsers, noFilters, type ResultsSearch } from './params'

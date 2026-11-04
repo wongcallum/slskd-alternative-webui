@@ -9,8 +9,8 @@ import {
 import { useNavigate } from '@tanstack/react-router'
 import { Fragment } from 'react'
 
+import { useIsAgent } from '../lib/application'
 import { createAtom, useAtom } from '../lib/store'
-import { useIsAgent } from '../system/application'
 import { useReturnFocus } from '../ui/controls'
 import { displayKey, inOverlay } from '../ui/keys'
 import type { To } from '../ui/nav'
@@ -105,7 +105,7 @@ function Keys({ keys }: { keys: readonly string[][] }) {
       {steps.map((step, at) => (
         <Fragment key={step}>
           {at > 0 && ' '}
-          <Kbd size="2">{displayKey(step as Hotkey)}</Kbd>
+          <Kbd size="2">{displayKey(step)}</Kbd>
         </Fragment>
       ))}
     </Fragment>

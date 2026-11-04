@@ -4,8 +4,8 @@ import { type Actions, actOnEach, begin, idle, summarise } from '../lib/actions'
 import { api, resendOn429 } from '../lib/api'
 import { toTime } from '../lib/format'
 import { followHub, searchHub, useLiveResource, type Via } from '../lib/hubs'
+import { sessionSignal } from '../lib/session'
 import { createAtom, createResource, shallowEqual, waitFor } from '../lib/store'
-import { sessionSignal } from '../session/session'
 
 export type RawSearch = {
   id: string
@@ -66,13 +66,16 @@ function settle(via: Via, byId: Map<string, Search>, previous: Searches | undefi
   return same ? { ...previous, via } : { via, list, byId }
 }
 
-let upsertLocally: ((raw: RawSearch) => void) | undefined
+const withSearch = (previous: Searches, raw: RawSearch) =>
+  settle(previous.via, new Map(previous.byId).set(raw.id, toSearch(raw, previous.byId.get(raw.id))), previous)
 
 const current = () => searches.getSnapshot().data
 
+// A push for a search can still be in flight when its DELETE arrives.
+const deleted = new Set<string>()
+
 export const searches = createResource<Searches>((sink) => {
-  // A push for a search can still be in flight when its DELETE arrives.
-  const deleted = new Set<string>()
+  deleted.clear()
 
   function replace(via: Via, raws: RawSearch[]): Searches {
     const previous = current()
@@ -83,10 +86,7 @@ export const searches = createResource<Searches>((sink) => {
 
   function upsert(raw: RawSearch) {
     const previous = current()
-    if (previous === undefined || deleted.has(raw.id)) return
-    sink.set(
-      settle(previous.via, new Map(previous.byId).set(raw.id, toSearch(raw, previous.byId.get(raw.id))), previous),
-    )
+    if (previous !== undefined && !deleted.has(raw.id)) sink.set(withSearch(previous, raw))
   }
 
   function remove(raw: RawSearch) {
@@ -121,15 +121,10 @@ export const searches = createResource<Searches>((sink) => {
     },
     interval: searchPollInterval,
   })
-  // A push can arrive before the POST that created the search returns, and the POST's record is older than it.
-  upsertLocally = (raw) => {
-    if (!current()?.byId.has(raw.id)) upsert(raw)
-  }
   return {
     stop() {
       following.stop()
       for (const off of offs) off()
-      upsertLocally = undefined
     },
     refresh: following.refresh,
   }
@@ -150,8 +145,9 @@ export async function createSearch(text: string) {
     () => api.post('searches', { json: { searchText: text }, signal }).json<RawSearch>(),
     signal,
   )
-  // While the hub is down, the new search would otherwise be missing from the list until the next poll.
-  upsertLocally?.(raw)
+  // While the hub is down, the new search would otherwise be missing from the list until the next poll. A push can
+  // arrive before the POST returns, and the POST's record is older than it.
+  searches.amend((data) => (data.byId.has(raw.id) || deleted.has(raw.id) ? data : withSearch(data, raw)))
   return raw.id
 }
 
@@ -169,7 +165,14 @@ async function each(kind: ListActionKind, list: Search[], act: (search: Search, 
   const errors = await actOnEach(operation, list, (search) => search.text, act)
   if (errors === undefined) return
   operation.finish(
-    summarise(kind === 'stop' ? 'Stopped' : 'Deleted', list.length, errors.length, errors, 'search', 'searches'),
+    summarise({
+      verb: kind === 'stop' ? 'Stopped' : 'Deleted',
+      noun: 'search',
+      nouns: 'searches',
+      total: list.length,
+      failed: errors.length,
+      details: errors,
+    }),
   )
 }
 

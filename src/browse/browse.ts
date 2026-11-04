@@ -2,24 +2,21 @@ import { parseFromWebStream } from '@discoveryjs/json-ext'
 import { isHTTPError } from 'ky'
 
 import { api, describeError, sleep } from '../lib/api'
-import { announce as announceChange, createRecordList, type Database, db, onAnnounce, removeUser } from '../lib/db'
+import {
+  announce as announceChange,
+  createRecordList,
+  type Database,
+  db,
+  onAnnounce,
+  removeUser,
+  type ShareRecord,
+} from '../lib/db'
+import { sessionSignal } from '../lib/session'
 import { createAtom, without } from '../lib/store'
 import { buildTree, type Folder, relativePath, type Tree, type TreeFile } from '../lib/tree'
-import { sessionSignal } from '../session/session'
 import { describePeerError } from '../soulseek/soulseek'
-import { createDownloads, enqueueDownloads } from '../transfers/enqueue'
+import { createDownloads, destinationOf, enqueueDownloads } from '../transfers/enqueue'
 import { packShare, type RawShare, unpackShare } from './pack'
-
-export type ShareRecord = {
-  username: string
-  fetchedAt: number
-  openedAt: number
-  folders: number
-  files: number
-  locked: number
-  size: number
-  bytes: number
-}
 
 // Parsing, building and the first render are separate tasks, so the page can paint between them.
 async function build(username: string, raw: RawShare) {
@@ -61,8 +58,19 @@ function setLoaded(username: string, loaded: Loaded | undefined) {
   })
 }
 
+const reads = new Map<string, Promise<unknown>>()
+
 // A browse or a newer read that lands first wins, and then this one returns undefined.
-async function readShare(username: string) {
+function readShare(username: string) {
+  const read = readStored(username)
+  reads.set(username, read)
+  void read.finally(() => {
+    if (reads.get(username) === read) reads.delete(username)
+  })
+  return read
+}
+
+async function readStored(username: string) {
   const signal = sessionSignal()
   const loading: Loaded = { status: 'loading' }
   setLoaded(username, loading)
@@ -106,14 +114,18 @@ export function viewShare(username: string) {
 
 export const reloadShare = (username: string) => void readShare(username)
 
-// The share in memory, or else the cached one. Undefined when neither is there.
-export async function cachedShare(username: string) {
+// The share in memory, or else the cached one, once any read that's running has landed. Undefined when neither
+// has it.
+export async function cachedShare(username: string): Promise<Ready | Failure | undefined> {
+  if (loadedShares.get().get(username)?.status !== 'ready') {
+    if (!reads.has(username)) void readShare(username)
+    for (let read = reads.get(username); read !== undefined; read = reads.get(username)) await read
+  }
   const loaded = loadedShares.get().get(username)
-  const read = loaded?.status === 'ready' ? loaded : await readShare(username)
-  if (read?.status === 'failed') throw read.error
-  if (read?.status !== 'ready') return undefined
+  if (loaded?.status === 'failed') return { error: describeError(loaded.error), at: Date.now() }
+  if (loaded?.status !== 'ready') return undefined
   void touch(username)
-  return read
+  return loaded
 }
 
 async function touch(username: string) {
@@ -330,16 +342,6 @@ export async function browseIfMissing(username: string) {
 
 export const shareDownloadsOf = createDownloads()
 
-// slskd puts every file of a batch in one folder, so each remote folder gets its own batch to keep the tree, rooted
-// at the folder the download started from.
-function destinationOf(share: Tree, base: Folder, folder: Folder) {
-  const path = relativePath(share, base.parent ?? base, folder)
-  return path
-    .split(share.separator)
-    .filter((segment) => segment !== '')
-    .join('/')
-}
-
 export const downloadFiles = (username: string, share: Tree, base: Folder, files: TreeFile[]) =>
   enqueueDownloads(
     shareDownloadsOf(username),
@@ -347,6 +349,6 @@ export const downloadFiles = (username: string, share: Tree, base: Folder, files
       username,
       label: folder.name,
       files: batch,
-      destination: destinationOf(share, base, folder) || undefined,
+      destination: destinationOf(relativePath(share, base.parent ?? base, folder).split(share.separator)),
     })),
   )

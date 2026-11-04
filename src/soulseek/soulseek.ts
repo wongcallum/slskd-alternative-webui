@@ -1,9 +1,9 @@
 import { isHTTPError } from 'ky'
 
 import { api, describeError } from '../lib/api'
+import { application, useApplication } from '../lib/application'
+import { sessionSignal } from '../lib/session'
 import { waitFor } from '../lib/store'
-import { sessionSignal } from '../session/session'
-import { application, useApplication } from '../system/application'
 import type { LogRecord } from '../system/logs'
 
 // The reason actions that need Soulseek are disabled, if they are.

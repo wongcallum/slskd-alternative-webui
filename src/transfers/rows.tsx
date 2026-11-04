@@ -28,9 +28,10 @@ import {
   isTransferring,
   type Section,
   type Transfer,
+  type TransferState,
 } from './transfers'
 
-const stateLabels: Record<string, [string, Color]> = {
+const stateLabels: Record<TransferState, [string, Color]> = {
   Requested: ['Requested', 'gray'],
   'Queued, Locally': ['Queued locally', 'gray'],
   'Queued, Remotely': ['Queued remotely', 'gray'],

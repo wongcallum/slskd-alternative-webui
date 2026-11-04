@@ -1,6 +1,7 @@
 import { api } from '../lib/api'
 import { metricsHub } from '../lib/hubs'
 import { createResource, createResourceMap, load } from '../lib/store'
+import { compareNames } from '../lib/text'
 import type { RawMetrics } from '../transfers/metrics'
 import type { Direction } from '../transfers/transfers'
 import type { Range, UserSort } from './params'
@@ -142,7 +143,7 @@ function barsOf(histogram: RawHistogram, unit: Unit, start: number, now: number)
 const reasonsOf = (raw: RawReason[]): Reason[] =>
   raw
     .map((reason) => ({ message: reason.exception, files: reason.count, users: reason.distinctUsers }))
-    .sort((a, b) => b.files - a.files || (a.message ?? '').localeCompare(b.message ?? ''))
+    .sort((a, b) => b.files - a.files || compareNames(a.message ?? '', b.message ?? ''))
 
 async function fetchReport(range: Range, signal: AbortSignal): Promise<Report> {
   const now = Date.now()
@@ -246,11 +247,9 @@ function createReport<T extends object>(read: (signal: AbortSignal) => Promise<T
   })
 }
 
-export const reports = createResourceMap((range) => createReport((signal) => fetchReport(range as Range, signal)))
+export const reports = createResourceMap((range: Range) => createReport((signal) => fetchReport(range, signal)))
 
-export const leaderboards = createResourceMap((key) => {
-  const [range, sort] = key.split(' ') as [Range, UserSort]
-  return createReport((signal) => fetchLeaders(range, sort, signal))
-})
-
-export const leadersKey = (range: Range, sort: UserSort) => `${range} ${sort}`
+export const leaderboards = createResourceMap(
+  ({ range, sort }: { range: Range; sort: UserSort }) => createReport((signal) => fetchLeaders(range, sort, signal)),
+  ({ range, sort }) => `${range} ${sort}`,
+)

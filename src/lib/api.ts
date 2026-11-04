@@ -1,16 +1,16 @@
 import ky, { isHTTPError } from 'ky'
 import pLimit from 'p-limit'
 
-import { endSession, getSession } from '../session/session'
-import { urlBase } from './urlBase'
+import { endSession, getSession } from './session'
+import { apiPrefix } from './urlBase'
 
 class SessionEndedError extends Error {
   override name = 'SessionEndedError'
 }
 
-export const http = ky.create({ prefix: `${urlBase}/api/v0`, retry: 0 })
-
-export const api = http.extend({
+export const api = ky.create({
+  prefix: apiPrefix,
+  retry: 0,
   hooks: {
     beforeRequest: [
       ({ request }) => {

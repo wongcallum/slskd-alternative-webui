@@ -3,7 +3,7 @@ import { Badge, Flex, IconButton, Spinner, Text } from '@radix-ui/themes'
 import { memo } from 'react'
 
 import type { Browse } from '../../browse/browse'
-import { describeBrowse } from '../../browse/BrowseStatus'
+import { describeBrowse } from '../../browse/browseStatus'
 import { BrowseUserButton } from '../../browse/BrowseUserButton'
 import { nameOf } from '../../lib/files'
 import { formatBytes, formatDuration, formatSpeed, formatTime, plural, useAgo } from '../../lib/format'

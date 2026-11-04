@@ -1,7 +1,9 @@
-import { api } from '../lib/api'
-import { plural, toTime } from '../lib/format'
-import { applicationHub, followHub, useLiveResource, type Via } from '../lib/hubs'
-import { createAtom, createResource, sameItems, useResource } from '../lib/store'
+import { api } from './api'
+import { plural, toTime } from './format'
+import { applicationHub, followHub, useLiveResource, type Via } from './hubs'
+import { createAtom, createResource, keepItems, useResource } from './store'
+
+export type RelayMode = 'Controller' | 'Agent' | 'Debug'
 
 // GET /application omits nulls, while the hub keeps them.
 export type RawState = {
@@ -30,7 +32,7 @@ export type RawState = {
     forwardedPort?: number | null
   }
   relay: {
-    mode: string
+    mode: RelayMode
     controller: { address?: string | null; state: string }
     agents: { name: string; ipAddress: string }[]
   }
@@ -106,7 +108,7 @@ export type Application = {
   vpnAddress?: string
   vpnLocation?: string
   vpnPort?: number
-  relayMode: string
+  relayMode: RelayMode
   controllerAddress?: string
   controllerState: string
   agents: readonly Agent[]
@@ -114,7 +116,7 @@ export type Application = {
 
 export type Agent = { name: string; address: string }
 
-const sameAgents = (previous: readonly Agent[] | undefined, next: readonly Agent[]) =>
+const keepAgents = (previous: readonly Agent[] | undefined, next: readonly Agent[]) =>
   previous !== undefined &&
   previous.length === next.length &&
   previous.every((each, i) => each.name === next[i]?.name && each.address === next[i]?.address)
@@ -171,7 +173,7 @@ function fromState(via: Via, state: RawState): Application {
     children: network.children.length,
     childLimit: network.childLimit,
     acceptsChildren: network.canAcceptChildren,
-    rooms: sameItems(previous?.rooms, state.rooms),
+    rooms: keepItems(previous?.rooms, state.rooms),
     commit: /\+([0-9a-f]+)/.exec(version.full)?.[1],
     awaitingVpn: state.connectionWatchdog.isAwaitingVpn === true,
     vpnConnected: vpn?.isConnected === true,
@@ -181,7 +183,7 @@ function fromState(via: Via, state: RawState): Application {
     relayMode: relay.mode,
     controllerAddress: relay.controller.address ?? undefined,
     controllerState: relay.controller.state,
-    agents: sameAgents(
+    agents: keepAgents(
       previous?.agents,
       relay.agents.map((agent) => ({ name: agent.name, address: agent.ipAddress })),
     ),

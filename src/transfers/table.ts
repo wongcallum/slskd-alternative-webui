@@ -126,8 +126,6 @@ const labelsOf = (section: Section) =>
 
 export const trackLabels = { active: labelsOf('active'), finished: labelsOf('finished') }
 
-export const barHeight = 48
-
 // Below sm, a section's title and actions take one line and its summary and filter the next.
 export const twoLineBarHeight = 72
 
@@ -150,15 +148,25 @@ export function keepPresent(selection: RowSelectionState, groups: readonly Group
   return Object.fromEntries(Object.entries(selection).filter(([id]) => present.has(id)))
 }
 
-export function useSectionTable<S extends string>(
-  section: Section,
-  data: Group[],
-  sort: S | undefined,
-  expansion: Expansion,
-  rowSelection: RowSelectionState,
-  onRowSelectionChange: (updater: Updater<RowSelectionState>) => void,
-  onSortChange: (sort: S | undefined) => void,
-) {
+type SectionTableOptions<S extends string> = {
+  section: Section
+  data: Group[]
+  sort: S | undefined
+  onSortChange: (sort: S | undefined) => void
+  expansion: Expansion
+  rowSelection: RowSelectionState
+  onRowSelectionChange: (updater: Updater<RowSelectionState>) => void
+}
+
+export function useSectionTable<S extends string>({
+  section,
+  data,
+  sort,
+  onSortChange,
+  expansion,
+  rowSelection,
+  onRowSelectionChange,
+}: SectionTableOptions<S>) {
   const { sorting, onSortingChange } = useSortParam(sort, onSortChange)
   const expanded = useMemo(() => expandedState(expansion, data), [expansion, data])
   return useTable({

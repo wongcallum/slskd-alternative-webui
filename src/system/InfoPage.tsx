@@ -3,12 +3,6 @@ import type { ReactNode } from 'react'
 
 import { version } from '../../package.json'
 import { api, describeError } from '../lib/api'
-import { formatAge, formatBytes, formatSpeed } from '../lib/format'
-import { useAtom, useClock, useResource } from '../lib/store'
-import { urlBase } from '../lib/urlBase'
-import { useRun } from '../lib/useRun'
-import { ActionButton, ConfirmButton, type Detail, DetailList } from '../ui/controls'
-import { Freshness, Polling } from '../ui/status'
 import {
   type Application,
   application,
@@ -16,7 +10,13 @@ import {
   describePrivileges,
   releaseNotes,
   useApplication,
-} from './application'
+} from '../lib/application'
+import { formatAge, formatBytes, formatSpeed } from '../lib/format'
+import { useAtom, useClock, useResource } from '../lib/store'
+import { urlBase } from '../lib/urlBase'
+import { useRun } from '../lib/useRun'
+import { ActionButton, ConfirmButton, type Detail, DetailList } from '../ui/controls'
+import { Freshness, Polling } from '../ui/status'
 import { lifecycle, restartPatience, shutDown } from './lifecycle'
 import { useOptions } from './options/options'
 import { PendingCallouts, RestartButton, useLifecycleGate } from './PendingCallouts'
@@ -157,7 +157,7 @@ function LifecycleLine() {
   if (state.error === undefined) return null
   return (
     <Text size="2" color="red">
-      {state.error}
+      {describeError(state.error)}
     </Text>
   )
 }

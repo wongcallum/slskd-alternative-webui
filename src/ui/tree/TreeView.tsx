@@ -69,7 +69,7 @@ export function TreeView<S extends string>({
   const treeWidth = lg ? '380px' : md ? '300px' : '260px'
 
   const toolbar = (
-    <Flex align="center" gap="2" px="4" py="2" flexShrink="0" minHeight={barHeight} style={toolbarStyle}>
+    <Flex align="center" gap="2" px="4" py="2" flexShrink="0" minHeight={`${barHeight}px`} style={toolbarStyle}>
       <FilterField
         placeholder="Filter, -word to exclude"
         value={filter.text}

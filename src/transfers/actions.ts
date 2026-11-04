@@ -1,9 +1,10 @@
 import { isHTTPError } from 'ky'
 
-import { type Actions, actOnEach, begin as beginAction, idle, type Outcome, summarise } from '../lib/actions'
+import { type Actions, actOnEach, begin, idle, type Outcome, summarise } from '../lib/actions'
 import { api, describeError } from '../lib/api'
+import { sessionSignal } from '../lib/session'
 import { createAtom } from '../lib/store'
-import { sessionSignal } from '../session/session'
+import { describePeerError } from '../soulseek/soulseek'
 import { enqueueBatches } from './enqueue'
 import { type Direction, perDirection, type Transfer, transfers } from './transfers'
 
@@ -15,14 +16,14 @@ export type Lookup = { pending: boolean; place?: number; error?: string; at?: nu
 
 export const lookups = createAtom<ReadonlyMap<string, Lookup>>(new Map())
 
-const begin = (direction: Direction, kind: ActionKind, ids: string[]) =>
-  beginAction(actions[direction], kind, ids, () => transfers[direction].refresh())
+const beginOn = (direction: Direction, kind: ActionKind, ids: string[]) =>
+  begin(actions[direction], kind, ids, () => transfers[direction].refresh())
 
 const transferPath = (direction: Direction, file: Transfer) =>
   `transfers/${direction}s/${encodeURIComponent(file.username)}/${file.id}`
 
 async function deleteEach(direction: Direction, kind: 'cancel' | 'remove', files: Transfer[]) {
-  const operation = begin(
+  const operation = beginOn(
     direction,
     kind,
     files.map((file) => file.id),
@@ -36,7 +37,13 @@ async function deleteEach(direction: Direction, kind: 'cancel' | 'remove', files
   )
   if (errors === undefined) return
   operation.finish(
-    summarise(kind === 'cancel' ? 'Cancelled' : 'Removed', files.length, errors.length, errors, direction),
+    summarise({
+      verb: kind === 'cancel' ? 'Cancelled' : 'Removed',
+      noun: direction,
+      total: files.length,
+      failed: errors.length,
+      details: errors,
+    }),
   )
 }
 
@@ -45,7 +52,7 @@ export const cancel = (direction: Direction, files: Transfer[]) => deleteEach(di
 export const remove = (direction: Direction, files: Transfer[]) => deleteEach(direction, 'remove', files)
 
 export async function clearFinished(direction: Direction) {
-  const operation = begin(direction, 'clear', [])
+  const operation = beginOn(direction, 'clear', [])
   let outcome: Outcome
   try {
     await api.delete(`transfers/${direction}s/all/completed`, { signal: operation.signal })
@@ -62,7 +69,7 @@ export type BatchInfo = { searchId?: string; options?: { destination?: string } 
 // Retrying re-enqueues through a new batch per user and old batch, carrying over the old batch's search and
 // destination, which stock's retry drops.
 export async function retry(files: Transfer[]) {
-  const operation = begin(
+  const operation = beginOn(
     'download',
     'retry',
     files.map((file) => file.id),
@@ -103,7 +110,13 @@ export async function retry(files: Transfer[]) {
   const result = await enqueueBatches(operation, batches)
   if (result === undefined) return
   operation.finish(
-    summarise('Retried', files.length, skipped.size + result.failed, [...details, ...result.details], 'download'),
+    summarise({
+      verb: 'Retried',
+      noun: 'download',
+      total: files.length,
+      failed: skipped.size + result.failed,
+      details: [...details, ...result.details],
+    }),
   )
 }
 
@@ -126,7 +139,9 @@ export async function lookUpPositions(requested: Transfer[]) {
       setLookup(file.id, { pending: false, place, at: Date.now() })
     } catch (error) {
       if (signal.aborted) return
-      setLookup(file.id, { pending: false, error: describeError(error), at: Date.now() })
+      // A 404 here means the download is gone, not the user.
+      const gone = isHTTPError(error) && error.response.status === 404
+      setLookup(file.id, { pending: false, error: (gone ? describeError : describePeerError)(error), at: Date.now() })
     }
   }
   transfers.download.refresh()

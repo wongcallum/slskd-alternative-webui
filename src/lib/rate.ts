@@ -1,4 +1,4 @@
-import { onSessionEnd } from '../session/session'
+import { onSessionEnd } from './session'
 
 const span = 3000
 

@@ -1,9 +1,9 @@
-import { api, describeError } from '../lib/api'
+import { api } from '../lib/api'
 import { applicationHub } from '../lib/hubs'
+import { sessionSignal } from '../lib/session'
 import { createAtom } from '../lib/store'
-import { sessionSignal } from '../session/session'
 
-type Lifecycle = { phase: 'running'; error?: string } | { phase: 'restarting'; since: number } | { phase: 'shutDown' }
+type Lifecycle = { phase: 'running'; error?: unknown } | { phase: 'restarting'; since: number } | { phase: 'shutDown' }
 
 export const lifecycle = createAtom<Lifecycle>({ phase: 'running' })
 
@@ -27,7 +27,7 @@ async function stop(request: () => Promise<unknown>, next: Lifecycle) {
   try {
     await request()
   } catch (error) {
-    if (!signal.aborted) lifecycle.set({ phase: 'running', error: describeError(error) })
+    if (!signal.aborted) lifecycle.set({ phase: 'running', error })
     return
   }
   if (signal.aborted) return

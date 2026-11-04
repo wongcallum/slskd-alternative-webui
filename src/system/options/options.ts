@@ -1,6 +1,6 @@
 import { api, readsOptions } from '../../lib/api'
 import { applicationHub, followHub, useLiveResource, type Via } from '../../lib/hubs'
-import { createResource, load, sameItems, useResource } from '../../lib/store'
+import { createResource, load, keepItems, useResource } from '../../lib/store'
 
 // Secrets arrive redacted. Only what's read here is typed, and the rest is shown as it is.
 export type RawOptions = {
@@ -43,7 +43,7 @@ function withoutNulls(value: unknown): unknown {
 let held: { json: string; settings: Settings } | undefined
 
 // The whole object keeps its identity while nothing in it changes.
-function sameSettings(raw: RawOptions) {
+function keepSettings(raw: RawOptions) {
   const settings = withoutNulls(raw) as Settings
   const json = JSON.stringify(settings)
   if (held?.json !== json) held = { json, settings }
@@ -58,11 +58,11 @@ function fromOptions(via: Via, raw: RawOptions): Options {
     remoteFileManagement: raw.remoteFileManagement,
     downloads: raw.directories.downloads,
     incomplete: raw.directories.incomplete,
-    shareDirectories: sameItems(previous?.shareDirectories, raw.shares.directories),
-    shareFilters: sameItems(previous?.shareFilters, raw.shares.filters),
+    shareDirectories: keepItems(previous?.shareDirectories, raw.shares.directories),
+    shareFilters: keepItems(previous?.shareFilters, raw.shares.filters),
     relay: raw.relay.enabled,
     vpn: raw.integrations.vpn?.enabled === true,
-    settings: sameSettings(raw),
+    settings: keepSettings(raw),
   }
 }
 

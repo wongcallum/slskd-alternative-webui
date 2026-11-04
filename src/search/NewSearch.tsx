@@ -4,7 +4,7 @@ import { type SubmitEvent, useState } from 'react'
 
 import { useTouch } from '../lib/media'
 import { useSoulseekGate } from '../soulseek/soulseek'
-import { disabledProps, mainField, toList, Toolbar } from '../ui/controls'
+import { disabledProps, mainField, onKeyDownToList, Toolbar } from '../ui/controls'
 import { ActionNote } from '../ui/status'
 import { useCreateSearch } from './useCreateSearch'
 
@@ -32,7 +32,7 @@ export function NewSearch() {
               autoFocus={!touch}
               value={text}
               onChange={(event) => setText(event.target.value)}
-              onKeyDown={toList('searches')}
+              onKeyDown={onKeyDownToList('searches')}
               {...mainField(true)}
               style={{ flexGrow: 1 }}
             >

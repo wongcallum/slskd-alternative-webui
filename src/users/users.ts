@@ -1,25 +1,17 @@
 import { api, describeError } from '../lib/api'
-import { announce, createRecordList, type Database, db, onAnnounce, removeUser } from '../lib/db'
+import {
+  announce,
+  createRecordList,
+  type Database,
+  db,
+  onAnnounce,
+  type Presence,
+  removeUser,
+  type UserRecord,
+} from '../lib/db'
+import { sessionSignal } from '../lib/session'
 import { createAtom, createResource, createResourceMap, load, without } from '../lib/store'
-import { sessionSignal } from '../session/session'
 import { describePeerError } from '../soulseek/soulseek'
-
-export type Presence = 'Online' | 'Away' | 'Offline'
-
-// From the server, along with the address.
-type UserStatus = { presence: Presence; privileged: boolean; address?: string; fetchedAt: number }
-
-// From the user's own client. The picture is stored apart, so the list stays small.
-type UserInfo = {
-  description: string
-  hasPicture: boolean
-  freeSlot: boolean
-  slots: number
-  queue: number
-  fetchedAt: number
-}
-
-export type UserRecord = { username: string; status?: UserStatus; info?: UserInfo }
 
 export type RawStatus = { presence: Presence; isPrivileged: boolean }
 
@@ -194,7 +186,7 @@ const directionOf = (raw: RawDirection): DirectionHistory => ({
 })
 
 // Read from slskd's own database, so it loads with the page rather than on a gesture.
-export const transferHistory = createResourceMap((username) =>
+export const transferHistory = createResourceMap((username: string) =>
   createResource<History>((sink) =>
     load(sink, async (signal) => {
       const raw = await api

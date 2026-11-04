@@ -6,7 +6,7 @@ import { connect } from 'node:net'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import type { RawState } from '../src/system/application'
+import type { RawState } from '../src/lib/application'
 import type { RawTransfer, RawUser } from '../src/transfers/transfers'
 import { type Media, media } from './media'
 import { type Config, freePort, type Instance, logIn, sleep, spawnGroup, start, stopGroup } from './slskd'
