@@ -1,7 +1,9 @@
 import type { RefObject } from 'react'
 
+import type { Folder, Item, Tree } from '../../lib/tree'
 import type { ListKey } from '../keys'
-import type { Selection } from './FolderPane'
+
+export type Selection = { tree: Tree; folder: Folder; items: Item[]; clear: () => void }
 
 // A view's own keys for the tree and the folder pane, such as Browse's download. The selection is the pane's, or
 // else the row the keyboard is on.

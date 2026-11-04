@@ -8,9 +8,9 @@ import { MarkBadge } from '../../transfers/MarkBadge'
 import { OutcomeLine } from '../../ui/controls'
 import { useListKeys } from '../../ui/keys'
 import { audioColumns } from '../../ui/tree/columns'
-import type { Selection, TreeConfig } from '../../ui/tree/FolderPane'
+import type { TreeConfig } from '../../ui/tree/FolderPane'
 import type { FileBadge } from '../../ui/tree/ItemList'
-import type { KeysProps } from '../../ui/tree/keys'
+import type { KeysProps, Selection } from '../../ui/tree/keys'
 import { downloadFiles, shareDownloadsOf } from '../browse'
 
 const selectable = (item: Item) => (item.kind === 'folder' ? item.fileCount > item.lockedCount : !item.locked)

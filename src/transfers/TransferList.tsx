@@ -10,7 +10,7 @@ import { useAtom } from '../lib/store'
 import { ColumnsMenu } from '../ui/ColumnsMenu'
 import { type Choices, ChoiceSelect, ConfirmButton, ConfirmDialog, disabledProps, Tip, barHeight } from '../ui/controls'
 import { type ListKey, useListKeys } from '../ui/keys'
-import { RowScope, useListNav } from '../ui/listNav'
+import { type ListNav, RowScope, useListNav } from '../ui/listNav'
 import {
   ColumnHeader,
   columnsHeight,
@@ -64,6 +64,28 @@ const listKey = (item: ListItem) => (item.type === 'row' ? item.row.id : `${item
 
 const isRow = (item: ListItem): item is RowItem => item.type === 'row'
 
+function useSectionColumns(layout: Layout) {
+  const sectionTracks = tracksFor(tracks, layout)
+  return {
+    active: useColumns('transfers', sectionTracks.active),
+    finished: useColumns('transfers', sectionTracks.finished),
+  }
+}
+
+function listItems(active: TableRow[], finished: TableRow[], open: Record<Section, boolean>) {
+  const list: ListItem[] = []
+  for (const [section, rows] of [
+    ['active', active],
+    ['finished', finished],
+  ] as const) {
+    list.push({ type: 'header', section })
+    if (!open[section]) continue
+    if (rows.length === 0) list.push({ type: 'empty', section })
+    for (const row of rows) list.push({ type: 'row', section, row })
+  }
+  return list
+}
+
 type ListProps = {
   direction: Direction
   data: Transfers
@@ -80,11 +102,7 @@ export function TransferList(props: ListProps) {
   const { direction, data, groups, tables, filtered, selected, show, onShowChange, gates } = props
   const layout = useLayout()
   const twoLines = !useFrom('sm')
-  const sectionTracks = tracksFor(tracks, layout)
-  const columns = {
-    active: useColumns('transfers', sectionTracks.active),
-    finished: useColumns('transfers', sectionTracks.finished),
-  }
+  const columns = useSectionColumns(layout)
   const open = useAtom(openSections[direction])
   const { pending, running } = useAtom(actions[direction])
   const lookupMap = useAtom(lookups)
@@ -92,19 +110,7 @@ export function TransferList(props: ListProps) {
   const retryGate = running.retry === undefined ? gates.soulseek : 'A retry is running'
   const activeRows = tables.active.getRowModel().rows
   const finishedRows = tables.finished.getRowModel().rows
-  const items = useMemo(() => {
-    const list: ListItem[] = []
-    for (const [section, rows] of [
-      ['active', activeRows],
-      ['finished', finishedRows],
-    ] as const) {
-      list.push({ type: 'header', section })
-      if (!open[section]) continue
-      if (rows.length === 0) list.push({ type: 'empty', section })
-      for (const row of rows) list.push({ type: 'row', section, row })
-    }
-    return list
-  }, [activeRows, finishedRows, open])
+  const items = useMemo(() => listItems(activeRows, finishedRows, open), [activeRows, finishedRows, open])
   const finishedHeader = open.active ? Math.max(activeRows.length, 1) + 1 : 1
   const itemAt = useCallback((index: number) => items[index] as ListItem, [items])
 
@@ -112,45 +118,7 @@ export function TransferList(props: ListProps) {
     (twoLines ? twoLineBarHeight : barHeight) + (open[section] ? columnsHeight : 0)
   const scrollRef = useRef<HTMLDivElement>(null)
   const stickyRef = useRef(0)
-  const onSelect = { active: useRowToggle(tables.active), finished: useRowToggle(tables.finished) }
-  const onToggle = useCallback(
-    (section: Section, id: string) =>
-      expansions[direction].set((state) => ({ ...state, [section]: toggleExpanded(state[section], id) })),
-    [direction],
-  )
-  const keys = { active: useSelectionKeys(tables.active), finished: useSelectionKeys(tables.finished) }
-  const nav = useListNav<ListItem>({
-    name: 'transfers',
-    items,
-    itemKey: listKey,
-    isRow,
-    rank: 1,
-    label: direction === 'download' ? 'Downloads' : 'Uploads',
-    role: 'treegrid',
-    multiselectable: true,
-    depth: (item) => (isRow(item) ? item.row.depth : -1),
-    canToggle: (item) => isRow(item) && groupNav.canToggle(item.row),
-    isOpen: (item) => isRow(item) && item.row.getIsExpanded(),
-    aria: (item) => (isRow(item) ? groupNav.aria(item.row) : {}),
-    onToggle: (item) => isRow(item) && onToggle(item.section, item.row.id),
-    onEnter: (item) => {
-      if (!isRow(item)) return
-      if (item.row.original.kind === 'group') onToggle(item.section, item.row.id)
-      else onSelect[item.section](item.row.id, false)
-    },
-    onSpace: (item, range) => isRow(item) && keys[item.section].onSpace(item.row, range),
-    // Selection stays within a section, as Shift+click's does.
-    onExtend: (from, to) =>
-      isRow(from) && isRow(to) && from.section === to.section && keys[from.section].onExtend(from.row, to.row),
-    onSelectAll: () => {
-      keys.active.onSelectAll()
-      keys.finished.onSelectAll()
-    },
-    onEscape: () => {
-      const active = keys.active.onEscape()
-      return keys.finished.onEscape() || active
-    },
-  })
+  const { nav, onSelect, onToggle } = useTransferNav({ direction, items, tables })
   const setRef = useCallback(
     (element: HTMLDivElement | null) => {
       scrollRef.current = element
@@ -158,37 +126,7 @@ export function TransferList(props: ListProps) {
     },
     [nav.containerRef],
   )
-  const chosen = () => {
-    if (selected.length > 0) return selected
-    const item = nav.focused()
-    if (item === undefined || !isRow(item)) return []
-    const original = item.row.original
-    return original.kind === 'group' ? original.files : [original]
-  }
-  const retryKey: ListKey = {
-    hotkeys: ['R'],
-    name: 'Retry',
-    enabled: retryGate === undefined,
-    run: () => {
-      const files = chosen().filter((file) => isRetryable(file.state))
-      if (files.length > 0) void retry(files)
-    },
-  }
-  useListKeys(nav.containerRef, [
-    ...(direction === 'download' ? [retryKey] : []),
-    {
-      hotkeys: ['Delete', 'Mod+Backspace'],
-      name: 'Cancel, or remove what has finished',
-      enabled: gates.list === undefined && running.cancel === undefined && running.remove === undefined,
-      run: () => {
-        const files = chosen()
-        const active = files.filter((file) => !isFinished(file.state))
-        const done = files.filter((file) => isFinished(file.state))
-        if (active.length > 0) void cancel(direction, active)
-        if (done.length > 0) void remove(direction, done)
-      },
-    },
-  ])
+  useTransferKeys({ nav, direction, selected, retryGate, gates })
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => scrollRef.current,
@@ -239,15 +177,11 @@ export function TransferList(props: ListProps) {
     }
     if (item.type === 'empty') {
       return (
-        <Flex align="center" height="100%" px="4">
-          <Text size="2" color="gray">
-            {filtered || (item.section === 'finished' && show !== 'all')
-              ? 'Nothing matches.'
-              : item.section === 'active'
-                ? `Nothing ${direction === 'download' ? 'downloading' : 'uploading'} or queued.`
-                : 'Nothing finished.'}
-          </Text>
-        </Flex>
+        <EmptySection
+          direction={direction}
+          section={item.section}
+          filtered={filtered || (item.section === 'finished' && show !== 'all')}
+        />
       )
     }
     const { row, section } = item
@@ -533,4 +467,106 @@ function SectionHeader({
       )}
     </div>
   )
+}
+
+type TransferKeysOptions = {
+  nav: ListNav<ListItem>
+  direction: Direction
+  selected: Transfer[]
+  retryGate?: string
+  gates: Gates
+}
+
+// The keys act on the selection, or else on the row the keyboard is on.
+function useTransferKeys({ nav, direction, selected, retryGate, gates }: TransferKeysOptions) {
+  const { running } = useAtom(actions[direction])
+  const chosen = () => {
+    if (selected.length > 0) return selected
+    const item = nav.focused()
+    if (item === undefined || !isRow(item)) return []
+    const original = item.row.original
+    return original.kind === 'group' ? original.files : [original]
+  }
+  const retryKey: ListKey = {
+    hotkeys: ['R'],
+    name: 'Retry',
+    enabled: retryGate === undefined,
+    run: () => {
+      const files = chosen().filter((file) => isRetryable(file.state))
+      if (files.length > 0) void retry(files)
+    },
+  }
+  useListKeys(nav.containerRef, [
+    ...(direction === 'download' ? [retryKey] : []),
+    {
+      hotkeys: ['Delete', 'Mod+Backspace'],
+      name: 'Cancel, or remove what has finished',
+      enabled: gates.list === undefined && running.cancel === undefined && running.remove === undefined,
+      run: () => {
+        const files = chosen()
+        const active = files.filter((file) => !isFinished(file.state))
+        const done = files.filter((file) => isFinished(file.state))
+        if (active.length > 0) void cancel(direction, active)
+        if (done.length > 0) void remove(direction, done)
+      },
+    },
+  ])
+}
+
+function EmptySection({ direction, section, filtered }: { direction: Direction; section: Section; filtered: boolean }) {
+  let text = 'Nothing finished.'
+  if (filtered) text = 'Nothing matches.'
+  else if (section === 'active') text = `Nothing ${direction === 'download' ? 'downloading' : 'uploading'} or queued.`
+  return (
+    <Flex align="center" height="100%" px="4">
+      <Text size="2" color="gray">
+        {text}
+      </Text>
+    </Flex>
+  )
+}
+
+type TransferNavOptions = { direction: Direction; items: ListItem[]; tables: Record<Section, SectionTable> }
+
+function useTransferNav({ direction, items, tables }: TransferNavOptions) {
+  const onToggle = useCallback(
+    (section: Section, id: string) =>
+      expansions[direction].set((state) => ({ ...state, [section]: toggleExpanded(state[section], id) })),
+    [direction],
+  )
+  const onSelect = { active: useRowToggle(tables.active), finished: useRowToggle(tables.finished) }
+  const keys = { active: useSelectionKeys(tables.active), finished: useSelectionKeys(tables.finished) }
+  const nav = useListNav<ListItem>({
+    name: 'transfers',
+    items,
+    itemKey: listKey,
+    isRow,
+    rank: 1,
+    label: direction === 'download' ? 'Downloads' : 'Uploads',
+    role: 'treegrid',
+    multiselectable: true,
+    depth: (item) => (isRow(item) ? item.row.depth : -1),
+    canToggle: (item) => isRow(item) && groupNav.canToggle(item.row),
+    isOpen: (item) => isRow(item) && item.row.getIsExpanded(),
+    aria: (item) => (isRow(item) ? groupNav.aria(item.row) : {}),
+    onToggle: (item) => isRow(item) && onToggle(item.section, item.row.id),
+    onEnter: (item) => {
+      if (!isRow(item)) return
+      if (item.row.original.kind === 'group') onToggle(item.section, item.row.id)
+      else onSelect[item.section](item.row.id, false)
+    },
+    onSpace: (item, range) => isRow(item) && keys[item.section].onSpace(item.row, range),
+    // Selection stays within a section, as Shift+click's does.
+    onExtend: (from, to) =>
+      isRow(from) && isRow(to) && from.section === to.section && keys[from.section].onExtend(from.row, to.row),
+    onSelectAll: () => {
+      keys.active.onSelectAll()
+      keys.finished.onSelectAll()
+    },
+    onEscape: () => {
+      const active = keys.active.onEscape()
+      return keys.finished.onEscape() || active
+    },
+  })
+  return { nav, onSelect, onToggle }
 }
