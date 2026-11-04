@@ -18,7 +18,7 @@ import {
   StackedRow,
 } from '../ui/table'
 import { UserCell, UserMenu } from '../users/UserMenu'
-import { type Lookup, lookUpPositions, retry } from './actions'
+import { type PositionLookup, lookUpPositions, retry } from './actions'
 import { fraction, sizeOf, timeKey, timeOf } from './table'
 import {
   type Direction,
@@ -70,7 +70,7 @@ type FileRowProps = {
   shown: ReadonlySet<string>
   selected: boolean
   pending: boolean
-  lookup?: Lookup
+  lookup?: PositionLookup
   gate?: string
   retryGate?: string
   onSelect: (id: string, shiftKey: boolean) => void
@@ -156,7 +156,7 @@ function FileStatus({
   file: Transfer
   direction: Direction
   pending: boolean
-  lookup?: Lookup
+  lookup?: PositionLookup
   layout: Layout
 }) {
   const stacked = layout === 'stacked'

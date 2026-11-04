@@ -10,6 +10,7 @@ import {
   type FlexProps,
   IconButton,
   Popover,
+  SegmentedControl,
   Select,
   Text,
   TextField,
@@ -420,6 +421,53 @@ export function FilterField({
 }
 
 export type Choices<V extends string> = readonly (readonly [V, string, ...unknown[]])[]
+
+// A disabled choice keeps its tooltip inside the item, since the trigger's data-state would replace the item's.
+export function ChoiceSegments<V extends string>({
+  choices,
+  value,
+  onChange,
+  gates,
+}: {
+  choices: Choices<V>
+  value: V
+  onChange: (value: V) => void
+  gates?: Partial<Record<V, string>>
+}) {
+  return (
+    <SegmentedControl.Root
+      size="1"
+      value={value}
+      onValueChange={(next) => {
+        const chosen = choices.find(([choice]) => choice === next)?.[0]
+        if (chosen !== undefined && gates?.[chosen] === undefined) onChange(chosen)
+      }}
+    >
+      {choices.map(([choice, label]) => {
+        const gate = gates?.[choice]
+        if (gate === undefined) {
+          return (
+            <SegmentedControl.Item key={choice} value={choice}>
+              {label}
+            </SegmentedControl.Item>
+          )
+        }
+        return (
+          <SegmentedControl.Item
+            key={choice}
+            value={choice}
+            {...disabledProps(true)}
+            style={{ color: 'var(--gray-a9)' }}
+          >
+            <Tip content={gate}>
+              <span>{label}</span>
+            </Tip>
+          </SegmentedControl.Item>
+        )
+      })}
+    </SegmentedControl.Root>
+  )
+}
 
 export function ChoiceSelect<V extends string>({
   choices,

@@ -1,5 +1,5 @@
 import { ChevronDownIcon, ChevronRightIcon } from '@radix-ui/react-icons'
-import { Button, DropdownMenu, Flex, SegmentedControl, Text } from '@radix-ui/themes'
+import { Button, DropdownMenu, Flex, Text } from '@radix-ui/themes'
 import { defaultRangeExtractor, type Range, useVirtualizer } from '@tanstack/react-virtual'
 import { type ReactNode, useCallback, useMemo, useRef, useState } from 'react'
 
@@ -8,7 +8,16 @@ import { formatSpeed, plural } from '../lib/format'
 import { useFrom } from '../lib/media'
 import { useAtom } from '../lib/store'
 import { ColumnsMenu } from '../ui/ColumnsMenu'
-import { type Choices, ChoiceSelect, ConfirmButton, ConfirmDialog, disabledProps, Tip, barHeight } from '../ui/controls'
+import {
+  type Choices,
+  ChoiceSegments,
+  ChoiceSelect,
+  ConfirmButton,
+  ConfirmDialog,
+  disabledProps,
+  Tip,
+  barHeight,
+} from '../ui/controls'
 import { type ListKey, useListKeys } from '../ui/keys'
 import { type ListNav, RowScope, useListNav } from '../ui/listNav'
 import {
@@ -19,8 +28,7 @@ import {
   HeaderRow,
   type Layout,
   rowHeight,
-  stackedHeight,
-  stackedThreeLineHeight,
+  stackedRowHeight,
   toggleExpanded,
   tracksFor,
   useLayout,
@@ -29,11 +37,12 @@ import {
   virtualRowStyle,
 } from '../ui/table'
 import { type Columns, columnsVar, useColumns } from '../ui/widths'
-import { actions, cancel, clearFinished, lookups, remove, retry } from './actions'
+import { actions, cancel, clearFinished, positionLookups, remove, retry } from './actions'
 import { FileRow, GroupRow } from './rows'
 import {
   columnLabels,
   columnsOf,
+  endAligned,
   expansions,
   type Gates,
   openSections,
@@ -105,7 +114,7 @@ export function TransferList(props: ListProps) {
   const columns = useSectionColumns(layout)
   const open = useAtom(openSections[direction])
   const { pending, running } = useAtom(actions[direction])
-  const lookupMap = useAtom(lookups)
+  const lookupMap = useAtom(positionLookups)
   // A second retry would re-enqueue what the first hasn't reached yet, and they'd share one progress count.
   const retryGate = running.retry === undefined ? gates.soulseek : 'A retry is running'
   const activeRows = tables.active.getRowModel().rows
@@ -135,7 +144,7 @@ export function TransferList(props: ListProps) {
       if (index === finishedHeader) return headerHeight('finished')
       const item = itemAt(index)
       if (layout !== 'stacked' || item.type !== 'row') return rowHeight
-      return item.row.original.kind === 'group' ? stackedThreeLineHeight : stackedHeight
+      return stackedRowHeight(item.row)
     },
     // A new key function is what makes the virtualizer measure again, so a new layout has to make one.
     getItemKey: useCallback(
@@ -261,15 +270,7 @@ const showChoices: Choices<Show> = [
 function ShowControl({ show, onShowChange }: { show: Show; onShowChange: (show: Show) => void }) {
   const md = useFrom('md')
   if (!md) return <ChoiceSelect label="Show" size="1" soft choices={showChoices} value={show} onChange={onShowChange} />
-  return (
-    <SegmentedControl.Root size="1" value={show} onValueChange={(value) => onShowChange(value as Show)}>
-      {showChoices.map(([value, label]) => (
-        <SegmentedControl.Item key={value} value={value}>
-          {label}
-        </SegmentedControl.Item>
-      ))}
-    </SegmentedControl.Root>
-  )
+  return <ChoiceSegments choices={showChoices} value={show} onChange={onShowChange} />
 }
 
 type CancelScope = 'all' | 'queued' | 'transferring'
@@ -458,7 +459,7 @@ function SectionHeader({
             <ColumnHeader
               key={id}
               label={columnLabels[section][id]}
-              end={!stacked && (id === 'size' || id === 'speed')}
+              end={!stacked && endAligned.has(id)}
               column={table.getColumn(id)}
             />
           ))}

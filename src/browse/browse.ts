@@ -32,7 +32,7 @@ const { list: shareList, load: loadShareList, useList } = createRecordList('shar
 
 export const useShareList = useList
 
-export type Ready = { status: 'ready'; share: Tree; fetchedAt: number; notCached?: string }
+export type Ready = { status: 'ready'; share: Tree; fetchedAt: number; notCached?: unknown }
 
 export type Loaded = { status: 'loading' } | { status: 'missing' } | { status: 'failed'; error: unknown } | Ready
 
@@ -188,7 +188,7 @@ async function packAndStore(username: string, raw: RawShare, ready: Ready) {
     announce(username)
   } catch (error) {
     if (!signal.aborted && loadedShares.get().get(username) === ready) {
-      setLoaded(username, { ...ready, notCached: describeError(error) })
+      setLoaded(username, { ...ready, notCached: error })
     }
   }
   void loadShareList()

@@ -168,6 +168,9 @@ export const stackedHeight = 56
 
 export const stackedThreeLineHeight = 72
 
+export const stackedRowHeight = (row: { original: { kind: string } }) =>
+  row.original.kind === 'group' ? stackedThreeLineHeight : stackedHeight
+
 export const columnsHeight = 32
 
 export type Layout = 'stacked' | 'medium' | 'wide'

@@ -9,7 +9,7 @@ export type EnqueueResponse = { failures: { filename: string; message: string }[
 
 // slskd runs at most two enqueues at once.
 const enqueue = (body: object, signal: AbortSignal) =>
-  resendOn429(() => api.post('transfers/downloads/batches', { json: body, signal }).json<EnqueueResponse>(), signal)
+  api.post('transfers/downloads/batches', { json: body, signal, retry: resendOn429 }).json<EnqueueResponse>()
 
 export type Mark = { ok: true } | { ok: false; message: string }
 

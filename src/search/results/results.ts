@@ -227,12 +227,11 @@ export function viewGroups(results: Results, folders: ReadonlyMap<string, Folder
     const fetched = folders.get(group.id)?.files ?? []
     const extras = filter.locked ? fetched : fetched.filter((file) => !file.locked)
     let files = matches === undefined ? group.files : group.files.filter((file) => matches(file.search))
-    if (judged) {
-      files = files.filter((file) => passes(filter, file))
-      if (countAttributed(files) + countAttributed(extras) === 0) files = []
-    }
-    if (files.length + extras.length === 0) continue
-    if (filter.files > 0 && countAttributed(files) + countAttributed(extras) < filter.files) continue
+    if (judged) files = files.filter((file) => passes(filter, file))
+    const attributed = countAttributed(files) + countAttributed(extras)
+    // Files without attributes, such as cover art, stay only beside one that passes.
+    if (judged && attributed === 0) files = []
+    if (files.length + extras.length === 0 || attributed < filter.files) continue
     if (extras.length === 0 && files.length === group.files.length) view.push(group)
     else {
       const merged = extras.length === 0 ? files : [...files, ...extras].sort(byName)
@@ -272,6 +271,7 @@ export function openResults(id: string) {
 
 // Responses never change once saved, so they're fetched once, without a timeout since they can be several MB.
 export async function loadResults(id: string) {
+  openResults(id)
   const entry = entries.get().get(id)
   if (entry === undefined || entry.loading || entry.results !== undefined) return
   const signal = sessionSignal()

@@ -5,7 +5,7 @@ import { type ComponentType, memo, useCallback, useMemo, useState } from 'react'
 
 import { useFrom, useTouch } from '../../lib/media'
 import { createAtom, useAtom } from '../../lib/store'
-import type { Folder, Matches, Tree as FolderTree } from '../../lib/tree'
+import type { Folder, Matches, Tree } from '../../lib/tree'
 import { focusList } from '../focus'
 import { useListKeys } from '../keys'
 import { useListNav } from '../listNav'
@@ -15,7 +15,7 @@ import { type KeysProps, upKeys } from './keys'
 const expansions = createAtom<ReadonlyMap<string, Expansion>>(new Map())
 
 // Each root opens down through any single-child chain, so a lone "Music" folder shows what's in it.
-function initialExpansion(tree: FolderTree): Expansion {
+function initialExpansion(tree: Tree): Expansion {
   const toggled: ExpandedStateList = {}
   for (const root of tree.top.folders) {
     for (let folder: Folder | undefined = root; folder !== undefined;) {
@@ -26,7 +26,7 @@ function initialExpansion(tree: FolderTree): Expansion {
   return { all: false, toggled }
 }
 
-export function updateExpansion(tree: FolderTree, change: (expansion: Expansion) => Expansion) {
+export function updateExpansion(tree: Tree, change: (expansion: Expansion) => Expansion) {
   expansions.set((current) => {
     const expansion = current.get(tree.key) ?? initialExpansion(tree)
     const next = change(expansion)
@@ -34,7 +34,7 @@ export function updateExpansion(tree: FolderTree, change: (expansion: Expansion)
   })
 }
 
-export function expandTo(tree: FolderTree, folder: Folder, self: boolean) {
+export function expandTo(tree: Tree, folder: Folder, self: boolean) {
   updateExpansion(tree, (expansion) => {
     const closed: Folder[] = []
     for (let current = self ? folder : folder.parent; current !== undefined; current = current.parent) {
@@ -58,7 +58,7 @@ type FolderRow = {
 }
 
 // Built by hand rather than with TanStack, whose row models visit every folder in the share, open or not.
-function visibleRows(tree: FolderTree, matches: Matches | undefined, expansion: Expansion) {
+function visibleRows(tree: Tree, matches: Matches | undefined, expansion: Expansion) {
   const rows: FolderRow[] = []
   const childrenOf = (folder: Folder) =>
     matches === undefined ? folder.folders : folder.folders.filter((each) => matches.counts.has(each))
@@ -75,7 +75,7 @@ function visibleRows(tree: FolderTree, matches: Matches | undefined, expansion: 
 }
 
 type TreeProps = {
-  tree: FolderTree
+  tree: Tree
   selected: Folder
   matches?: Matches
   onOpen: (folder: Folder) => void
@@ -87,7 +87,7 @@ type TreeProps = {
 
 const noop = () => {}
 
-export function Tree({ tree, selected, matches, onOpen, onUp, reveal, Keys }: TreeProps) {
+export function FolderTree({ tree, selected, matches, onOpen, onUp, reveal, Keys }: TreeProps) {
   const sm = useFrom('sm')
   const touch = useTouch()
   const stored = useAtom(expansions).get(tree.key)

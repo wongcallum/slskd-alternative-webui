@@ -104,7 +104,7 @@ export function SharePage({ search, onSearchChange }: Props) {
             )}
             <Flex ml="auto" align="center" gap="3" flexShrink="0">
               {ready?.notCached !== undefined && (
-                <Tip content={ready.notCached}>
+                <Tip content={describeError(ready.notCached)}>
                   <Text size="1" color="amber">
                     Not cached
                   </Text>

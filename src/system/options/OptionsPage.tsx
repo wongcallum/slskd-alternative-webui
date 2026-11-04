@@ -1,11 +1,11 @@
-import { Box, Button, Callout, Flex, SegmentedControl, Text } from '@radix-ui/themes'
+import { Box, Button, Callout, Flex, Text } from '@radix-ui/themes'
 import { lazy, type ReactNode, Suspense, useEffect, useMemo, useState } from 'react'
 
 import { describeError } from '../../lib/api'
 import { pendingItems, useApplication } from '../../lib/application'
 import type { SearchProps } from '../../lib/params'
 import { useAtom, useResource } from '../../lib/store'
-import { ActionButton, barHeight, disabledProps, Tip, toolbarStyle } from '../../ui/controls'
+import { ActionButton, barHeight, ChoiceSegments, disabledProps, Tip, toolbarStyle } from '../../ui/controls'
 import { Preformatted } from '../../ui/details'
 import { Fetched, FetchedResource, Freshness, Loading, Polling } from '../../ui/status'
 import { YamlView } from '../../ui/YamlView'
@@ -89,33 +89,12 @@ function ViewControl({
   onChange: (view: OptionView) => void
 }) {
   return (
-    <SegmentedControl.Root
-      size="1"
+    <ChoiceSegments
+      choices={optionViews.map((id) => [id, viewLabels[id]] as const)}
       value={view}
-      onValueChange={(next) => {
-        const chosen = next as OptionView
-        if (gates[chosen] === undefined) onChange(chosen)
-      }}
-    >
-      {optionViews.map((id) => {
-        const gate = gates[id]
-        if (gate === undefined) {
-          return (
-            <SegmentedControl.Item key={id} value={id}>
-              {viewLabels[id]}
-            </SegmentedControl.Item>
-          )
-        }
-        // The tooltip goes inside, since its trigger's data-state would replace the item's.
-        return (
-          <SegmentedControl.Item key={id} value={id} {...disabledProps(true)} style={{ color: 'var(--gray-a9)' }}>
-            <Tip content={gate}>
-              <span>{viewLabels[id]}</span>
-            </Tip>
-          </SegmentedControl.Item>
-        )
-      })}
-    </SegmentedControl.Root>
+      onChange={onChange}
+      gates={gates}
+    />
   )
 }
 

@@ -8,10 +8,21 @@ import { sessionSignal } from '../lib/session'
 import { createAtom, createResource, shallowEqual, waitFor } from '../lib/store'
 import { createDownloads } from '../transfers/enqueue'
 
+// Soulseek.NET's SearchStates, as slskd writes them.
+export type SearchState =
+  | 'Requested'
+  | 'Queued'
+  | 'InProgress'
+  | 'Completed, TimedOut'
+  | 'Completed, ResponseLimitReached'
+  | 'Completed, FileLimitReached'
+  | 'Completed, Cancelled'
+  | 'Completed, Errored'
+
 export type RawSearch = {
   id: string
   searchText: string
-  state: string
+  state: SearchState
   isComplete: boolean
   startedAt: string
   endedAt?: string | null
@@ -23,7 +34,7 @@ export type RawSearch = {
 export type Search = {
   id: string
   text: string
-  state: string
+  state: SearchState
   isComplete: boolean
   startedAt: number
   // slskd sets this once the responses are saved, which happens after the Completed state change is pushed.
@@ -142,10 +153,7 @@ export const hasSearchTerm = (text: string) => text.split(' ').some((word) => wo
 
 export async function createSearch(text: string) {
   const signal = sessionSignal()
-  const raw = await resendOn429(
-    () => api.post('searches', { json: { searchText: text }, signal }).json<RawSearch>(),
-    signal,
-  )
+  const raw = await api.post('searches', { json: { searchText: text }, signal, retry: resendOn429 }).json<RawSearch>()
   // While the hub is down, the new search would otherwise be missing from the list until the next poll. A push can
   // arrive before the POST returns, and the POST's record is older than it.
   searches.amend((data) => (data.byId.has(raw.id) || deleted.has(raw.id) ? data : withSearch(data, raw)))

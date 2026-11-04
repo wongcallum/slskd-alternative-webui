@@ -13,6 +13,7 @@ import {
   HeaderRow,
   rowHeight,
   rowId,
+  stackedRowHeight,
   toggleExpanded,
   tracksFor,
   useLayout,
@@ -31,7 +32,6 @@ import {
   expansions,
   type ResultTable,
   selectedFiles,
-  stackedSize,
   type TableRow,
   tracks,
 } from './table'
@@ -151,7 +151,7 @@ export function ResultList({ searchId, table, folders, gate, folderGate, onHide 
       header={header}
       items={rows}
       itemKey={rowId}
-      rowSize={stacked ? stackedSize : rowHeight}
+      rowSize={stacked ? stackedRowHeight : rowHeight}
       nav={nav}
       renderItem={render}
     />

@@ -50,7 +50,8 @@ export async function loadPicture(username: string) {
 
 export const lookups = createAtom<ReadonlyMap<string, number>>(new Map())
 
-export type LookupErrors = { status?: string; info?: string; notStored?: string; at: number }
+// The parts that failed. status and info are described for the peer, and notStored is the raw error.
+export type LookupErrors = { status?: string; info?: string; notStored?: unknown; at: number }
 
 export const lookupErrors = createAtom<ReadonlyMap<string, LookupErrors>>(new Map())
 
@@ -79,6 +80,53 @@ async function store(fresh: UserRecord, picture: string | null | undefined) {
   await evict(database)
 }
 
+type Settled<T> = PromiseSettledResult<T>
+
+// What each part of a lookup found or why it failed. A null picture means the user has none.
+function toLookup(
+  username: string,
+  status: Settled<RawStatus>,
+  endpoint: Settled<RawEndpoint>,
+  info: Settled<RawInfo>,
+) {
+  const now = Date.now()
+  const fresh: UserRecord = { username }
+  const errors: LookupErrors = { at: now }
+  if (status.status === 'fulfilled') {
+    fresh.status = { presence: status.value.presence, privileged: status.value.isPrivileged, fetchedAt: now }
+    if (endpoint.status === 'fulfilled') fresh.status.address = `${endpoint.value.address}:${endpoint.value.port}`
+  } else errors.status = describePeerError(status.reason)
+  let picture: string | null | undefined
+  if (info.status === 'fulfilled') {
+    picture = info.value.picture || null
+    fresh.info = {
+      description: info.value.description,
+      hasPicture: picture !== null,
+      freeSlot: info.value.hasFreeUploadSlot,
+      slots: info.value.uploadSlots,
+      queue: info.value.queueLength,
+      fetchedAt: now,
+    }
+  } else errors.info = describePeerError(info.reason)
+  return { fresh, picture, errors }
+}
+
+// Stores what a lookup found, or else keeps it in the list for now. Returns why it wasn't stored, if it wasn't.
+async function saveLookup(fresh: UserRecord, picture: string | null | undefined) {
+  try {
+    await store(fresh, picture)
+    announce({ type: 'user', username: fresh.username })
+    await loadUserList()
+    return undefined
+  } catch (error) {
+    userList.set((current) => {
+      const previous = current.records.get(fresh.username)
+      return { ...current, records: new Map(current.records).set(fresh.username, { ...previous, ...fresh }) }
+    })
+    return describeError(error)
+  }
+}
+
 export async function lookUp(username: string) {
   if (lookups.get().has(username)) return
   const signal = sessionSignal()
@@ -92,42 +140,8 @@ export async function lookUp(username: string) {
       api.get(`${path}/info`, { signal }).json<RawInfo>(),
     ])
     if (signal.aborted) return
-    const now = Date.now()
-    const fresh: UserRecord = { username }
-    const errors: LookupErrors = { at: now }
-    if (status.status === 'fulfilled') {
-      fresh.status = {
-        presence: status.value.presence,
-        privileged: status.value.isPrivileged,
-        fetchedAt: now,
-      }
-      if (endpoint.status === 'fulfilled') fresh.status.address = `${endpoint.value.address}:${endpoint.value.port}`
-    } else errors.status = describePeerError(status.reason)
-    let picture: string | null | undefined
-    if (info.status === 'fulfilled') {
-      picture = info.value.picture || null
-      fresh.info = {
-        description: info.value.description,
-        hasPicture: picture !== null,
-        freeSlot: info.value.hasFreeUploadSlot,
-        slots: info.value.uploadSlots,
-        queue: info.value.queueLength,
-        fetchedAt: now,
-      }
-    } else errors.info = describePeerError(info.reason)
-    if (fresh.status !== undefined || fresh.info !== undefined) {
-      try {
-        await store(fresh, picture)
-        announce({ type: 'user', username })
-        await loadUserList()
-      } catch (error) {
-        errors.notStored = describeError(error)
-        userList.set((current) => {
-          const previous = current.records.get(username)
-          return { ...current, records: new Map(current.records).set(username, { ...previous, ...fresh }) }
-        })
-      }
-    }
+    const { fresh, picture, errors } = toLookup(username, status, endpoint, info)
+    if (fresh.status !== undefined || fresh.info !== undefined) errors.notStored = await saveLookup(fresh, picture)
     if (signal.aborted) return
     transferHistory.get(username).refresh()
     if (picture !== undefined) pictures.set((current) => new Map(current).set(username, picture))

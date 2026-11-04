@@ -1,15 +1,7 @@
 import { createColumnHelper, type Row, sortFn_basic, type useTable } from '@tanstack/react-table'
 
 import { createAtom } from '../../lib/store'
-import {
-  type Expansion,
-  groupFeatures,
-  type LayoutTracks,
-  sortByName,
-  sortByPath,
-  stackedHeight,
-  stackedThreeLineHeight,
-} from '../../ui/table'
+import { type Expansion, groupFeatures, type LayoutTracks, sortByName, sortByPath } from '../../ui/table'
 import { fixed, growing, sized } from '../../ui/widths'
 import { availability, type ResultFile, type ResultGroup } from './results'
 
@@ -86,7 +78,6 @@ export const columnsOf = (stacked: boolean, shown: ReadonlySet<string>) =>
   stacked ? columnIds : columnIds.filter((id) => shown.has(id))
 
 // Stacked folders take three lines, so the user, speed and queue fit beside the four actions.
-export const stackedSize = (row: TableRow) => (row.original.kind === 'group' ? stackedThreeLineHeight : stackedHeight)
 
 export const expansions = createAtom<ReadonlyMap<string, Expansion>>(new Map())
 

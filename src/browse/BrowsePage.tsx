@@ -1,6 +1,7 @@
 import { Text } from '@radix-ui/themes'
 import { type ReactNode, useMemo } from 'react'
 
+import { describeError } from '../lib/api'
 import { entriesByUser, type UserEntry } from '../lib/db'
 import { formatBytes, plural } from '../lib/format'
 import { useAtom } from '../lib/store'
@@ -14,7 +15,7 @@ import { UserBox } from './UserBox'
 
 type Stats = { folders: number; files: number; locked: number; size: number; fetchedAt: number }
 
-type Fields = { stats: Stats; notCached: string; browse: Browse; failure: Failure }
+type Fields = { stats: Stats; notCached: unknown; browse: Browse; failure: Failure }
 
 type Entry = UserEntry<Fields>
 
@@ -104,8 +105,8 @@ function LandingRow({ entry, layout }: { entry: Entry; layout: Layout }) {
   else if (failure !== undefined) status = <FailureLine username={username} failure={failure} />
   else if (notCached !== undefined) {
     status = (
-      <Text size="2" color="amber" truncate title={notCached}>
-        Not cached: {notCached}
+      <Text size="2" color="amber" truncate title={describeError(notCached)}>
+        Not cached: {describeError(notCached)}
       </Text>
     )
   }

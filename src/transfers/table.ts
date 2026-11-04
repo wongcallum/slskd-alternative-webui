@@ -113,6 +113,8 @@ export const tracks: Record<Exclude<Layout, 'stacked'>, Record<Section, readonly
   },
 }
 
+export const endAligned = new Set<string>(['size', 'speed'])
+
 export const timeKey = { active: 'requested', finished: 'ended' } as const
 
 const keyOf = (section: Section, id: ColumnId) => (id === 'time' ? timeKey[section] : id)

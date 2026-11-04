@@ -1,4 +1,4 @@
-import ky, { isHTTPError, isNetworkError, isTimeoutError } from 'ky'
+import ky, { isHTTPError, isNetworkError, isTimeoutError, type RetryOptions } from 'ky'
 import pLimit from 'p-limit'
 
 import { endSession, getSession } from './session'
@@ -37,18 +37,13 @@ export const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve
 export const optionsQueue = pLimit(1)
 
 // slskd answers 429 without doing anything when a concurrency limit is reached, so the request is resent as part
-// of the same gesture rather than reported as a failure.
-export async function resendOn429<T>(send: () => Promise<T>, signal?: AbortSignal) {
-  const deadline = Date.now() + 30_000
-  for (;;) {
-    try {
-      return await send()
-    } catch (error) {
-      if (!isHTTPError(error) || error.response.status !== 429 || Date.now() >= deadline) throw error
-      await sleep(1000)
-      signal?.throwIfAborted()
-    }
-  }
+// of the same gesture, for up to 30 s, rather than reported as a failure. Nothing else is resent, since a POST that
+// failed some other way may still have been carried out.
+export const resendOn429: RetryOptions = {
+  limit: 30,
+  methods: ['post'],
+  delay: () => 1000,
+  shouldRetry: ({ error }) => isHTTPError(error) && error.response.status === 429,
 }
 
 // ky's own messages for these carry the whole request URL.

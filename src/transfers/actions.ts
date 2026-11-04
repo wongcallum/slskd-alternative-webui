@@ -12,9 +12,9 @@ type ActionKind = 'retry' | 'cancel' | 'remove' | 'clear'
 
 export const actions = perDirection(() => createAtom<Actions<ActionKind>>(idle))
 
-export type Lookup = { pending: boolean; place?: number; message?: string; at?: number }
+export type PositionLookup = { pending: boolean; place?: number; message?: string; at?: number }
 
-export const lookups = createAtom<ReadonlyMap<string, Lookup>>(new Map())
+export const positionLookups = createAtom<ReadonlyMap<string, PositionLookup>>(new Map())
 
 const beginOn = (direction: Direction, kind: ActionKind, ids: string[]) =>
   begin(actions[direction], kind, ids, () => transfers[direction].refresh())
@@ -124,15 +124,15 @@ export async function retry(files: Transfer[]) {
   )
 }
 
-function setLookup(id: string, lookup: Lookup) {
-  lookups.set((current) => new Map(current).set(id, lookup))
+function setLookup(id: string, lookup: PositionLookup) {
+  positionLookups.set((current) => new Map(current).set(id, lookup))
 }
 
 export async function lookUpPositions(requested: Transfer[]) {
-  const files = requested.filter((file) => lookups.get().get(file.id)?.pending !== true)
+  const files = requested.filter((file) => positionLookups.get().get(file.id)?.pending !== true)
   if (files.length === 0) return
   const signal = sessionSignal()
-  lookups.set((current) => {
+  positionLookups.set((current) => {
     const next = new Map(current)
     for (const file of files) next.set(file.id, { ...current.get(file.id), pending: true })
     return next

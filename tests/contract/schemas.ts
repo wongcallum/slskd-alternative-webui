@@ -254,7 +254,16 @@ export const search = shape<RawSearch>(
   v.object({
     id: v.pipe(v.string(), v.uuid()),
     searchText: v.string(),
-    state: v.string(),
+    state: v.picklist([
+      'Requested',
+      'Queued',
+      'InProgress',
+      'Completed, TimedOut',
+      'Completed, ResponseLimitReached',
+      'Completed, FileLimitReached',
+      'Completed, Cancelled',
+      'Completed, Errored',
+    ]),
     isComplete: v.boolean(),
     startedAt: utc,
     endedAt: v.nullish(utc),
