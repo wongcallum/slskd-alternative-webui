@@ -955,6 +955,29 @@ observations come from browsing one real peer: 168,159 files in 21,852 directori
 - Measured in headless Chromium 153 on that share: `JSON.parse` takes 146 ms, and the parsed data takes 37 MiB of
   heap (the text takes as much again while it's kept). Building the tree with recursive counts and sizes and a
   collator sort takes 23 ms.
+- **A response can be longer than V8's longest string.** Observed: a peer sharing 2,671,944 files in 280,218 folders
+  sent 57.6 MB on the wire, which slskd returned as 610.7 MB of JSON.
+- Parsing responses as they streamed in from a local server, in Chromium 155 and Firefox 155, medians of 3 runs. "Click"
+  is the longest a click, sent every 50 ms while parsing, waited for the page to handle it:
+
+  | Parser                             | 75 MB, Chrome        | 75 MB, Firefox       | 611 MB, Chrome       | 611 MB, Firefox      |
+  | ---------------------------------- | -------------------- | -------------------- | -------------------- | -------------------- |
+  | `response.json()`                  | 0.75 s, click 430 ms | 0.96 s, click 697 ms | "Failed to fetch"    | 20.7 s, click 11.9 s |
+  | `@discoveryjs/json-ext` 1.1.0      | 1.05 s, click 36 ms  | 1.45 s, click 1.36 s | 11.1 s, click 302 ms | 12.3 s, click 9.3 s  |
+  | `@streamparser/json-whatwg` 0.0.26 | 4.86 s, click 187 ms | 4.82 s, click 4.82 s | 33.3 s, click 481 ms | 37.0 s, click 16.0 s |
+  | `jsonriver` 1.1.1                  | 2.92 s, click 180 ms | 4.39 s, click 4.33 s | 32.2 s, click 532 ms | 32.8 s, click 17.6 s |
+  - json-ext runs `JSON.parse` on slices of the text, where the others tokenise in JavaScript. `stream-json` 3.8.0's
+    web streams took 446 s on the 75 MB response in Chrome.
+  - Peak heap in Chrome on the 611 MB response: 801 MiB with json-ext, 911 MiB with `@streamparser/json` and 1,547 MiB with
+    `jsonriver`.
+  - **In Firefox, clicks wait while a big response streams in, whatever reads it.** Reading the 611 MB response without
+    parsing it held a click for 1.3 s, and yielding to the event loop every 50 ms between chunks (`setTimeout` or
+    `scheduler.yield()`) didn't shorten json-ext's waits.
+  - A `MessageChannel` heartbeat reads Chrome wrongly here: it showed json-ext holding the main thread for the whole
+    parse, while `longtask` entries and clicks showed it free.
+
+- On the 611 MB share, building the tree takes 4.2 s in one task, and the share packs to 205 MB of JSON (45.6 MB
+  gzipped).
 - Stock caches browse results in IndexedDB (`slskd-browse` / `browse`) and `localStorage['slskd-browse-state']`.
 
 ## Rooms
@@ -1402,6 +1425,10 @@ runs were noisy: building the same tree took 0.6–2.4 s from run to run.
 
 ## Browser APIs
 
+- V8's longest string is 2^29 − 24 characters, about 512 MiB, so `response.json()` and `.text()` can't read a longer
+  body. Firefox's limit is about twice that, and it read a 611 MB body as one string (observed in Firefox 155).
+- `ReadableStream`'s async iterator isn't in every browser ([caniuse](https://caniuse.com/mdn-api_readablestream_--asynciterator)),
+  so a stream is passed to json-ext through `parseFromWebStream`, which falls back to a reader.
 - Chromium keeps a failed dynamic `import()` in its module map: importing the same URL again fails at once, without a
   request (observed in Chromium 153).
 - Web Locks (`navigator.locks`) needs a secure context

@@ -1,3 +1,4 @@
+import { parseFromWebStream } from '@discoveryjs/json-ext'
 import { isHTTPError } from 'ky'
 
 import { api, describeError, sleep } from '../lib/api'
@@ -295,7 +296,8 @@ async function fetchShare(username: string): Promise<Ready | Failure | undefined
     })
     arrived = true
     set({ phase: 'loading', loaded: 0 })
-    const raw = await response.json<RawShare>()
+    // A big share's JSON can be longer than V8's longest string (see the facts), so it's parsed as it streams in.
+    const raw = (await parseFromWebStream(response.body!)) as RawShare
     set({ phase: 'processing' })
     const share = await build(username, raw)
     if (signal.aborted) return undefined
