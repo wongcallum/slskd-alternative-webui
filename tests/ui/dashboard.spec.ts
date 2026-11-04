@@ -1,51 +1,68 @@
+import { randomUUID } from 'node:crypto'
+
+import type { APIRequestContext } from '@playwright/test'
+
 import type { RawUser } from '../../src/transfers/transfers'
-import { expect, logInPage, test } from '../fixtures'
+import { contextFor, expect, logInPage, test } from '../fixtures'
+import { type Peer, startLoggedIn, uploadsEnded } from '../soulseek'
 
-test.use({ config: { soulseek: true } })
+const file = (peer: Peer, filename: string) => ({ filename, size: peer.files.get(filename)!.length })
 
-const count = (value: number, noun: string) => `${value.toLocaleString()} ${value === 1 ? noun : `${noun}s`}`
+async function states(api: APIRequestContext) {
+  const users = (await (await api.get('transfers/downloads')).json()) as RawUser[]
+  return users.flatMap(({ directories }) => directories.flatMap((directory) => directory.files.map((f) => f.state)))
+}
 
-// The worker's other tests may have finished downloads too, so the totals are counted from the list, removed ones
-// included, as the reports count them.
-test('the dashboard totals finished downloads and lists who they came from', async ({ page, api, peers: { fast } }) => {
-  await api.post('transfers/downloads/batches', {
-    data: {
-      username: fast.username,
-      files: [
-        {
-          filename: 'Music\\Artist - Album\\01 Intro.flac',
-          size: fast.files.get('Music\\Artist - Album\\01 Intro.flac')!.length,
-        },
-        { filename: 'Music\\Nowhere\\missing.flac', size: 1 },
-      ],
-    },
-  })
-  const finished = async () => {
-    const users = (await (
-      await api.get('transfers/downloads', { params: { includeRemoved: true } })
-    ).json()) as RawUser[]
-    return users.flatMap(({ username, directories }) =>
-      directories.flatMap((directory) => directory.files.map((file) => ({ username, state: file.state }))),
-    )
+// A fresh instance, so the figures are only this test's: one success, one failure and one cancellation, which counts
+// as neither.
+test('the dashboard totals finished downloads and lists who they came from', async ({ page, network }) => {
+  test.setTimeout(90_000)
+  const { fast, slow } = await network()
+  const username = `dashboard.${randomUUID().slice(0, 8)} test`
+  const instance = await startLoggedIn(await network(), {}, username)
+  const api = await contextFor(instance)
+  try {
+    await api.post('transfers/downloads/batches', {
+      data: {
+        username: fast.username,
+        files: [
+          file(fast, 'Music\\Artist - Album\\01 Intro.flac'),
+          { filename: 'Music\\Nowhere\\missing.flac', size: 1 },
+        ],
+      },
+    })
+    await api.post('transfers/downloads/batches', {
+      data: { username: slow.username, files: [file(slow, 'Slow\\Big 1.flac')] },
+    })
+    // Cancelled before it's running, a download can end as errored instead.
+    await expect.poll(async () => (await states(api)).includes('InProgress'), { timeout: 30_000 }).toBe(true)
+    const users = (await (await api.get('transfers/downloads')).json()) as RawUser[]
+    const running = users
+      .find((user) => user.username === slow.username)!
+      .directories.flatMap((directory) => directory.files)[0]!
+    await api.delete(`transfers/downloads/${encodeURIComponent(slow.username)}/${running.id}`)
+    await expect
+      .poll(async () => (await states(api)).sort(), { timeout: 30_000 })
+      .toEqual(['Completed, Cancelled', 'Completed, Rejected', 'Completed, Succeeded'])
+    await uploadsEnded(slow, username)
+
+    await page.goto(`${instance.base}/`)
+    await logInPage(page)
+    await expect(page).toHaveURL(/\/slskd\/dashboard$/)
+    await expect(page.getByText('1 file from 1 user')).toBeVisible()
+    await expect(page.getByText('1 failed (50%)')).toBeVisible()
+    await expect(
+      page.getByRole('region', { name: 'Downloaded from' }).getByRole('button', { name: fast.username }),
+    ).toBeVisible()
+
+    await page.getByRole('radio', { name: 'All' }).click()
+    await expect(page).toHaveURL(/\/slskd\/dashboard\?range=all$/)
+    await expect(page.getByRole('heading', { name: 'By month' })).toBeVisible()
+    await expect(page.getByText('1 file from 1 user')).toBeVisible()
+  } finally {
+    // Before its hubs lose slskd.
+    await page.goto('about:blank')
+    await api.dispose()
+    await instance.stop()
   }
-  await expect
-    .poll(async () => (await finished()).every(({ state }) => state.startsWith('Completed')), { timeout: 30_000 })
-    .toBe(true)
-  const downloads = await finished()
-  const succeeded = downloads.filter(({ state }) => state === 'Completed, Succeeded')
-  const failed = downloads.filter(({ state }) => !/Succeeded|Cancelled/.test(state))
-  const users = new Set(succeeded.map(({ username }) => username)).size
-
-  await page.goto('')
-  await logInPage(page)
-  await expect(page).toHaveURL(/\/slskd\/dashboard$/)
-  await expect(page.getByText(`${count(succeeded.length, 'file')} from ${count(users, 'user')}`)).toBeVisible()
-  await expect(page.getByText(`${failed.length.toLocaleString()} failed (`)).toBeVisible()
-  await expect(
-    page.getByRole('region', { name: 'Downloaded from' }).getByRole('button', { name: fast.username }),
-  ).toBeVisible()
-
-  await page.getByRole('radio', { name: 'All' }).click()
-  await expect(page).toHaveURL(/\/slskd\/dashboard\?range=all$/)
-  await expect(page.getByRole('heading', { name: 'By month' })).toBeVisible()
 })

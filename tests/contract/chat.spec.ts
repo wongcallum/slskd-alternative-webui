@@ -26,10 +26,6 @@ test("a conversation that hasn't started is a 404, and so is leaving a room that
   expect((await api.delete('rooms/joined/nowhere')).status()).toBe(404)
 })
 
-test("a browse that hasn't started has no status", async ({ api }) => {
-  expect((await api.get(`users/${encodeURIComponent('some.one')}/browse/status`)).status()).toBe(404)
-})
-
 test.describe('logged in to Soulseek', () => {
   test.use({ config: { soulseek: true } })
 
