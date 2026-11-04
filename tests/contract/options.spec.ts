@@ -49,8 +49,19 @@ test('saving writes the file and asks for a restart, and an invalid file is a 40
   expect(state.pendingRestart).toBe(true)
 })
 
-test('the debug view is a JSON string, since debug was on at startup', async ({ api }) => {
+test('the debug view is a JSON string only if the startup options say debug was on', async ({ api }) => {
+  expect(await (await api.get('options/startup')).json()).toMatchObject({ debug: true })
   expect(typeof (await (await api.get('options/debug')).json())).toBe('string')
+
+  const slskd = await start({}, { SLSKD_DEBUG: 'false' })
+  const off = await contextFor(slskd)
+  try {
+    expect(await (await off.get('options/startup')).json()).toMatchObject({ debug: false })
+    expect((await off.get('options/debug')).status()).toBe(403)
+  } finally {
+    await off.dispose()
+    await slskd.stop()
+  }
 })
 
 test.describe('with the config watch on', () => {

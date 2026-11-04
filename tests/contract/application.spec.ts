@@ -25,9 +25,8 @@ test('the state comes over REST, and from the application hub as it connects', a
   }
 })
 
-test('the options come over REST, and the startup options say whether debug is on', async ({ api }) => {
+test('the options come over REST', async ({ api }) => {
   schemas.parse(schemas.options, await (await api.get('options')).json())
-  expect(await (await api.get('options/startup')).json()).toMatchObject({ debug: true })
 })
 
 test('process metrics come as JSON when asked for it alone', async ({ api }) => {
