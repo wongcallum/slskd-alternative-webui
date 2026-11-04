@@ -3,6 +3,7 @@ import { isHTTPError } from 'ky'
 import { api } from '../lib/api'
 import { application } from '../lib/application'
 import { toTime } from '../lib/format'
+import { sessionSignal } from '../lib/session'
 import { createResource, createResourceMap, poll, type Resource } from '../lib/store'
 import { byUsername } from '../lib/text'
 import { lastOpen, type Message, reuseMessages } from './messages'
@@ -124,7 +125,9 @@ const messageResources = createResourceMap((username: string) => {
 export const conversationMessages = messageResources.get
 
 export async function sendMessage(username: string, text: string) {
-  const response = await api.post(path(username), { json: text })
+  const signal = sessionSignal()
+  const response = await api.post(path(username), { json: text, signal })
+  if (signal.aborted) return
   if (response.status === 200) throw new Error(`slskd didn't send it, because ${username} is blacklisted`)
   unstarted.delete(username)
   conversationMessages(username).refresh()
@@ -133,7 +136,9 @@ export async function sendMessage(username: string, text: string) {
 
 // Closing keeps the history, and a new message reopens the conversation.
 export async function closeConversation(username: string) {
-  await api.delete(path(username))
+  const signal = sessionSignal()
+  await api.delete(path(username), { signal })
+  if (signal.aborted) return
   conversations.refresh()
   const open = lastOpen.get()
   if (open?.kind === 'user' && open.name === username) lastOpen.set(undefined)

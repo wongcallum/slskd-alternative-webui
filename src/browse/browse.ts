@@ -122,7 +122,7 @@ export async function cachedShare(username: string): Promise<Ready | Failure | u
     for (let read = reads.get(username); read !== undefined; read = reads.get(username)) await read
   }
   const loaded = loadedShares.get().get(username)
-  if (loaded?.status === 'failed') return { error: describeError(loaded.error), at: Date.now() }
+  if (loaded?.status === 'failed') return { status: 'failed', message: describeError(loaded.error), at: Date.now() }
   if (loaded?.status !== 'ready') return undefined
   void touch(username)
   return loaded
@@ -215,6 +215,7 @@ export async function deleteShare(username: string) {
   } catch {
     // The list below shows whether it's gone.
   }
+  shareDownloads.forget(username)
   setLoaded(username, viewing.has(username) ? { status: 'missing' } : undefined)
   await loadShareList()
   announce(username)
@@ -230,7 +231,7 @@ export type Browse = Phase & { startedAt: number }
 
 export const browses = createAtom<ReadonlyMap<string, Browse>>(new Map())
 
-export type Failure = { error: string; at: number }
+export type Failure = { status: 'failed'; message: string; at: number }
 
 export const failures = createAtom<ReadonlyMap<string, Failure>>(new Map())
 
@@ -315,12 +316,12 @@ async function fetchShare(username: string): Promise<Ready | Failure | undefined
     if (signal.aborted) return undefined
     const ready: Ready = { status: 'ready', share, fetchedAt: Date.now() }
     setLoaded(username, ready)
-    shareDownloadsOf(username).set((state) => ({ ...state, marks: new Map() }))
+    shareDownloads.get(username).set((state) => ({ ...state, marks: new Map() }))
     void keep(username, raw, ready)
     return ready
   } catch (error) {
     if (signal.aborted) return undefined
-    const failure: Failure = { error: describePeerError(error), at: Date.now() }
+    const failure: Failure = { status: 'failed', message: describePeerError(error), at: Date.now() }
     failures.set((current) => new Map(current).set(username, failure))
     return failure
   } finally {
@@ -340,11 +341,11 @@ export async function browseIfMissing(username: string) {
   void browse(username)
 }
 
-export const shareDownloadsOf = createDownloads()
+export const shareDownloads = createDownloads()
 
 export const downloadFiles = (username: string, share: Tree, base: Folder, files: TreeFile[]) =>
   enqueueDownloads(
-    shareDownloadsOf(username),
+    shareDownloads.get(username),
     [...Map.groupBy(files, (file) => file.folder)].map(([folder, batch]) => ({
       username,
       label: folder.name,

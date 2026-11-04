@@ -4,6 +4,7 @@ import { useMemo } from 'react'
 import { api } from '../lib/api'
 import { application, ownUsername } from '../lib/application'
 import { toTime } from '../lib/format'
+import { sessionSignal } from '../lib/session'
 import { createAtom, createResource, createResourceMap, poll, type Resource, useAtom, useResource } from '../lib/store'
 import { createStoredAtom } from '../lib/stored'
 import { byUsername, compareExactly } from '../lib/text'
@@ -224,21 +225,24 @@ export function useRoomNews(room: string) {
 }
 
 export async function joinRoom(room: string) {
+  const signal = sessionSignal()
   joining.set((current) => new Set(current).add(room))
   try {
-    await api.post('rooms/joined', { json: room })
-    setOverride(room, true)
+    await api.post('rooms/joined', { json: room, signal })
+    if (!signal.aborted) setOverride(room, true)
   } finally {
     joining.set((current) => new Set([...current].filter((each) => each !== room)))
   }
 }
 
 export async function leaveRoom(room: string) {
+  const signal = sessionSignal()
   try {
-    await api.delete(path(room))
+    await api.delete(path(room), { signal })
   } catch (error) {
     if (!isHTTPError(error) || error.response.status !== 404) throw error
   }
+  if (signal.aborted) return
   setOverride(room, false)
   messageResources.forget(room)
   userResources.forget(room)
@@ -251,11 +255,14 @@ export async function leaveRoom(room: string) {
 export async function sendToRoom(room: string, text: string) {
   const resource = roomMessages(room)
   const after = resource.getSnapshot().data?.messages.at(-1)?.time ?? 0
-  await api.post(`${path(room)}/messages`, { json: text })
+  const signal = sessionSignal()
+  await api.post(`${path(room)}/messages`, { json: text, signal })
+  if (signal.aborted) return
   const id = nextPending++
   setPending(room, (list) => [...list, { id, text, sentAt: Date.now(), after, unconfirmed: false }])
   setTimeout(
     () =>
+      !signal.aborted &&
       setPending(room, (list) =>
         list.some((each) => each.id === id)
           ? list.map((each) => (each.id === id ? { ...each, unconfirmed: true } : each))

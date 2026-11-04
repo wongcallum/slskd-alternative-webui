@@ -276,7 +276,8 @@ export type Atom<T> = {
   subscribe: (listener: () => void) => () => void
 }
 
-export function createAtom<T>(initial: T): Atom<T> {
+// Dispose of one that will never be used again, which the session's end would otherwise keep.
+export function createAtom<T>(initial: T): Atom<T> & { dispose: () => void } {
   let value = initial
   const listeners = createListeners()
   const atom: Atom<T> = {
@@ -287,8 +288,8 @@ export function createAtom<T>(initial: T): Atom<T> {
     },
     subscribe: listeners.add,
   }
-  onSessionEnd(() => atom.set(initial))
-  return atom
+  const dispose = onSessionEnd(() => atom.set(initial))
+  return { ...atom, dispose }
 }
 
 export const useAtom = <T>(atom: Atom<T>) => useSyncExternalStore(atom.subscribe, atom.get)

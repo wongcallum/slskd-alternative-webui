@@ -16,7 +16,7 @@ export type ConfigFile = {
   // What's on disk, when that isn't base.
   conflict?: string
   saving: boolean
-  saveError?: string
+  saveMessage?: string
   saved: boolean
 }
 
@@ -53,7 +53,7 @@ export function edit(text: string) {
 
 export function discard() {
   if (configFile.get().saving) return
-  configFile.set((state) => ({ ...state, draft: undefined, conflict: undefined, saveError: undefined }))
+  configFile.set((state) => ({ ...state, draft: undefined, conflict: undefined, saveMessage: undefined }))
   void readFile()
 }
 
@@ -67,7 +67,7 @@ export async function save({ overwrite = false } = {}) {
   const { draft, base, saving } = configFile.get()
   if (draft === undefined || saving) return
   const signal = sessionSignal()
-  configFile.set((state) => ({ ...state, saving: true, saveError: undefined, saved: false }))
+  configFile.set((state) => ({ ...state, saving: true, saveMessage: undefined, saved: false }))
   try {
     if (!overwrite) {
       const disk = await readText('options/yaml', signal)
@@ -89,7 +89,7 @@ export async function save({ overwrite = false } = {}) {
       saved: true,
     }))
   } catch (error) {
-    if (!signal.aborted) configFile.set((state) => ({ ...state, saving: false, saveError: describeSaveError(error) }))
+    if (!signal.aborted) configFile.set((state) => ({ ...state, saving: false, saveMessage: describeSaveError(error) }))
   }
 }
 

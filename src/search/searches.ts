@@ -6,6 +6,7 @@ import { toTime } from '../lib/format'
 import { followHub, searchHub, useLiveResource, type Via } from '../lib/hubs'
 import { sessionSignal } from '../lib/session'
 import { createAtom, createResource, shallowEqual, waitFor } from '../lib/store'
+import { createDownloads } from '../transfers/enqueue'
 
 export type RawSearch = {
   id: string
@@ -201,4 +202,7 @@ export const deleteSearches = (list: Search[]) =>
     } catch (error) {
       if (!isHTTPError(error) || error.response.status !== 404) throw error
     }
+    searchDownloads.forget(search.id)
   })
+
+export const searchDownloads = createDownloads()

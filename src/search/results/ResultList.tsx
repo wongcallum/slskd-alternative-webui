@@ -21,7 +21,8 @@ import {
   VirtualTable,
 } from '../../ui/table'
 import { useColumns } from '../../ui/widths'
-import { download, downloadsOf, type FolderFetch } from './results'
+import { searchDownloads } from '../searches'
+import { download, type FolderFetch } from './results'
 import { FileRow, GroupRow } from './rows'
 import {
   columnLabels,
@@ -45,7 +46,7 @@ type Props = {
 }
 
 export function ResultList({ searchId, table, folders, gate, folderGate, onHide }: Props) {
-  const { pending, marks } = useAtom(downloadsOf(searchId))
+  const { pending, marks } = useAtom(searchDownloads.get(searchId))
   const { records } = useShareList()
   const memory = useAtom(loadedShares)
   const running = useAtom(browses)

@@ -184,15 +184,15 @@ export const GroupRow = memo(function GroupRow({
   const age = useAgo(fetch?.fetchedAt ?? 0)
   const error = fetch?.missing
     ? `“${nameOf(group.directory)}” isn't in ${group.username}'s share as of ${age}`
-    : fetch?.error
-  const browses = !cached || fetched || error !== undefined
+    : fetch?.message
+  const fromPeer = !cached || fetched || error !== undefined
   let fetchLabel =
     error === undefined
       ? fetched
         ? 'Get the full folder again'
         : 'Get the full folder'
       : `Couldn't get the full folder: ${error}. Try again`
-  if (browses) fetchLabel += ` (browses ${group.username}'s whole share)`
+  if (fromPeer) fetchLabel += ` (browses ${group.username}'s whole share)`
   const progress = browsing === undefined ? 'Reading the cached share…' : describeBrowse(browsing)
   const details: Detail[] = [
     ['Folder', group.directory],
@@ -237,8 +237,8 @@ export const GroupRow = memo(function GroupRow({
         <GatedIconButton
           label={fetchLabel}
           color={error === undefined ? undefined : 'red'}
-          gate={browses ? folderGate : undefined}
-          onClick={() => void fetchFolder(searchId, group, browses)}
+          gate={fromPeer ? folderGate : undefined}
+          onClick={() => void fetchFolder(searchId, group, fromPeer ? 'peer' : 'cache')}
         >
           <CardStackPlusIcon />
         </GatedIconButton>

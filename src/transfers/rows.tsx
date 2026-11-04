@@ -173,7 +173,7 @@ function FileStatus({
       {file.exception === undefined ? text : <Tip content={file.exception}>{text}</Tip>}
       {file.state === 'Queued, Remotely' &&
         lookup?.pending !== true &&
-        lookup?.error === undefined &&
+        lookup?.message === undefined &&
         place !== undefined && (
           <Text size="1" color="gray">
             #{place}
@@ -185,8 +185,8 @@ function FileStatus({
             )}
           </Text>
         )}
-      {lookup?.error !== undefined && !lookup.pending && file.state === 'Queued, Remotely' && (
-        <Tip content={lookup.error}>
+      {lookup?.message !== undefined && !lookup.pending && file.state === 'Queued, Remotely' && (
+        <Tip content={lookup.message}>
           <Text size="1" color="red">
             position check failed
           </Text>

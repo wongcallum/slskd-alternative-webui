@@ -11,7 +11,7 @@ import { audioColumns } from '../../ui/tree/columns'
 import type { TreeConfig } from '../../ui/tree/FolderPane'
 import type { FileBadge } from '../../ui/tree/ItemList'
 import type { KeysProps, Selection } from '../../ui/tree/keys'
-import { downloadFiles, shareDownloadsOf } from '../browse'
+import { downloadFiles, shareDownloads } from '../browse'
 
 const selectable = (item: Item) => (item.kind === 'folder' ? item.fileCount > item.lockedCount : !item.locked)
 
@@ -31,7 +31,7 @@ function DownloadAction({ username, selection }: { username: string; selection: 
   }
   return (
     <DownloadButton
-      downloads={shareDownloadsOf(username)}
+      downloads={shareDownloads.get(username)}
       count={count}
       size={size}
       onClick={() => download(username, selection)}
@@ -48,7 +48,7 @@ function downloadKey(username: string) {
   if (keys === undefined) {
     keys = function DownloadKey({ target, selection }: KeysProps) {
       const gate = useSoulseekGate()
-      const { running } = useAtom(shareDownloadsOf(username))
+      const { running } = useAtom(shareDownloads.get(username))
       useListKeys(target, [
         {
           hotkeys: ['D'],
@@ -73,7 +73,7 @@ function downloadBadge(username: string) {
   let badge = badges.get(username)
   if (badge === undefined) {
     badge = function DownloadBadge({ file }: { file: TreeFile }) {
-      const { pending, marks } = useAtom(shareDownloadsOf(username))
+      const { pending, marks } = useAtom(shareDownloads.get(username))
       return <MarkBadge mark={marks.get(file.id)} pending={pending.has(file.id)} />
     }
     badges.set(username, badge)
@@ -87,7 +87,7 @@ export const shareConfig = (username: string): TreeConfig => ({
   extras: audioColumns,
   selectable,
   actions: (selection) => <DownloadAction username={username} selection={selection} />,
-  status: <OutcomeLine atom={shareDownloadsOf(username)} />,
+  status: <OutcomeLine atom={shareDownloads.get(username)} />,
   Badge: downloadBadge(username),
   Keys: downloadKey(username),
 })

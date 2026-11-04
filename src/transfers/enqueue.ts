@@ -15,13 +15,19 @@ export type Mark = { ok: true } | { ok: false; message: string }
 
 export type Downloads = Actions<'download'> & { marks: ReadonlyMap<string, Mark> }
 
-// Each search and each share keeps its own enqueue progress and marks.
+// Each search and each share keeps its own enqueue progress and marks, until it's deleted.
 export function createDownloads() {
-  const atoms = new Map<string, Atom<Downloads>>()
-  return (key: string) => {
-    let atom = atoms.get(key)
-    if (atom === undefined) atoms.set(key, (atom = createAtom<Downloads>({ ...idle, marks: new Map() })))
-    return atom
+  const atoms = new Map<string, ReturnType<typeof createAtom<Downloads>>>()
+  return {
+    get: (key: string): Atom<Downloads> => {
+      let atom = atoms.get(key)
+      if (atom === undefined) atoms.set(key, (atom = createAtom<Downloads>({ ...idle, marks: new Map() })))
+      return atom
+    },
+    forget(key: string) {
+      atoms.get(key)?.dispose()
+      atoms.delete(key)
+    },
   }
 }
 

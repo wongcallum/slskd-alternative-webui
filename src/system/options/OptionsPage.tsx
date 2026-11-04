@@ -347,10 +347,10 @@ function FileStatus({ file, check, slskd }: { file: ConfigFile; check?: Check; s
       </Text>,
     )
   }
-  if (file.saveError !== undefined) {
+  if (file.saveMessage !== undefined) {
     lines.push(
       <Text key="save" size="2" color="red">
-        Couldn't save: {file.saveError}
+        Couldn't save: {file.saveMessage}
       </Text>,
     )
   }

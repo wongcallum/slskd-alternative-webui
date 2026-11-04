@@ -12,7 +12,7 @@ type ActionKind = 'retry' | 'cancel' | 'remove' | 'clear'
 
 export const actions = perDirection(() => createAtom<Actions<ActionKind>>(idle))
 
-export type Lookup = { pending: boolean; place?: number; error?: string; at?: number }
+export type Lookup = { pending: boolean; place?: number; message?: string; at?: number }
 
 export const lookups = createAtom<ReadonlyMap<string, Lookup>>(new Map())
 
@@ -141,7 +141,7 @@ export async function lookUpPositions(requested: Transfer[]) {
       if (signal.aborted) return
       // A 404 here means the download is gone, not the user.
       const gone = isHTTPError(error) && error.response.status === 404
-      setLookup(file.id, { pending: false, error: (gone ? describeError : describePeerError)(error), at: Date.now() })
+      setLookup(file.id, { pending: false, message: (gone ? describeError : describePeerError)(error), at: Date.now() })
     }
   }
   transfers.download.refresh()

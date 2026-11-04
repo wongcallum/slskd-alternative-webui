@@ -26,8 +26,8 @@ export function BrowseProgress({ running }: { running: Browse }) {
 
 export function FailureLine({ username, failure }: { username: string; failure: Failure }) {
   return (
-    <DismissibleText title={failure.error} onDismiss={() => dismissFailure(username)}>
-      {failure.error}
+    <DismissibleText title={failure.message} onDismiss={() => dismissFailure(username)}>
+      {failure.message}
     </DismissibleText>
   )
 }

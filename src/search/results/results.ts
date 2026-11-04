@@ -6,7 +6,8 @@ import { sessionSignal } from '../../lib/session'
 import { createAtom } from '../../lib/store'
 import { byName, byUsername, comparePaths, queryMatcher } from '../../lib/text'
 import { filesUnder, type TreeFile } from '../../lib/tree'
-import { type Batch, createDownloads, destinationOf, enqueueDownloads } from '../../transfers/enqueue'
+import { type Batch, destinationOf, enqueueDownloads } from '../../transfers/enqueue'
+import { searchDownloads } from '../searches'
 
 export type RawResponse = {
   username: string
@@ -188,7 +189,7 @@ export type FolderFetch = {
   files?: ResultFile[]
   fetchedAt?: number
   missing?: boolean
-  error?: string
+  message?: string
   failedAt?: number
 }
 
@@ -295,18 +296,23 @@ const fetchedFile = (file: TreeFile, group: ResultGroup): ResultFile => ({
 
 // The folder comes from the user's whole share rather than a request for the folder, since slskd peers answer that
 // with files from other folders too, under paths that don't exist.
-export async function fetchFolder(searchId: string, group: ResultGroup, fresh: boolean) {
+export async function fetchFolder(searchId: string, group: ResultGroup, source: 'cache' | 'peer') {
   const signal = sessionSignal()
   const previous = entries.get().get(searchId)?.folders.get(group.id)
   const set = (fetch: FolderFetch) =>
     update(searchId, (entry) => ({ ...entry, folders: new Map(entry.folders).set(group.id, fetch) }))
-  const fail = (error: string) => set({ ...previous, pending: false, missing: false, error, failedAt: Date.now() })
+  const fail = (message: string) => set({ ...previous, pending: false, missing: false, message, failedAt: Date.now() })
   set({ ...previous, pending: true })
   try {
-    const outcome = (fresh ? undefined : await cachedShare(group.username)) ?? (await browse(group.username))
-    if (outcome === undefined || signal.aborted) return
-    if (!('share' in outcome)) {
-      fail(outcome.error)
+    const outcome = source === 'cache' ? await cachedShare(group.username) : await browse(group.username)
+    if (signal.aborted) return
+    if (outcome === undefined) {
+      // A browse only comes from a control gated on Soulseek, which the cached read's isn't.
+      if (source === 'cache') fail('The share is no longer cached')
+      return
+    }
+    if (outcome.status === 'failed') {
+      fail(outcome.message)
       return
     }
     const folder = outcome.share.byPath.get(group.directory)
@@ -330,8 +336,6 @@ export async function fetchFolder(searchId: string, group: ResultGroup, fresh: b
     if (!signal.aborted) fail(describeError(error))
   }
 }
-
-export const downloadsOf = createDownloads()
 
 const within = (directory: string, root: string) =>
   directory === root || directory.startsWith(`${root}\\`) || directory.startsWith(`${root}/`)
@@ -361,5 +365,5 @@ export function download(searchId: string, files: ResultFile[]) {
     }
     batch.files.push(file)
   }
-  return enqueueDownloads(downloadsOf(searchId), [...batches.values()])
+  return enqueueDownloads(searchDownloads.get(searchId), [...batches.values()])
 }
