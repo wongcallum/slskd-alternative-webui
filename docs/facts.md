@@ -1329,6 +1329,13 @@ Checked against the `@radix-ui/themes` 3.3.0 package source.
 - `Checkbox` ignores Enter, so only Space toggles it (`@radix-ui/react-checkbox` 1.3.11).
 - In a `TabNav`, arrow keys move focus between the links a task after the key (a `setTimeout` in
   `@radix-ui/react-navigation-menu` 1.2.22).
+- `styles.css` has all 30 colour scales, which are 35 of its 86 kB gzipped. The docs' alternative is `tokens/base.css`,
+  a file per scale, `components.css` and `utilities.css`. The default theme is `indigo` with `slate` gray, and a
+  `color` prop accepts a scale that wasn't imported but then has no colour
+  ([docs](https://www.radix-ui.com/themes/docs/theme/color)). The docs import `base.css` first, but `tokens.css` has
+  it after the scales: `gray.css` sets `--gray-*` on `.light` and `.dark`, which a `Theme` with an explicit
+  appearance has, and `base.css` maps them onto the theme's gray with a selector of the same specificity, so it has to
+  come later (observed in Chromium).
 - next-themes 0.4.6, which the Radix docs recommend, is unneeded: its anti-flash script does nothing when rendered
   client-side only (React 19 doesn't run rendered `<script>`s).
 
@@ -1497,14 +1504,26 @@ Checked against `@codemirror/view` 6.43.13, `lang-yaml` 6.1.3, `lint` 6.9.7 and 
   `Compartment` switches them in an open editor (observed).
 - The editor, the YAML mode, lint and search come to about 123 kB gzipped.
 
-## Recharts
+## Charts
 
-Checked against `recharts` 3.10.1.
+Checked against `uplot` 1.6.32 from its package source, and the others by bundling what the dashboard needs from
+each, without React, in Vite 8.
 
-- It depends on Redux Toolkit, immer, react-redux and reselect, and the dashboard's chart comes to about 103 kB
-  gzipped.
-- Colours given as CSS variables, like `var(--accent-9)`, follow a theme switch without a render (observed in
-  Chromium). shadcn's charts, which are built on it, colour everything that way.
-- A `Tooltip` whose `content` is an element clones it with `active`, `activeIndex` and `payload` added. With
-  `responsive`, the chart takes its size from its own CSS, like `width: 100%`.
-- A tap shows the tooltip and leaves it up (observed with touch emulated in Chromium).
+| Library                 | Minified | Gzipped |
+| ----------------------- | -------- | ------- |
+| `recharts` 3.10.1       | 526 kB   | 126 kB  |
+| `chart.js` 4.6.1        | 193 kB   | 57 kB   |
+| `@visx/*` 4.0.0 (seven) | 99 kB    | 27 kB   |
+| `uplot` 1.6.32          | 72 kB    | 25 kB   |
+| `frappe-charts` 1.6.2   | 93 kB    | 21 kB   |
+| `chartist` 2.2.0        | 52 kB    | 17 kB   |
+
+- Recharts depends on Redux Toolkit, immer, react-redux and reselect. In the app its chart was 103 kB gzipped, and
+  uPlot's is 24 kB.
+- Chartist 2.0.0 was released on 16 October 2026, with 2.2.0 four days later.
+- uPlot draws on a canvas, so colours have to be resolved, and CSS variables don't follow a theme switch.
+- uPlot's cursor listens only to mouse events. A tap still shows the tooltip and leaves it up, from the mouse events
+  the browser sends after it (observed with touch emulated in Chromium).
+- uPlot caches the plot's position, and invalidates it on any scroll in the page, since it listens on `window` in the
+  capture phase.
+- uPlot bars fill to 0, and the size option takes a share of each slot and a maximum width in pixels.

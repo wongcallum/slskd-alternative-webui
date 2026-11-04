@@ -229,7 +229,11 @@ The whole app works from the keyboard, for sighted keyboard users first. `?` lis
 - It loads again when the metrics hub counts a finished transfer, since nothing else changes the reports, at most once
   a minute and not while the tab is hidden. The hub doesn't count a cancelled download, which the figures leave out
   anyway.
-- The chart library loads with the chart, since it's about 100 kB gzipped.
+- The chart is drawn with uPlot, which loads with it. It's a canvas, so the chart reads the theme's colours and is
+  built again when the theme switches.
+  - Rejected: Recharts, at 103 kB gzipped where uPlot is 24 kB, on the page the app lands on (see the facts).
+  - Rejected: Chartist 2, whose first release was weeks old, visx, which is seven packages, and Chart.js, at more
+    than twice uPlot's size.
 - Rejected: stock's tabs, its list of recent errors (the transfer lists filter to failures), its 12 chart series,
   custom date ranges, the share ratio's colours, whose thresholds are arbitrary, and rank columns, since the order is
   the rank.
