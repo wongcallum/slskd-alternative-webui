@@ -1,10 +1,10 @@
 import { api } from '../lib/api'
 import { nameOf } from '../lib/files'
 import { toTime } from '../lib/format'
-import { createRate } from '../lib/rate'
 import { onSessionEnd } from '../lib/session'
 import { createResource, isStale, poll, type Resource } from '../lib/store'
-import { byName, compareNames } from '../lib/text'
+import { byName, compareNames, queryMatcher } from '../lib/text'
+import { createRate } from './rate'
 
 export type Direction = 'download' | 'upload'
 
@@ -248,12 +248,12 @@ const outcomeOf = (state: TransferState): Show =>
   isSucceeded(state) ? 'succeeded' : isCancelled(state) ? 'cancelled' : 'failed'
 
 export function filterGroups(groups: Group[], query: string, show: Show) {
-  if (query === '' && show === 'all') return groups
-  const needle = query.toLowerCase()
+  const matches = queryMatcher(query)
+  if (matches === undefined && show === 'all') return groups
   const result: Group[] = []
   for (const group of groups) {
     const files = group.files.filter(
-      (file) => file.search.includes(needle) && (show === 'all' || outcomeOf(file.state) === show),
+      (file) => (matches?.(file.search) ?? true) && (show === 'all' || outcomeOf(file.state) === show),
     )
     if (files.length === group.files.length) result.push(group)
     else if (files.length > 0) {
@@ -263,7 +263,7 @@ export function filterGroups(groups: Group[], query: string, show: Show) {
   return result
 }
 
-export const pollInterval = 1000
+export const transfersPollInterval = 1000
 
 function createTransfers(direction: Direction) {
   const rate = createRate()
@@ -279,12 +279,14 @@ function createTransfers(direction: Direction) {
         const last = resource.getUpdatedAt()
         // After a gap long enough to count as stale, the poll only sets a new baseline for the speed.
         const elapsed =
-          last === undefined || isStale(now - last, resource.getInterval() ?? pollInterval) ? undefined : now - last
+          last === undefined || isStale(now - last, resource.getInterval() ?? transfersPollInterval)
+            ? undefined
+            : now - last
         if (elapsed === undefined) rate.reset()
         const measureSpeed = (moved: number) => (elapsed === undefined ? undefined : rate.add(now, elapsed, moved))
         return measure(() => merge(resource.getSnapshot().data, JSON.parse(text) as RawUser[], measureSpeed, partials))
       },
-      pollInterval,
+      transfersPollInterval,
     ),
   )
   return resource

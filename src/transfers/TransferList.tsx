@@ -60,7 +60,7 @@ type RowItem = { type: 'row'; section: Section; row: TableRow }
 
 type ListItem = { type: 'header'; section: Section } | { type: 'empty'; section: Section } | RowItem
 
-const listKey = (item: ListItem) => (item.type === 'row' ? item.row.id : `${item.type}:${item.section}`)
+const itemKey = (item: ListItem) => (item.type === 'row' ? item.row.id : `${item.type}:${item.section}`)
 
 const isRow = (item: ListItem): item is RowItem => item.type === 'row'
 
@@ -539,7 +539,7 @@ function useTransferNav({ direction, items, tables }: TransferNavOptions) {
   const nav = useListNav<ListItem>({
     name: 'transfers',
     items,
-    itemKey: listKey,
+    itemKey,
     isRow,
     rank: 1,
     label: direction === 'download' ? 'Downloads' : 'Uploads',
@@ -549,13 +549,17 @@ function useTransferNav({ direction, items, tables }: TransferNavOptions) {
     canToggle: (item) => isRow(item) && groupNav.canToggle(item.row),
     isOpen: (item) => isRow(item) && item.row.getIsExpanded(),
     aria: (item) => (isRow(item) ? groupNav.aria(item.row) : {}),
-    onToggle: (item) => isRow(item) && onToggle(item.section, item.row.id),
+    onToggle: (item) => {
+      if (isRow(item)) onToggle(item.section, item.row.id)
+    },
     onEnter: (item) => {
       if (!isRow(item)) return
       if (item.row.original.kind === 'group') onToggle(item.section, item.row.id)
       else onSelect[item.section](item.row.id, false)
     },
-    onSpace: (item, range) => isRow(item) && keys[item.section].onSpace(item.row, range),
+    onSpace: (item, range) => {
+      if (isRow(item)) keys[item.section].onSpace(item.row, range)
+    },
     // Selection stays within a section, as Shift+click's does.
     onExtend: (from, to) =>
       isRow(from) && isRow(to) && from.section === to.section && keys[from.section].onExtend(from.row, to.row),

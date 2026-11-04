@@ -4,6 +4,7 @@ import { Link as RouterLink } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 
 import { browses } from '../browse/browse'
+import { describeError } from '../lib/api'
 import { type Application, rescanNeeded, stateGate } from '../lib/application'
 import { useSession } from '../lib/session'
 import { useAtom } from '../lib/store'
@@ -12,7 +13,7 @@ import { reconnect } from '../soulseek/soulseek'
 import { ActionButton, ConfirmButton } from '../ui/controls'
 import { lifecycle, restart } from './lifecycle'
 
-export function PendingCallout({ error, children }: { error?: string; children: ReactNode }) {
+export function PendingCallout({ message, children }: { message?: string; children: ReactNode }) {
   return (
     // Callout is a grid that sizes its columns to their content, so a flex row lets the action sit at the far end.
     <Callout.Root color="amber" size="1" style={{ display: 'flex' }}>
@@ -23,9 +24,9 @@ export function PendingCallout({ error, children }: { error?: string; children: 
         <Flex align="center" justify="between" gap="3" wrap="wrap">
           {children}
         </Flex>
-        {error !== undefined && (
+        {message !== undefined && (
           <Text size="2" color="red">
-            {error}
+            {message}
           </Text>
         )}
       </Flex>
@@ -63,18 +64,21 @@ export function RestartButton({ known, color }: { known: boolean; color?: 'amber
 
 export function PendingCallouts({ data, known }: { data: Application; known: boolean }) {
   const reconnecting = useRun()
+  const state = useAtom(lifecycle)
   const rescan = rescanNeeded(data)
   if (!data.pendingRestart && !data.pendingReconnect && !rescan) return null
   return (
     <Flex direction="column" gap="2">
       {data.pendingRestart && (
-        <PendingCallout>
+        <PendingCallout
+          message={state.phase === 'running' && state.error !== undefined ? describeError(state.error) : undefined}
+        >
           <Callout.Text>Changed settings apply after a restart.</Callout.Text>
           <RestartButton known={known} color="amber" />
         </PendingCallout>
       )}
       {data.pendingReconnect && (
-        <PendingCallout error={reconnecting.error}>
+        <PendingCallout message={reconnecting.message}>
           <Callout.Text>Changed Soulseek settings apply after a reconnect.</Callout.Text>
           <ActionButton
             label="Reconnect"

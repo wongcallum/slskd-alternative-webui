@@ -3,7 +3,7 @@ import * as v from 'valibot'
 import type { RawProgress } from '../../src/browse/browse'
 import type { RawShare as RawBrowse } from '../../src/browse/pack'
 import type { RawConversation, RawPrivateMessage } from '../../src/chat/conversations'
-import type { RawAvailableRoom } from '../../src/chat/JoinRoomDialog'
+import type { RawAvailableRoom } from '../../src/chat/rooms'
 import type { RawRoomMessage, RawRoomUser } from '../../src/chat/rooms'
 import type { RawFolder, RawHistogram, RawLeader, RawReason, RawSummary } from '../../src/dashboard/reports'
 import type { RawState } from '../../src/lib/application'
@@ -292,7 +292,7 @@ export const reasons = shape<RawReason[]>(
 const history = v.object({
   summary: byState,
   statistics: v.object({ total: count, successful: count, cancelled: count }),
-  exceptions: v.array(v.object({ exception: v.string(), count })),
+  exceptions: v.array(v.object({ exception: v.optional(v.string()), count })),
 })
 
 export const userHistory = shape<{ Download: RawDirection; Upload: RawDirection }>(
@@ -373,7 +373,7 @@ export const roomUsers = shape<RawRoomUser[]>(
   v.array(
     v.object({
       username: v.string(),
-      countryCode: v.nullish(v.string()),
+      countryCode: v.optional(v.string()),
       fileCount: count,
       self: v.optional(v.boolean()),
     }),

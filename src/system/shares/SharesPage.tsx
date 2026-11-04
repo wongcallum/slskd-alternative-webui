@@ -33,7 +33,7 @@ import { audioColumns } from '../../ui/tree/columns'
 import type { TreeConfig } from '../../ui/tree/FolderPane'
 import { TreeView } from '../../ui/tree/TreeView'
 import { columnsVar, growing, sized, useColumns } from '../../ui/widths'
-import { useOptions } from '../options/options'
+import { useOptionsData } from '../options/options'
 import { PendingCallout } from '../PendingCallouts'
 import { SystemPage } from '../SystemPage'
 import type { SharesSearch } from './params'
@@ -65,15 +65,15 @@ export function SharesPage({ search, onSearchChange }: Props) {
   )
 }
 
-function Bar({ error, children }: { error?: string; children: ReactNode }) {
+function Bar({ message, children }: { message?: string; children: ReactNode }) {
   return (
     <Flex direction="column" gap="1" px="4" py="2" flexShrink="0" style={toolbarStyle}>
       <Flex align="center" justify="between" gap="3" minHeight="32px">
         {children}
       </Flex>
-      {error !== undefined && (
+      {message !== undefined && (
         <Text size="2" color="red">
-          {error}
+          {message}
         </Text>
       )}
     </Flex>
@@ -87,26 +87,26 @@ function pendingReason(data: Application) {
 }
 
 function ScanBar({ data, known }: { data: Application; known: boolean }) {
-  const run = useRun()
+  const scan = useRun()
   const gate = stateGate(known)
   if (data.scanning) {
     return (
-      <Bar error={run.error}>
+      <Bar message={scan.message}>
         <Busy>
           {data.scanFolders > 0 ? `Scanning ${plural(data.scanFolders, 'folder')}` : 'Scanning'}:{' '}
           {Math.floor(data.scanProgress * 100)}%, {plural(data.scanFiles, 'file')} so far
         </Busy>
-        <ActionButton label="Cancel" loading={run.running} gate={gate} onClick={() => run.run(cancelScan)} />
+        <ActionButton label="Cancel" loading={scan.running} gate={gate} onClick={() => scan.run(cancelScan)} />
       </Bar>
     )
   }
   const rescanButton = (color?: 'amber') => (
-    <ActionButton label="Rescan" color={color} loading={run.running} gate={gate} onClick={() => run.run(rescan)} />
+    <ActionButton label="Rescan" color={color} loading={scan.running} gate={gate} onClick={() => scan.run(rescan)} />
   )
   if (rescanNeeded(data)) {
     return (
       <Box px="4" py="3" flexShrink="0" style={toolbarStyle}>
-        <PendingCallout error={run.error}>
+        <PendingCallout message={scan.message}>
           <Callout.Text>{pendingReason(data)}</Callout.Text>
           {rescanButton('amber')}
         </PendingCallout>
@@ -114,7 +114,7 @@ function ScanBar({ data, known }: { data: Application; known: boolean }) {
     )
   }
   return (
-    <Bar error={run.error}>
+    <Bar message={scan.message}>
       <Text size="2" color="gray">
         {data.scanReady
           ? `${plural(data.scanFiles, 'file')} in ${plural(data.scanFolders, 'folder')} shared`
@@ -136,7 +136,7 @@ const shareKey = (share: Share) => (share.excluded ? `excluded\n${share.host}\n$
 
 function ShareTable({ onOpen }: { onOpen: (path: string) => void }) {
   const { data, error } = useResource(shareList)
-  const options = useOptions()
+  const options = useOptionsData()
   const stacked = useListLayout() === 'stacked'
   const hosts = (data?.hosts ?? 0) > 1
   const columns = useColumns('shares', hosts ? hostTracks : tracks)

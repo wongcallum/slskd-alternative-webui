@@ -5,14 +5,31 @@ import { api } from '../lib/api'
 import { application, ownUsername } from '../lib/application'
 import { toTime } from '../lib/format'
 import { sessionSignal } from '../lib/session'
-import { createAtom, createResource, createResourceMap, poll, type Resource, useAtom, useResource } from '../lib/store'
+import {
+  createAtom,
+  createResource,
+  createKeyed,
+  poll,
+  type Resource,
+  useAtom,
+  useResource,
+  without,
+} from '../lib/store'
 import { createStoredAtom } from '../lib/stored'
 import { byUsername, compareExactly } from '../lib/text'
 import { lastOpen, mentionMatcher, type Message, reuseMessages } from './messages'
 
 export type RawRoomMessage = { timestamp: string; username: string; message: string; self?: boolean }
 
-export type RawRoomUser = { username: string; countryCode?: string | null; fileCount: number; self?: boolean }
+export type RawAvailableRoom = {
+  name: string
+  userCount: number
+  isPrivate: boolean
+  isOwned: boolean
+  isModerated: boolean
+}
+
+export type RawRoomUser = { username: string; countryCode?: string; fileCount: number; self?: boolean }
 
 export type RoomUser = { username: string; country?: string; files: number; self: boolean }
 
@@ -116,7 +133,7 @@ function received(room: string, messages: readonly Message[]) {
 }
 
 // Every joined room is polled while the chat page is open, to show which have news, and the open one more often.
-const messageResources = createResourceMap((room: string) => {
+const messageResources = createKeyed((room: string) => {
   const resource: Resource<RoomMessages> = createResource((sink) =>
     poll(
       sink,
@@ -145,7 +162,7 @@ function toUser(raw: RawRoomUser): RoomUser {
   }
 }
 
-const userResources = createResourceMap((room: string) =>
+const userResources = createKeyed((room: string) =>
   createResource<RoomUsers>((sink) => {
     let last: { text: string; data: RoomUsers } | undefined
     return poll(
@@ -224,6 +241,9 @@ export function useRoomNews(room: string) {
   }, [data, seen])
 }
 
+export const fetchAvailableRooms = (signal: AbortSignal) =>
+  api.get('rooms/available', { signal }).json<RawAvailableRoom[]>()
+
 export async function joinRoom(room: string) {
   const signal = sessionSignal()
   joining.set((current) => new Set(current).add(room))
@@ -247,7 +267,7 @@ export async function leaveRoom(room: string) {
   messageResources.forget(room)
   userResources.forget(room)
   setPending(room, () => [])
-  roomsSeen.set((current) => Object.fromEntries(Object.entries(current).filter(([name]) => name !== room)))
+  roomsSeen.set((current) => without(current, room))
   const open = lastOpen.get()
   if (open?.kind === 'room' && open.name === room) lastOpen.set(undefined)
 }
@@ -260,15 +280,13 @@ export async function sendToRoom(room: string, text: string) {
   if (signal.aborted) return
   const id = nextPending++
   setPending(room, (list) => [...list, { id, text, sentAt: Date.now(), after, unconfirmed: false }])
-  setTimeout(
-    () =>
-      !signal.aborted &&
-      setPending(room, (list) =>
-        list.some((each) => each.id === id)
-          ? list.map((each) => (each.id === id ? { ...each, unconfirmed: true } : each))
-          : list,
-      ),
-    echoTimeout,
-  )
+  setTimeout(() => {
+    if (signal.aborted) return
+    setPending(room, (list) =>
+      list.some((each) => each.id === id)
+        ? list.map((each) => (each.id === id ? { ...each, unconfirmed: true } : each))
+        : list,
+    )
+  }, echoTimeout)
   resource.refresh()
 }

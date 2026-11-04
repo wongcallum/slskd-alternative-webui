@@ -1,7 +1,7 @@
 import { api } from './api'
 import { plural, toTime } from './format'
 import { applicationHub, followHub, useLiveResource, type Via } from './hubs'
-import { createAtom, createResource, keepItems, useResource } from './store'
+import { createAtom, createResource, keepItems, shallowEqual, useResource } from './store'
 
 export type RelayMode = 'Controller' | 'Agent' | 'Debug'
 
@@ -116,19 +116,12 @@ export type Application = {
 
 export type Agent = { name: string; address: string }
 
-const keepAgents = (previous: readonly Agent[] | undefined, next: readonly Agent[]) =>
-  previous !== undefined &&
-  previous.length === next.length &&
-  previous.every((each, i) => each.name === next[i]?.name && each.address === next[i]?.address)
-    ? previous
-    : next
-
 export const applicationPollInterval = 2000
 
 // Release builds report a fourth version part of 0, which their tags don't have.
 const trimVersion = (version: string) => version.replace(/^(\d+\.\d+\.\d+)\.0$/, '$1')
 
-function fromState(via: Via, state: RawState): Application {
+function toApplication(via: Via, state: RawState): Application {
   const { version, server, user, distributedNetwork: network, shares, vpn, relay } = state
   const previous = application.getSnapshot().data
   const incoming = state.health.search.incoming
@@ -183,18 +176,19 @@ function fromState(via: Via, state: RawState): Application {
     relayMode: relay.mode,
     controllerAddress: relay.controller.address ?? undefined,
     controllerState: relay.controller.state,
-    agents: keepAgents(
+    agents: keepItems(
       previous?.agents,
       relay.agents.map((agent) => ({ name: agent.name, address: agent.ipAddress })),
+      shallowEqual,
     ),
   }
 }
 
 const fetchState = async (via: Via, signal: AbortSignal) =>
-  fromState(via, await api.get('application', { signal }).json<RawState>())
+  toApplication(via, await api.get('application', { signal }).json<RawState>())
 
 export const application = createResource<Application>((sink) => {
-  const offState = applicationHub.on<RawState>('STATE', (state) => sink.set(fromState('hub', state)))
+  const offState = applicationHub.on<RawState>('STATE', (state) => sink.set(toApplication('hub', state)))
   const following = followHub(applicationHub, sink, {
     snapshot: (signal) => fetchState('hub', signal),
     request: (signal) => fetchState('poll', signal),
@@ -217,6 +211,9 @@ application.watch(() => {
 })
 
 export const stateGate = (known: boolean) => (known ? undefined : "slskd's state is out of date")
+
+// slskd's forced check ignores no_version_check, so it only runs from a click.
+export const checkForUpdate = () => api.get('application/version/latest', { searchParams: { forceCheck: true } })
 
 export const releaseNotes = (version: string) => `https://github.com/slskd/slskd/releases/tag/${version}`
 

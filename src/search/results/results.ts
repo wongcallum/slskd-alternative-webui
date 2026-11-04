@@ -1,6 +1,6 @@
 import { browse, cachedShare } from '../../browse/browse'
 import { api, describeError } from '../../lib/api'
-import { type Criteria, hasAttributes, judging, passes, unjudged } from '../../lib/criteria'
+import { type Criteria, hasAttributes, isJudging, passes, unjudged } from '../../lib/criteria'
 import { describeRange, lastSeparator, nameOf, qualityOf, type RawFile, widenRange } from '../../lib/files'
 import { sessionSignal } from '../../lib/session'
 import { createAtom } from '../../lib/store'
@@ -210,7 +210,7 @@ const countAttributed = (files: ResultFile[]) => files.reduce((count, file) => c
 export function viewGroups(results: Results, folders: ReadonlyMap<string, FolderFetch>, filter: ResultFilter) {
   const base = filter.locked ? results.all : results.unlocked
   const matches = queryMatcher(filter.query)
-  const judged = judging(filter)
+  const judged = isJudging(filter)
   if (
     matches === undefined &&
     !judged &&

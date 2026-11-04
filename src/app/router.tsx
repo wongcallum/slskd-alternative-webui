@@ -21,6 +21,7 @@ import { chatSearch, chatSearchDefaults, roomsSearch, roomsSearchDefaults } from
 import { RoomView } from '../chat/RoomView'
 import { DashboardPage, loadChart } from '../dashboard/DashboardPage'
 import { dashboardSearch, dashboardSearchDefaults } from '../dashboard/params'
+import { useSearchProps } from '../lib/params'
 import { onSessionEnd } from '../lib/session'
 import { useResource } from '../lib/store'
 import { searchesSearch, searchesSearchDefaults } from '../search/params'
@@ -44,7 +45,6 @@ import { usersSearch, usersSearchDefaults } from '../users/params'
 import { ProfilePage } from '../users/ProfilePage'
 import { UsersPage } from '../users/UsersPage'
 import { NotFound, RouteError } from './pages'
-import { useSearchProps } from './search'
 import { Shell } from './Shell'
 
 const loadYamlPages = () => import('./yamlPages')

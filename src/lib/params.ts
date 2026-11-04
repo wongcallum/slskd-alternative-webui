@@ -1,5 +1,5 @@
 import { functionalUpdate, type SortingState, type Updater } from '@tanstack/react-table'
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import * as v from 'valibot'
 
 export const textParam = v.optional(v.fallback(v.string(), ''), '')
@@ -41,3 +41,22 @@ export function useSortParam<S extends string>(sort: S | undefined, onChange: (s
 }
 
 export type SearchProps<S> = { search: S; onSearchChange: (patch: Partial<S>) => void }
+
+type Navigate<T> = (options: { search: (previous: T) => T; replace: boolean }) => Promise<void>
+
+// Params that filter or sort replace the history entry. Changing a navigation param pushes one, so Back returns to it.
+export function useSearchProps<T extends object>(
+  search: T,
+  navigate: Navigate<NoInfer<T>>,
+  navigation?: keyof T,
+): SearchProps<T> {
+  const onSearchChange = useCallback(
+    (patch: Partial<T>) =>
+      void navigate({
+        search: (previous) => ({ ...previous, ...patch }),
+        replace: navigation === undefined || !(navigation in patch),
+      }),
+    [navigate, navigation],
+  )
+  return { search, onSearchChange }
+}

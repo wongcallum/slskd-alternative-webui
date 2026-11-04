@@ -1,7 +1,7 @@
 import { isHTTPError, type RetryOptions } from 'ky'
 
 import { type Actions, actOnEach, begin, idle, summarise } from '../../lib/actions'
-import { api, readsOptions } from '../../lib/api'
+import { api, optionsQueue } from '../../lib/api'
 import { toTime } from '../../lib/format'
 import { createAtom, createResource, load, type Resource } from '../../lib/store'
 import { buildTree, type InputDirectory, type Item, type Tree } from '../../lib/tree'
@@ -93,7 +93,7 @@ const retryTripped: RetryOptions = {
 async function fetchFiles(signal: AbortSignal) {
   const listings = await Promise.all(
     roots.map(({ id }) =>
-      readsOptions(() =>
+      optionsQueue(() =>
         api
           .get(`files/${id}/directories`, {
             searchParams: { recursive: true },
@@ -181,8 +181,9 @@ export function targetsOf(items: readonly Item[]): Target[] {
     const path = item.kind === 'folder' ? item.path : item.filename
     if (inSelectedFolder(path)) return
     const cut = path.indexOf('/')
+    if (cut < 0) return
     const root = roots.find(({ name }) => name === path.slice(0, cut))
-    if (root === undefined || cut < 0) return
+    if (root === undefined) return
     targets.push({ id: path, kind: item.kind, root: root.id, relative: path.slice(cut + 1), size: item.size })
   })
   return targets
@@ -229,7 +230,7 @@ export async function deleteItems(items: readonly Item[]) {
       const encoded = encodePath(target.relative)
       if (encoded === undefined) throw new Error("slskd can't address this name")
       const path = `files/${target.root}/${target.kind === 'folder' ? 'directories' : 'files'}/${encoded}`
-      await readsOptions(() => api.delete(path, { signal }))
+      await optionsQueue(() => api.delete(path, { signal }))
       deleted.push(target)
       drop(target.id)
     },

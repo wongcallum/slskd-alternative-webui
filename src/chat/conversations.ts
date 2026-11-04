@@ -4,7 +4,7 @@ import { api } from '../lib/api'
 import { application } from '../lib/application'
 import { toTime } from '../lib/format'
 import { sessionSignal } from '../lib/session'
-import { createResource, createResourceMap, poll, type Resource } from '../lib/store'
+import { createResource, createKeyed, poll, type Resource } from '../lib/store'
 import { byUsername } from '../lib/text'
 import { lastOpen, type Message, reuseMessages } from './messages'
 
@@ -86,7 +86,7 @@ async function acknowledge(username: string, signal: AbortSignal) {
 // until the conversation is in the list or a message is sent.
 const unstarted = new Set<string>()
 
-const messageResources = createResourceMap((username: string) => {
+const messageResources = createKeyed((username: string) => {
   const resource: Resource<ConversationMessages> = createResource((sink) => {
     let first = true
     let newFrom: string | undefined

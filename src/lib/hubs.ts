@@ -167,7 +167,9 @@ export function followHub<T>(
   const controller = new AbortController()
   if (hub.getStatus().state === 'connected') {
     snapshot(controller.signal).then(
-      (data) => sink.set(data),
+      (data) => {
+        if (!controller.signal.aborted) sink.set(data)
+      },
       (error: unknown) => {
         if (!controller.signal.aborted) sink.fail(error)
       },

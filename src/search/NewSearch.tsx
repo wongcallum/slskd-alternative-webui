@@ -12,7 +12,7 @@ export function NewSearch() {
   const gate = useSoulseekGate()
   const touch = useTouch()
   const [text, setText] = useState('')
-  const { busy, error, create } = useCreateSearch()
+  const { busy, message, create } = useCreateSearch()
 
   function submit(event: SubmitEvent) {
     event.preventDefault()
@@ -51,7 +51,7 @@ export function NewSearch() {
           </Flex>
         </form>
       </Box>
-      <ActionNote error={error} gate={gate} size="2" />
+      <ActionNote message={message} gate={gate} size="2" />
     </Toolbar>
   )
 }

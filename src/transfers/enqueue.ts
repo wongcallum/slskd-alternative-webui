@@ -2,7 +2,7 @@ import { isHTTPError } from 'ky'
 
 import { type Actions, begin, idle, type Operation, summarise } from '../lib/actions'
 import { api, resendOn429 } from '../lib/api'
-import { type Atom, createAtom } from '../lib/store'
+import { type Atom, createAtom, createKeyed } from '../lib/store'
 import { describePeerError } from '../soulseek/soulseek'
 
 export type EnqueueResponse = { failures: { filename: string; message: string }[] }
@@ -16,20 +16,7 @@ export type Mark = { ok: true } | { ok: false; message: string }
 export type Downloads = Actions<'download'> & { marks: ReadonlyMap<string, Mark> }
 
 // Each search and each share keeps its own enqueue progress and marks, until it's deleted.
-export function createDownloads() {
-  const atoms = new Map<string, ReturnType<typeof createAtom<Downloads>>>()
-  return {
-    get: (key: string): Atom<Downloads> => {
-      let atom = atoms.get(key)
-      if (atom === undefined) atoms.set(key, (atom = createAtom<Downloads>({ ...idle, marks: new Map() })))
-      return atom
-    },
-    forget(key: string) {
-      atoms.get(key)?.dispose()
-      atoms.delete(key)
-    },
-  }
-}
+export const createDownloads = () => createKeyed((_key: string) => createAtom<Downloads>({ ...idle, marks: new Map() }))
 
 type File = { id: string; filename: string; name: string; size: number }
 

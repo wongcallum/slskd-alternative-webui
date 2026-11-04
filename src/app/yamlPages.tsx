@@ -1,8 +1,8 @@
 import { getRouteApi } from '@tanstack/react-router'
 
+import { useSearchProps } from '../lib/params'
 import { EventsPage } from '../system/EventsPage'
 import { OptionsPage } from '../system/options/OptionsPage'
-import { useSearchProps } from './search'
 
 const optionsRoute = getRouteApi('/system/options')
 

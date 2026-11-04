@@ -1,6 +1,6 @@
 import { isHTTPError } from 'ky'
 
-import { api, describeError, readsOptions } from '../../lib/api'
+import { api, describeError, optionsQueue } from '../../lib/api'
 import { sessionSignal } from '../../lib/session'
 import { createAtom, createResource, load } from '../../lib/store'
 
@@ -22,7 +22,7 @@ export type ConfigFile = {
 
 export const configFile = createAtom<ConfigFile>({ reading: false, saving: false, saved: false })
 
-const readText = (path: string, signal: AbortSignal) => readsOptions(() => api.get(path, { signal }).json<string>())
+const readText = (path: string, signal: AbortSignal) => optionsQueue(() => api.get(path, { signal }).json<string>())
 
 // A draft is never replaced by what's read. A file that changed under it is a conflict to resolve. Nothing is read
 // during a save, which leaves the file as read.
@@ -77,7 +77,7 @@ export async function save({ overwrite = false } = {}) {
         return
       }
     }
-    await readsOptions(() => api.put('options/yaml', { json: draft, signal }))
+    await optionsQueue(() => api.put('options/yaml', { json: draft, signal }))
     if (signal.aborted) return
     configFile.set((state) => ({
       ...state,
@@ -108,7 +108,7 @@ configFile.subscribe(() => {
 
 // Answers 200 either way: an empty body when valid, and the validator's message when not.
 export async function validate(text: string, signal: AbortSignal) {
-  const body = await readsOptions(async () => (await api.post('options/yaml/validate', { json: text, signal })).text())
+  const body = await optionsQueue(async () => (await api.post('options/yaml/validate', { json: text, signal })).text())
   return body === '' ? undefined : (JSON.parse(body) as string)
 }
 

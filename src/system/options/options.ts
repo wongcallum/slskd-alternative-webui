@@ -1,4 +1,4 @@
-import { api, readsOptions } from '../../lib/api'
+import { api, optionsQueue } from '../../lib/api'
 import { applicationHub, followHub, useLiveResource, type Via } from '../../lib/hubs'
 import { createResource, load, keepItems, useResource } from '../../lib/store'
 
@@ -50,7 +50,7 @@ function keepSettings(raw: RawOptions) {
   return held.settings
 }
 
-function fromOptions(via: Via, raw: RawOptions): Options {
+function toOptions(via: Via, raw: RawOptions): Options {
   const previous = options.getSnapshot().data
   return {
     via,
@@ -67,10 +67,10 @@ function fromOptions(via: Via, raw: RawOptions): Options {
 }
 
 const fetchOptions = async (via: Via, signal: AbortSignal) =>
-  fromOptions(via, await readsOptions(() => api.get('options', { signal }).json<RawOptions>()))
+  toOptions(via, await optionsQueue(() => api.get('options', { signal }).json<RawOptions>()))
 
 export const options = createResource<Options>((sink) => {
-  const offOptions = applicationHub.on<RawOptions>('OPTIONS', (raw) => sink.set(fromOptions('hub', raw)))
+  const offOptions = applicationHub.on<RawOptions>('OPTIONS', (raw) => sink.set(toOptions('hub', raw)))
   const following = followHub(applicationHub, sink, {
     snapshot: (signal) => fetchOptions('hub', signal),
     request: (signal) => fetchOptions('poll', signal),
@@ -84,9 +84,11 @@ export const options = createResource<Options>((sink) => {
   }
 })
 
-export const useOptions = () => useResource(options).data
+export const optionsPending = "Checking slskd's options"
 
-export const useLiveOptions = () => useLiveResource(options, applicationHub, optionsPollInterval)
+export const useOptionsData = () => useResource(options).data
+
+export const useOptions = () => useLiveResource(options, applicationHub, optionsPollInterval)
 
 // Only a new process changes these, so they're read again whenever the application hub connects.
 export const startupOptions = createResource<{ debug: boolean }>((sink) => {

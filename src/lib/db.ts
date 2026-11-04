@@ -80,16 +80,18 @@ export const db = () =>
 
 type Change = { type: 'share' | 'user'; username: string }
 
-const channel = typeof BroadcastChannel === 'undefined' ? undefined : new BroadcastChannel('slskd-alt')
+const channel = new BroadcastChannel('slskd-alt')
 
 // oxlint-disable-next-line unicorn/require-post-message-target-origin -- BroadcastChannel has no target origin
-export const announce = (change: Change) => channel?.postMessage(change)
+export const announce = (change: Change) => channel.postMessage(change)
 
 // Another tab stored or deleted something.
 export function onAnnounce(type: Change['type'], listener: (username: string) => void) {
-  channel?.addEventListener('message', (event: MessageEvent<Change>) => {
+  const onMessage = (event: MessageEvent<Change>) => {
     if (event.data.type === type) listener(event.data.username)
-  })
+  }
+  channel.addEventListener('message', onMessage)
+  return () => channel.removeEventListener('message', onMessage)
 }
 
 // A user's record and whatever is stored beside it, in one transaction.

@@ -14,7 +14,7 @@ import type { ExtraColumn } from '../../ui/tree/columns'
 import type { TreeConfig } from '../../ui/tree/FolderPane'
 import type { KeysProps, Selection } from '../../ui/tree/keys'
 import { TreeView } from '../../ui/tree/TreeView'
-import { useOptions } from '../options/options'
+import { optionsPending, useOptionsData } from '../options/options'
 import { rescan } from '../shares/shares'
 import { SystemPage } from '../SystemPage'
 import {
@@ -33,7 +33,7 @@ type Props = SearchProps<FilesSearch>
 
 export function FilesPage({ search, onSearchChange }: Props) {
   const { data, error } = useResource(files)
-  const deleting = useOptions()?.remoteFileManagement === true
+  const deleting = useOptionsData()?.remoteFileManagement === true
   const config = useMemo(() => filesConfig(deleting), [deleting])
   return (
     <SystemPage status={<FetchedResource resource={files} loading={filesLoading} />}>
@@ -169,7 +169,7 @@ function DeleteKey({ target, tree, selection }: KeysProps) {
 }
 
 function FilesStatus() {
-  const options = useOptions()
+  const options = useOptionsData()
   return (
     <>
       <OutcomeLine atom={fileActions} />
@@ -177,11 +177,7 @@ function FilesStatus() {
       {options?.remoteFileManagement !== true && (
         <ActionButton
           label="Delete"
-          gate={
-            options === undefined
-              ? "slskd's options haven't arrived yet"
-              : 'Deleting needs remote_file_management turned on in slskd'
-          }
+          gate={options === undefined ? optionsPending : "slskd's remote_file_management is off"}
           onClick={() => {}}
         />
       )}
@@ -192,19 +188,19 @@ function FilesStatus() {
 function SharedHint() {
   const { outcome, sharedDeleted } = useAtom(fileActions)
   const { known } = useApplication()
-  const run = useRun()
+  const rescanning = useRun()
   if (outcome === undefined || !sharedDeleted) return null
   return (
     <Flex align="center" gap="2">
-      <Text size="2" color={run.error === undefined ? 'amber' : 'red'}>
-        {run.error ?? 'Still in your shares until a rescan'}
+      <Text size="2" color={rescanning.message === undefined ? 'amber' : 'red'}>
+        {rescanning.message ?? 'Still in your shares until a rescan'}
       </Text>
       <ActionButton
         label="Rescan"
-        loading={run.running}
+        loading={rescanning.running}
         gate={stateGate(known)}
         onClick={() =>
-          run.run(async () => {
+          rescanning.run(async () => {
             await rescan()
             dismissSharedHint()
           })

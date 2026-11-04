@@ -1,6 +1,6 @@
 import { type CSSProperties, type KeyboardEvent, useMemo, useRef, useState } from 'react'
 
-import { createAtom, useAtom } from '../lib/store'
+import { createAtom, useAtom, without } from '../lib/store'
 import { createStoredAtom } from '../lib/stored'
 
 // A column's width in px. A growing column shares out what the row has spare, and its width is its minimum.
@@ -36,9 +36,6 @@ function parse(stored: unknown): Tables | undefined {
 }
 
 const stored = createStoredAtom<Tables>('slskd-alt-columns', parse, {})
-
-const without = <T,>(all: Readonly<Record<string, T>>, key: string) =>
-  Object.fromEntries(Object.entries(all).filter(([each]) => each !== key))
 
 function store(table: string, change: Partial<Settings>) {
   stored.set((all) => {

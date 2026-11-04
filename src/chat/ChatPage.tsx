@@ -177,7 +177,7 @@ function Item({
   open,
   news,
   badge,
-  error,
+  message,
   children,
 }: {
   to: ReactNode
@@ -185,7 +185,7 @@ function Item({
   open: boolean
   news: boolean
   badge?: ReactNode
-  error?: string
+  message?: string
   children?: ReactNode
 }) {
   return (
@@ -195,9 +195,9 @@ function Item({
         {badge}
         {children}
       </div>
-      {error !== undefined && (
+      {message !== undefined && (
         <Text size="1" color="red" mx="4" mb="1" style={{ wordBreak: 'break-word' }}>
-          {error}
+          {message}
         </Text>
       )}
     </>
@@ -208,7 +208,7 @@ function RoomItem({ room, open }: { room: string; open: boolean }) {
   const gate = useSoulseekGate()
   const navigate = useNavigate()
   const { unread, mentions } = useRoomNews(room)
-  const { running, error, run } = useRun()
+  const { running, message, run } = useRun()
   const news = !open && unread > 0
   let badge: ReactNode
   if (news) {
@@ -238,7 +238,7 @@ function RoomItem({ room, open }: { room: string; open: boolean }) {
       open={open}
       news={news}
       badge={badge}
-      error={error === undefined ? undefined : `Can't leave: ${error}`}
+      message={message === undefined ? undefined : `Can't leave: ${message}`}
     >
       <GatedIconButton
         label={`Leave ${room}`}
@@ -267,7 +267,7 @@ function ConversationItem({
 }) {
   const soulseekGate = useSoulseekGate()
   const navigate = useNavigate()
-  const { running, error, run } = useRun()
+  const { running, message, run } = useRun()
   // Closing acknowledges what's unread, which needs a Soulseek login.
   const gate = running ? 'Closing' : unread > 0 ? soulseekGate : undefined
   return (
@@ -287,7 +287,7 @@ function ConversationItem({
           </Badge>
         )
       }
-      error={error === undefined ? undefined : `Can't close: ${error}`}
+      message={message === undefined ? undefined : `Can't close: ${message}`}
     >
       {started && (
         <GatedIconButton

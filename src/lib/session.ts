@@ -91,7 +91,9 @@ async function check(ended: boolean, attempt = 0) {
 }
 
 export function endSession(sentToken: string | undefined) {
-  if (session.status === 'authenticated' ? sentToken !== session.token : session.status !== 'open') return
+  // With auth on, only a 401 to the current token counts. With it off, any 401 means it was turned on.
+  const current = session.status === 'authenticated' ? sentToken === session.token : session.status === 'open'
+  if (!current) return
   if (sentToken !== undefined) removeToken(sentToken)
   void check(true)
 }

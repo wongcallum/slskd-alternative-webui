@@ -66,37 +66,25 @@ export async function clearFinished(direction: Direction) {
 
 export type BatchInfo = { searchId?: string; options?: { destination?: string } }
 
-// Retrying re-enqueues through a new batch per user and old batch, carrying over the old batch's search and
-// destination, which stock's retry drops.
-export async function retry(files: Transfer[]) {
-  const operation = beginOn(
-    'download',
-    'retry',
-    files.map((file) => file.id),
-  )
+// Retrying without the batch's destination would land the files somewhere else, unless the batch is gone. Undefined
+// once the session has ended.
+async function readBatches(files: Transfer[], signal: AbortSignal) {
   const infos = new Map<string, BatchInfo>()
-  // Retrying without the batch's destination would land the files somewhere else, unless the batch is gone.
   const unreadable = new Map<string, string>()
   for (const batchId of new Set(files.map((file) => file.batchId))) {
     if (batchId === undefined) continue
     try {
-      const info = api.get(`transfers/downloads/batches/${batchId}`, { signal: operation.signal })
-      infos.set(batchId, await info.json<BatchInfo>())
+      infos.set(batchId, await api.get(`transfers/downloads/batches/${batchId}`, { signal }).json<BatchInfo>())
     } catch (error) {
-      if (operation.signal.aborted) return
+      if (signal.aborted) return undefined
       if (!isHTTPError(error) || error.response.status !== 404) unreadable.set(batchId, describeError(error))
     }
   }
-  const skipped = new Set(files.filter((file) => file.batchId !== undefined && unreadable.has(file.batchId)))
-  const details = [...new Set([...skipped].map((file) => file.batchId))].map(
-    (batchId) => `Couldn't read the batch to keep its folder: ${unreadable.get(batchId ?? '')}`,
-  )
-  operation.advance([...skipped].map((file) => file.id))
-  const groups = Map.groupBy(
-    files.filter((file) => !skipped.has(file)),
-    (file) => `${file.username}\n${file.batchId ?? ''}`,
-  )
-  const batches = [...groups.values()].map((batch) => {
+  return { infos, unreadable }
+}
+
+const retryBatches = (files: Transfer[], infos: ReadonlyMap<string, BatchInfo>) =>
+  [...Map.groupBy(files, (file) => `${file.username}\n${file.batchId ?? ''}`).values()].map((batch) => {
     const [{ username, batchId }] = batch as [Transfer]
     const info = batchId === undefined ? undefined : infos.get(batchId)
     return {
@@ -107,14 +95,30 @@ export async function retry(files: Transfer[]) {
       destination: info?.options?.destination,
     }
   })
-  const result = await enqueueBatches(operation, batches)
+
+// Retrying re-enqueues through a new batch per user and old batch, carrying over the old batch's search and
+// destination, which stock's retry drops.
+export async function retry(files: Transfer[]) {
+  const operation = beginOn(
+    'download',
+    'retry',
+    files.map((file) => file.id),
+  )
+  const read = await readBatches(files, operation.signal)
+  if (read === undefined) return
+  const { infos, unreadable } = read
+  const skipped = files.filter((file) => file.batchId !== undefined && unreadable.has(file.batchId))
+  const details = [...unreadable.values()].map((message) => `Couldn't read the batch to keep its folder: ${message}`)
+  operation.advance(skipped.map((file) => file.id))
+  const kept = files.filter((file) => file.batchId === undefined || !unreadable.has(file.batchId))
+  const result = await enqueueBatches(operation, retryBatches(kept, infos))
   if (result === undefined) return
   operation.finish(
     summarise({
       verb: 'Retried',
       noun: 'download',
       total: files.length,
-      failed: skipped.size + result.failed,
+      failed: skipped.length + result.failed,
       details: [...details, ...result.details],
     }),
   )

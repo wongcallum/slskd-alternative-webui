@@ -51,7 +51,7 @@ function RoomsIndex({ rooms }: { rooms: readonly string[] }) {
 
 function NotJoined({ room }: { room: string }) {
   const gate = useSoulseekGate()
-  const { running, error, run } = useRun()
+  const { running, message, run } = useRun()
   return (
     <Flex direction="column" flexGrow="1">
       <ChatToolbar title={room} />
@@ -64,7 +64,7 @@ function NotJoined({ room }: { room: string }) {
         >
           Join {room}
         </Button>
-        <ActionNote error={error} gate={gate} size="2" />
+        <ActionNote message={message} gate={gate} size="2" />
       </Flex>
     </Flex>
   )

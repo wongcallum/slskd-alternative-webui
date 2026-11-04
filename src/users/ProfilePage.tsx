@@ -231,7 +231,9 @@ function Direction({
   username: string
   history: DirectionHistory
 }) {
-  const reasons = history.reasons.map((reason) => `${reason.count.toLocaleString()} × ${reason.exception}`)
+  const reasons = history.reasons.map(
+    (reason) => `${reason.count.toLocaleString()} × ${reason.exception ?? 'No message'}`,
+  )
   return (
     <>
       <Text size="2" weight="medium">

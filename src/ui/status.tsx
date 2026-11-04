@@ -185,20 +185,20 @@ export function DismissibleText({
 
 // Why an action failed, or else why it can't be done yet.
 export function ActionNote({
-  error,
+  message,
   gate,
   size,
   mt,
 }: {
-  error?: string
+  message?: string
   gate?: string
   size: '1' | '2'
   mt?: '1' | '2'
 }) {
-  const text = error ?? gate
+  const text = message ?? gate
   if (text === undefined) return null
   return (
-    <Text as="p" size={size} mt={mt} color={error === undefined ? 'gray' : 'red'}>
+    <Text as="p" size={size} mt={mt} color={message === undefined ? 'gray' : 'red'}>
       {text}
     </Text>
   )

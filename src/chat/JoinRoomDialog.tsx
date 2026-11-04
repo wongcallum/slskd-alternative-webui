@@ -1,23 +1,15 @@
 import { LockClosedIcon, PlusIcon, StarIcon } from '@radix-ui/react-icons'
 import { Badge, Button, Dialog, Flex, Spinner, Text, Tooltip } from '@radix-ui/themes'
 import { useNavigate } from '@tanstack/react-router'
-import { type ReactNode, useDeferredValue, useMemo, useState } from 'react'
+import { type ReactNode, useDeferredValue, useMemo, useRef, useState } from 'react'
 
-import { api, describeError } from '../lib/api'
+import { describeError } from '../lib/api'
 import { byName } from '../lib/text'
 import { FilterField, GateTip } from '../ui/controls'
 import { useListNav } from '../ui/listNav'
 import { Fetching } from '../ui/status'
 import { ColumnHeader, GridRow, HeaderRow, VirtualTable } from '../ui/table'
-import { joinRoom, useJoinedRooms } from './rooms'
-
-export type RawAvailableRoom = {
-  name: string
-  userCount: number
-  isPrivate: boolean
-  isOwned: boolean
-  isModerated: boolean
-}
+import { fetchAvailableRooms, joinRoom, type RawAvailableRoom, useJoinedRooms } from './rooms'
 
 type Listing =
   | { status: 'loading' }
@@ -34,13 +26,17 @@ const roomKey = (room: RawAvailableRoom) => room.name
 export function JoinRoomDialog({ gate, children }: { gate?: string; children: ReactNode }) {
   const [open, setOpen] = useState(false)
   const [listing, setListing] = useState<Listing>({ status: 'loading' })
+  const loading = useRef<AbortController>(undefined)
 
   async function load() {
+    loading.current?.abort()
+    const controller = (loading.current = new AbortController())
     setListing({ status: 'loading' })
     try {
-      setListing({ status: 'ready', rooms: await api.get('rooms/available').json<RawAvailableRoom[]>() })
+      const rooms = await fetchAvailableRooms(controller.signal)
+      if (!controller.signal.aborted) setListing({ status: 'ready', rooms })
     } catch (error) {
-      setListing({ status: 'failed', error })
+      if (!controller.signal.aborted) setListing({ status: 'failed', error })
     }
   }
 
@@ -48,6 +44,7 @@ export function JoinRoomDialog({ gate, children }: { gate?: string; children: Re
     if (next && gate !== undefined) return
     setOpen(next)
     if (next) void load()
+    else loading.current?.abort()
   }
 
   return (

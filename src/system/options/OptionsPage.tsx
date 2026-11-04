@@ -24,7 +24,7 @@ import {
   validate,
 } from './configFile'
 import { effectiveYaml, misspelt } from './effective'
-import { type Options, options, optionsPollInterval, startupOptions, useLiveOptions } from './options'
+import { type Options, options, optionsPending, optionsPollInterval, startupOptions, useOptions } from './options'
 import { type OptionsSearch, type OptionView, optionViews } from './params'
 
 // CodeMirror has a chunk of its own, since most installs can't edit their file from here at all.
@@ -32,7 +32,7 @@ const YamlEditor = lazy(() => import('./YamlEditor').then((module) => ({ default
 
 const viewLabels: Record<OptionView, string> = { effective: 'Effective', file: 'File', sources: 'Sources' }
 
-const checking = "Checking slskd's options"
+const checking = optionsPending
 
 const checkingStart = 'Checking how slskd was started'
 
@@ -60,7 +60,7 @@ function sourcesGate(data: Options | undefined, startup: { data?: { debug: boole
 type Props = SearchProps<OptionsSearch>
 
 export function OptionsPage({ search, onSearchChange }: Props) {
-  const live = useLiveOptions()
+  const live = useOptions()
   const startup = useResource(startupOptions)
   const gates: Record<OptionView, string | undefined> = {
     effective: undefined,

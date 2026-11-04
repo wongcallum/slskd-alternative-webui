@@ -34,8 +34,12 @@ export function shallowEqual<T extends object>(a: T, b: T) {
 }
 
 // The previous array while nothing in it changed, since every push and poll carries new ones.
-export const keepItems = <T>(previous: readonly T[] | undefined, next: readonly T[]) =>
-  previous !== undefined && previous.length === next.length && previous.every((each, i) => Object.is(each, next[i]))
+export const keepItems = <T>(
+  previous: readonly T[] | undefined,
+  next: readonly T[],
+  same: (a: T, b: T) => boolean = Object.is,
+) =>
+  previous !== undefined && previous.length === next.length && previous.every((each, i) => same(each, next[i] as T))
     ? previous
     : next
 
@@ -116,21 +120,22 @@ export function createResource<T extends object>(start: (sink: Sink<T>) => Sourc
   }
 }
 
-// One resource per key, such as a room, made when it's first asked for. A key that isn't a string needs an id.
-export function createResourceMap<K, T>(
-  create: (key: K) => Resource<T>,
+// One per key, such as a room's resource, made when it's first asked for and disposed of when forgotten. A key that
+// isn't a string needs an id.
+export function createKeyed<K, V extends { dispose: () => void }>(
+  create: (key: K) => V,
   ...[id = String]: K extends string ? [id?: (key: K) => string] : [id: (key: K) => string]
 ) {
-  const resources = new Map<string, Resource<T>>()
+  const values = new Map<string, V>()
   return {
     get: (key: K) => {
-      let resource = resources.get(id(key))
-      if (resource === undefined) resources.set(id(key), (resource = create(key)))
-      return resource
+      let value = values.get(id(key))
+      if (value === undefined) values.set(id(key), (value = create(key)))
+      return value
     },
     forget(key: K) {
-      resources.get(id(key))?.dispose()
-      resources.delete(id(key))
+      values.get(id(key))?.dispose()
+      values.delete(id(key))
     },
   }
 }
@@ -294,8 +299,11 @@ export function createAtom<T>(initial: T): Atom<T> & { dispose: () => void } {
 
 export const useAtom = <T>(atom: Atom<T>) => useSyncExternalStore(atom.subscribe, atom.get)
 
-export function without<V>(map: ReadonlyMap<string, V>, key: string) {
-  const next = new Map(map)
+export function without<V>(map: ReadonlyMap<string, V>, key: string): Map<string, V>
+export function without<V>(record: Readonly<Record<string, V>>, key: string): Record<string, V>
+export function without<V>(all: ReadonlyMap<string, V> | Readonly<Record<string, V>>, key: string) {
+  if (!(all instanceof Map)) return Object.fromEntries(Object.entries(all).filter(([each]) => each !== key))
+  const next = new Map(all)
   next.delete(key)
   return next
 }

@@ -1,5 +1,5 @@
 import { Button, Callout, Card, Flex, Heading, Text, TextField } from '@radix-ui/themes'
-import { isHTTPError, isNetworkError, isTimeoutError } from 'ky'
+import { isHTTPError } from 'ky'
 import { type ReactNode, type SubmitEvent, useRef, useState } from 'react'
 
 import { describeError } from '../lib/api'
@@ -36,8 +36,7 @@ export function Login({ ended }: { ended: boolean }) {
           password.current.value = ''
           password.current.focus()
         }
-      } else if (isNetworkError(thrown) || isTimeoutError(thrown)) setError("Can't reach slskd")
-      else setError(describeError(thrown))
+      } else setError(describeError(thrown))
       setPending(false)
     }
   }

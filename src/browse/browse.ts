@@ -114,8 +114,8 @@ export function viewShare(username: string) {
 
 export const reloadShare = (username: string) => void readShare(username)
 
-// The share in memory, or else the cached one, once any read that's running has landed. Undefined when neither
-// has it.
+// The share in memory, or else the cached one, which it reads if no read is running and waits for if one is. A
+// failed read is a Failure, and undefined means neither has it. Using it counts as opening the share, for eviction.
 export async function cachedShare(username: string): Promise<Ready | Failure | undefined> {
   if (loadedShares.get().get(username)?.status !== 'ready') {
     if (!reads.has(username)) void readShare(username)
@@ -167,7 +167,7 @@ async function store(record: ShareRecord, blob: Blob) {
 const announce = (username: string) => announceChange({ type: 'share', username })
 
 // Packing takes longer than building the tree, so a browsed share shows before it's stored.
-async function keep(username: string, raw: RawShare, ready: Ready) {
+async function packAndStore(username: string, raw: RawShare, ready: Ready) {
   const signal = sessionSignal()
   const { share, fetchedAt } = ready
   try {
@@ -317,7 +317,7 @@ async function fetchShare(username: string): Promise<Ready | Failure | undefined
     const ready: Ready = { status: 'ready', share, fetchedAt: Date.now() }
     setLoaded(username, ready)
     shareDownloads.get(username).set((state) => ({ ...state, marks: new Map() }))
-    void keep(username, raw, ready)
+    void packAndStore(username, raw, ready)
     return ready
   } catch (error) {
     if (signal.aborted) return undefined

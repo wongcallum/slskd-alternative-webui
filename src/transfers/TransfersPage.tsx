@@ -25,7 +25,7 @@ import {
   type Group,
   isFinished,
   isRetryable,
-  pollInterval,
+  transfersPollInterval,
   type Transfer,
   type Transfers,
   transfers,
@@ -79,7 +79,7 @@ export function TransfersPage({ direction, search, onSearchChange }: Props) {
     }),
   }
 
-  const stale = useStale(resource, pollInterval)
+  const stale = useStale(resource, transfersPollInterval)
   const soulseekGate = useSoulseekGate()
   const listGate = stale ? 'The list is out of date' : undefined
   const gates = useMemo(() => ({ list: listGate, soulseek: listGate ?? soulseekGate }), [listGate, soulseekGate])
@@ -196,7 +196,7 @@ function TransfersToolbar({
       )}
       <ToolbarEnd>
         <OutcomeLine atom={actions[direction]} />
-        <Freshness resource={resource} interval={pollInterval} />
+        <Freshness resource={resource} interval={transfersPollInterval} />
       </ToolbarEnd>
     </Toolbar>
   )

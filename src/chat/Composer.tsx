@@ -24,7 +24,7 @@ export function Composer({ draftKey, placeholder, send, inputRef }: Props) {
   const touch = useTouch()
   const text = useAtom(drafts).get(draftKey) ?? ''
   const log = useContext(LogScroll)
-  const { running: sending, error, run } = useRun()
+  const { running: sending, message, run } = useRun()
   const blank = text.trim() === ''
   const reason = gate ?? (blank ? 'Type a message' : undefined)
 
@@ -85,7 +85,7 @@ export function Composer({ draftKey, placeholder, send, inputRef }: Props) {
           </GateTip>
         </TextField.Slot>
       </TextField.Root>
-      <ActionNote error={error} gate={gate} size="1" mt="1" />
+      <ActionNote message={message} gate={gate} size="1" mt="1" />
     </Box>
   )
 }

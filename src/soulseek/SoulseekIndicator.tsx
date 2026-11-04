@@ -9,7 +9,7 @@ import { formatAge } from '../lib/format'
 import { applicationHub, type HubStatus, metricsHub, searchHub, useHub, useWatchedHub } from '../lib/hubs'
 import { useFreshness } from '../lib/store'
 import { useLogs } from '../system/logs'
-import { useOptions } from '../system/options/options'
+import { useOptionsData } from '../system/options/options'
 import { type Color, disabledProps } from '../ui/controls'
 import { StatusDot } from '../ui/status'
 import { connect, connectionError, disconnect, reconnect } from './soulseek'
@@ -131,7 +131,7 @@ function SoulseekPanel({ data, error, known }: ReturnType<typeof useApplication>
   const metricsHubStatus = useHub(metricsHub)
   const searchHubStatus = useWatchedHub(searchHub)
   const agent = data?.relayMode === 'Agent'
-  const vpn = useOptions()?.vpn === true
+  const vpn = useOptionsData()?.vpn === true
   const actions = agent ? [] : actionsFor(data)
   const failing = data !== undefined && !agent && !data.isLoggedIn
 

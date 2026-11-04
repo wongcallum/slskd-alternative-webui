@@ -10,7 +10,7 @@ import {
   type UserRecord,
 } from '../lib/db'
 import { sessionSignal } from '../lib/session'
-import { createAtom, createResource, createResourceMap, load, without } from '../lib/store'
+import { createAtom, createResource, createKeyed, load, without } from '../lib/store'
 import { describePeerError } from '../soulseek/soulseek'
 
 export type RawStatus = { presence: Presence; isPrivileged: boolean }
@@ -159,10 +159,10 @@ onAnnounce('user', (username) => {
 export type RawDirection = {
   summary: Partial<Record<string, { totalBytes: number }>>
   statistics: { total: number; successful: number; cancelled: number }
-  exceptions: { exception: string; count: number }[]
+  exceptions: { exception?: string; count: number }[]
 }
 
-type Reason = { exception: string; count: number }
+type Reason = { exception?: string; count: number }
 
 export type DirectionHistory = {
   total: number
@@ -176,7 +176,7 @@ export type DirectionHistory = {
 type History = { download: DirectionHistory; upload: DirectionHistory }
 
 // slskd's own errored count takes four exact states, so failed is whatever else didn't succeed.
-const directionOf = (raw: RawDirection): DirectionHistory => ({
+const toDirectionHistory = (raw: RawDirection): DirectionHistory => ({
   total: raw.statistics.total,
   succeeded: raw.statistics.successful,
   failed: raw.statistics.total - raw.statistics.successful - raw.statistics.cancelled,
@@ -186,13 +186,13 @@ const directionOf = (raw: RawDirection): DirectionHistory => ({
 })
 
 // Read from slskd's own database, so it loads with the page rather than on a gesture.
-export const transferHistory = createResourceMap((username: string) =>
+export const transferHistory = createKeyed((username: string) =>
   createResource<History>((sink) =>
     load(sink, async (signal) => {
       const raw = await api
         .get(`telemetry/reports/transfers/users/${encodeURIComponent(username)}`, { signal })
         .json<{ Download: RawDirection; Upload: RawDirection }>()
-      return { download: directionOf(raw.Download), upload: directionOf(raw.Upload) }
+      return { download: toDirectionHistory(raw.Download), upload: toDirectionHistory(raw.Upload) }
     }),
   ),
 )

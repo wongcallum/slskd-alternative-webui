@@ -32,7 +32,6 @@ export function SharePage({ search, onSearchChange }: Props) {
   const soulseekGate = useSoulseekGate()
   const gate = running === undefined ? soulseekGate : `Already browsing ${username}`
   const ready = loaded?.status === 'ready' ? loaded : undefined
-  const top = ready?.share.top
   const config = useMemo(() => shareConfig(username), [username])
   const criteria = useCriteria(search)
   const sm = useFrom('sm')
@@ -91,11 +90,11 @@ export function SharePage({ search, onSearchChange }: Props) {
           </UserMenu>
           {/* Below sm the summary, its age and Browse again share the line under the box. */}
           <Flex align="center" gap="3" minWidth="0" flexGrow="1" flexBasis={{ initial: '100%', sm: '0' }}>
-            {ready !== undefined && top !== undefined && (
+            {ready !== undefined && (
               <Text size="2" color="gray" truncate>
-                {plural(top.fileCount, 'file')}
-                {top.lockedCount > 0 && ` (${top.lockedCount.toLocaleString()} locked)`} in{' '}
-                {plural(ready.share.folderCount, 'folder')}, {formatBytes(top.size)}
+                {plural(ready.share.top.fileCount, 'file')}
+                {ready.share.top.lockedCount > 0 && ` (${ready.share.top.lockedCount.toLocaleString()} locked)`} in{' '}
+                {plural(ready.share.folderCount, 'folder')}, {formatBytes(ready.share.top.size)}
                 {!sm && (
                   <>
                     , browsed <Ago time={ready.fetchedAt} />

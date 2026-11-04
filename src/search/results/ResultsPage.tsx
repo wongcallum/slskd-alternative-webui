@@ -83,7 +83,7 @@ function Header({ search, known, live }: { search: Search; known: boolean; live:
   const gate = listGate(known)
   const stop = useRun()
   const again = useCreateSearch()
-  const failure = stop.error === undefined ? again.error : `Couldn't stop: ${stop.error}`
+  const failure = stop.message === undefined ? again.message : `Couldn't stop: ${stop.message}`
 
   // Below md the title, the summary and the actions each take a line.
   return (

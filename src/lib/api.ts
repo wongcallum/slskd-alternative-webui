@@ -1,4 +1,4 @@
-import ky, { isHTTPError } from 'ky'
+import ky, { isHTTPError, isNetworkError, isTimeoutError } from 'ky'
 import pLimit from 'p-limit'
 
 import { endSession, getSession } from './session'
@@ -34,7 +34,7 @@ export const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve
 // A request that reads slskd's options makes it write and delete a file in the downloads and incomplete directories,
 // and a recursive listing that comes across one fails (see the facts). So the Files page's requests and the options
 // go one at a time.
-export const readsOptions = pLimit(1)
+export const optionsQueue = pLimit(1)
 
 // slskd answers 429 without doing anything when a concurrency limit is reached, so the request is resent as part
 // of the same gesture rather than reported as a failure.
@@ -51,7 +51,10 @@ export async function resendOn429<T>(send: () => Promise<T>, signal?: AbortSigna
   }
 }
 
+// ky's own messages for these carry the whole request URL.
 export function describeError(error: unknown) {
+  if (isNetworkError(error)) return "Couldn't connect to slskd"
+  if (isTimeoutError(error)) return "slskd didn't answer in time"
   if (isHTTPError(error)) {
     const detail = typeof error.data === 'string' ? error.data : JSON.stringify(error.data)
     return `HTTP ${error.response.status}${error.data ? `: ${detail}` : ''}`
