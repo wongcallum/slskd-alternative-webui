@@ -71,7 +71,11 @@ export function PendingCallouts({ data, known }: { data: Application; known: boo
     <Flex direction="column" gap="2">
       {data.pendingRestart && (
         <PendingCallout
-          message={state.phase === 'running' && state.error !== undefined ? describeError(state.error) : undefined}
+          message={
+            state.phase === 'running' && state.failed?.action === 'restart'
+              ? describeError(state.failed.error)
+              : undefined
+          }
         >
           <Callout.Text>Changed settings apply after a restart.</Callout.Text>
           <RestartButton known={known} color="amber" />

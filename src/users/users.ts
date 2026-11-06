@@ -1,4 +1,4 @@
-import { api, describeError } from '../lib/api'
+import { api } from '../lib/api'
 import {
   announce,
   createRecordList,
@@ -123,7 +123,7 @@ async function saveLookup(fresh: UserRecord, picture: string | null | undefined)
       const previous = current.records.get(fresh.username)
       return { ...current, records: new Map(current.records).set(fresh.username, { ...previous, ...fresh }) }
     })
-    return describeError(error)
+    return error
   }
 }
 

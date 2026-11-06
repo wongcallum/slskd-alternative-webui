@@ -127,7 +127,7 @@ function SlskdCard({ data, known }: { data: Application; known: boolean }) {
           Couldn't check for updates: {check.message}
         </Text>
       )}
-      <LifecycleLine />
+      <LifecycleLine pendingRestart={data.pendingRestart} />
     </Section>
   )
 }
@@ -138,7 +138,8 @@ function Uptime({ startedAt }: { startedAt: number }) {
   return useClock((now) => formatAge(now - startedAt))
 }
 
-function LifecycleLine() {
+// While a restart is pending, its callout is where a failed restart shows.
+function LifecycleLine({ pendingRestart }: { pendingRestart: boolean }) {
   const state = useAtom(lifecycle)
   const overdue = useClock((now) => state.phase === 'restarting' && now - state.since > restartPatience)
   if (state.phase === 'restarting') {
@@ -155,10 +156,11 @@ function LifecycleLine() {
       </Text>
     )
   }
-  if (state.error === undefined) return null
+  const { failed } = state
+  if (failed === undefined || (failed.action === 'restart' && pendingRestart)) return null
   return (
     <Text size="2" color="red">
-      {describeError(state.error)}
+      {describeError(failed.error)}
     </Text>
   )
 }
