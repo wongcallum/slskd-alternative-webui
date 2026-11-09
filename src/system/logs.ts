@@ -5,8 +5,14 @@ import { followHub, logsHub, useLiveResource, type Via } from '../lib/hubs'
 import { createResource } from '../lib/store'
 import { queryMatcher } from '../lib/text'
 
-// REST omits a null subContext, while the hub keeps it.
-export type RawLog = { timestamp: string; context: string; subContext?: string | null; level: Level; message: string }
+// REST omits a null context or subContext, while the hub keeps it. A record logged without a source has no context.
+export type RawLog = {
+  timestamp: string
+  context?: string | null
+  subContext?: string | null
+  level: Level
+  message: string
+}
 
 const levels = ['Verbose', 'Debug', 'Information', 'Warning', 'Error', 'Fatal'] as const
 
@@ -43,6 +49,7 @@ const pushBatchDelay = 250
 let nextId = 0
 
 function toRecord(raw: RawLog, key: string): LogRecord {
+  const context = raw.context ?? ''
   const subContext = raw.subContext ?? undefined
   const lines = raw.message.split('\n')
   return {
@@ -50,12 +57,12 @@ function toRecord(raw: RawLog, key: string): LogRecord {
     key,
     time: Date.parse(raw.timestamp),
     level: raw.level,
-    context: raw.context,
+    context,
     subContext,
     message: raw.message,
     firstLine: lines[0] ?? '',
     moreLines: lines.length - 1,
-    search: `${raw.context} ${subContext ?? ''} ${raw.message}`.toLowerCase(),
+    search: `${context} ${subContext ?? ''} ${raw.message}`.toLowerCase(),
   }
 }
 

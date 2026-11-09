@@ -365,6 +365,11 @@ observed on throwaway instances of the dev build and the 0.26.0 release binary.
   - `context` is Serilog's `SourceContext`, a full type name like `slskd.Shares.SqliteShareRepository`. Soulseek.NET's
     diagnostics are logged as `slskd.Application` with the Soulseek.NET class's full name in `subContext`
     (`Application.cs`, `Client_DiagnosticGenerated`). Nothing else sets `subContext`.
+  - Only the records `Program.cs` logs through `Serilog.Log.Logger` have no `SourceContext`: the
+    `Unobserved exception` error that `flags.log_unobserved_exceptions` turns on, and the unhandled exception that ends
+    the process. Up to 0.26.2, the sink throws on them, so they never reach the buffer or the hub, and an Error
+    `Misconfigured delegating logger` from `slskd.Program` takes their place. From slskd#1913 (unreleased), they arrive
+    without a `context`, which REST omits and the hub sends as null.
   - The minimum level is `Debug` with `debug` on and `Information` otherwise, so `Verbose` never arrives.
   - `message` is the rendered template, which puts string values in quotes. When there's an exception, its whole
     `ToString()` is appended after `": "`, stack trace and all, over several lines.
