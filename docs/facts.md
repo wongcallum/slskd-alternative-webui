@@ -45,16 +45,21 @@ Paths below are relative to `Transfers/` unless they start with another director
     `floor((2^n − 1) / 2) × 5 s` plus up to 5 s of jitter: 0–5 s before the second, 5–10 s before the third
     (`Common/Compute.cs`, `Common/Retry.cs`). Observed on the test network: a download whose peer was killed while
     it ran went through all 3 attempts under one id.
+  - Up to 0.26.2, the failed attempt's state is written for a moment before the wait sets `Queued, Locally`. From
+    slskd#1913 (unreleased), an attempt that fails with retries left is written as `Queued, Locally` at once (from
+    the source).
   - While it waits, the record keeps the failed attempt's `startedAt`, `endedAt`, `exception`,
     `bytesTransferred` and `averageSpeed`. They're overwritten by the next attempt's first state change.
     `placeInQueue` is already cleared.
-  - Cancelling during that wait ends as `Completed, Errored`, not `Cancelled`.
+  - Cancelling during that wait ends as `Completed, Cancelled`, keeping the failed attempt's `exception` (observed on
+    the test network).
   - A comment in `Downloads/DownloadService.cs` says a download the peer doesn't acknowledge within 3 minutes is
     recorded as `Cancelled`. From reading the code, the `TimeoutException` is probably recorded first, which makes
     it `TimedOut` (not observed).
-  - A failure before Soulseek reports any state flips the state
+  - Up to 0.26.2, a failure before Soulseek reports any state flips the state
     `Completed, Errored` → `Queued, Locally` → `Completed, Errored` within milliseconds, for example when
-    enqueueing while disconnected. This affects downloads and uploads.
+    enqueueing while disconnected. This affects downloads and uploads. From slskd#1913 (unreleased), the failure is
+    written last, so it doesn't flip (from the source).
   - A download cancelled while it's `Initializing` can end as `Completed, Errored` rather than `Cancelled`
     (observed on the test network).
   - If moving the file after a download fails, the state stays `Completed, Succeeded` but the record gains an `exception`.
@@ -274,10 +279,12 @@ observed on throwaway instances of the dev build and the 0.26.0 release binary.
   scan that ends any other way clears it, a cancelled one included (see [Scanning](#scanning)). Changes are compared
   as sets, so reordering the entries or adding a duplicate doesn't set it. While a scan runs it comes from the share
   service's own flag, which never sees config changes.
-- `PUT /shares` rescans and always returns 200, even while a scan runs (observed). Its 409 for a scan in progress can't
-  happen, because the exception lands in the returned task (`Shares/ShareService.cs`). So a `PUT` while a scan runs is
-  dropped with only a logged warning, and that includes the moment after a scan sets `ready` and before it lets go
-  (observed in CI). `DELETE /shares` cancels (204, or 404 when none runs; observed).
+- `PUT /shares` rescans. Up to 0.26.2, it always returns 200, even while a scan runs: its 409 for a scan in progress
+  can't happen, because the exception lands in the returned task (`Shares/ShareService.cs`), so the `PUT` is dropped
+  with only a logged warning. From slskd#1913 (unreleased), it's a 409, `"A share scan is already in progress"`, while
+  `STATE.shares.scanning` is true. Either way, a `PUT` just after another, before the scan has started, and one after
+  a scan sets `ready` and before it lets go are 200s that are dropped (all observed, the last in CI). `DELETE /shares`
+  cancels (204, or 404 when none runs; observed).
 
 ### Privileges
 
@@ -316,9 +323,12 @@ observed on throwaway instances of the dev build and the 0.26.0 release binary.
 - **So `inProgress.files + queued.files` doesn't match the unfinished rows of `GET /transfers/downloads`.**
   Rows are written as `Queued, Locally` straight away but reach Soulseek.NET through an enqueue limiter:
   every file at once for requests of 30 or fewer, otherwise 5 at a time, each slot held until its file is
-  `Queued, Remotely` (`DownloadService.cs:417-538`). Rows waiting out a retry backoff also show
-  `Queued, Locally` without being in `Client.Downloads`. Uploads come closer, because they enter Soulseek.NET
-  immediately.
+  `Queued, Remotely` (`DownloadService.cs:417-538`) or `Completed`. From slskd#1913 (unreleased), a file that fails
+  before reaching the peer's queue with retries left, such as one the peer rejects, is only ever reported to the
+  limiter as `Queued, Locally`, so it holds its slot for the limiter's 3-minute limit, although its row is already
+  `Completed`. Observed on the test network: of a 300-file batch the peer rejected, 5 files were `Completed, Rejected`
+  after 30 s, where before all were within seconds. Rows waiting out a retry backoff also show `Queued, Locally`
+  without being in `Client.Downloads`. Uploads come closer, because they enter Soulseek.NET immediately.
 - Observed with a 41-file batch from one peer: the sum read 0 while the list had 41 unfinished rows, and caught
   up about 10 s later, once every file was `Queued, Remotely`. While files downloaded it ran 1–4 below the list,
   and `inProgress.files` dipped to -2. Each file was `InProgress` for only a few seconds, so `inProgress.files`
@@ -406,10 +416,11 @@ Paths are relative to `Events/` unless they start with another directory.
   a download's event can land below rows written before it.
 - **Nothing is ever pruned**, and there's no retention option for events. Observed on dev: 117 rows in about 29 hours,
   about 770 B each on the wire (a file event's `data` alone is about 900 B), so 100 rows are about 76 KB.
-- `POST /events/{type}` (a JSON string body, which may be empty) raises a sample and returns 201. It's buggy: the
-  sample is declared as the base `Event`, so the stored copy is only `{"version":0}` and webhooks and scripts get it
-  twice (from the source and a serialisation check; only `Noop` was raised). `SoulseekClientConnected` and
-  `SoulseekClientDisconnected` are listed as valid but are a 500.
+- `POST /events/{type}` (a JSON string body, which may be empty) raises a sample, with the body in front of its
+  names, and returns 201. Up to 0.26.2, the sample is declared as the base `Event`, so the stored copy is only
+  `{"version":0}` and webhooks and scripts get it twice (from the source and a serialisation check). From slskd#1913
+  (unreleased), it's stored with its fields and they get it once. `SoulseekClientConnected` and
+  `SoulseekClientDisconnected` are listed as valid but are a 500 (observed).
 - Webhooks and scripts (`Integrations/`) are the only subscribers, and are configured in YAML only.
 
 ## Shares
@@ -784,8 +795,11 @@ agent pair.
 - Files whose own name starts with a dot are a 404, but files inside a dot-named directory such as `.vite/` are served.
   Types come from ASP.NET's extension map: `.md` is `text/markdown`, `.txt` is `text/plain`. Static files need no
   login (all observed).
-- For a GET that returns 200, slskd checks the `Accept` header: split on commas, it must contain an exact
-  `text/html` token (`application/json, text/html`, with the space, doesn't match). If it does, slskd:
+- For a GET that returns 200, slskd checks the `Accept` header, ignoring case. Up to 0.26.2, split on commas, it must
+  contain an exact `text/html` or `application/xml` token (`application/json, text/html`, with the space, and
+  `text/html;q=0.9` don't match). From slskd#1913 (unreleased), each token is trimmed and its parameters dropped, and
+  `application/xhtml+xml` matches too, and then only an HTML or XML response is changed (observed). If it matches,
+  slskd:
   - regex-rewrites `./static` and `/static` to `{urlBase}/static`, and `./favicon.ico` and
     `/favicon.ico` to `{urlBase}/favicon.ico`, across the **whole** HTML body, inline scripts included
   - appends `<script>window.urlBase="/slskd";window.port=5030</script>` **after `</html>`**
