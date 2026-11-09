@@ -1139,7 +1139,8 @@ Paths are relative to `slskd/src/web/src`.
   `document.title`.
 - System (`components/System/`): `/system` redirects to `/system/info`, and every tab is always shown.
   - Info is a read-only YAML dump of the whole `STATE` with four buttons. Check for Updates ignores the response and
-    shows no error. Get Privileges opens `http://www.slsknet.org/qtlogin.php?username=` with the name unencoded.
+    shows no error. Get Privileges opens `http://www.slsknet.org/qtlogin.php?username=` with the name, unencoded up to
+    0.26.2 and encoded from slskd#1913 (unreleased).
     Shut Down and Restart confirm, then fire and forget. Restart turns yellow while `pendingRestart`.
   - The nav reaches System through a cogs item on the right. A "Pending Action" item appears for `pendingRestart`,
     `pendingReconnect` or `shares.scanPending` and links to `/system/info` even for a rescan. A "New Version!" item
@@ -1155,14 +1156,17 @@ Paths are relative to `slskd/src/web/src`.
     - Rescan turns yellow while `scanPending`, and Cancel replaces it during a scan. `cancelled`, `faulted`, the
       filters and the hosts are never shown.
     - It fetches `GET /shares` on mount and whenever `scanPending` or `scanning` changes.
-    - A share's contents open in a modal as plain text, with no error handling. Names are built by string
-      replacement, which mixes separators, and an alias that starts a file name removes it from the name.
+    - A share's contents open in a modal as plain text. Up to 0.26.2 there's no error handling, and from slskd#1913
+      (unreleased) a failure shows its message instead. Names are built by string replacement, which mixes
+      separators, and an alias that starts a file name removes it from the name.
   - Files has Downloads and Incomplete sub-tabs, and lists one level at a time with a `..` row. It shows name,
     modified time and size, and fetches on each navigation, with no polling.
     - While remote file management is on, each row has a trash icon with a confirmation.
-    - Paths are encoded with `btoa` and not URL-encoded. So a character above U+00FF throws and the loader spins
-      forever, Latin-1 accents send the wrong bytes (a 404), and a `/` in the base64 breaks the request.
-    - After deleting it calls `window.fetch()` instead of refreshing, which throws.
+    - Paths are encoded with `btoa` and not URL-encoded. So a character above U+00FF throws, Latin-1 accents send the
+      wrong bytes (a 404), and a `/` in the base64 breaks the request. A failure leaves the loader spinning forever up
+      to 0.26.2, and shows an empty folder from slskd#1913 (unreleased).
+    - Up to 0.26.2, after deleting it calls `window.fetch()` instead of refreshing, which throws. From slskd#1913
+      (unreleased), it refreshes.
   - Options shows `YAML.stringify` (`yaml` 1.10) of the hub's `OPTIONS` in a read-only CodeMirror, so its camelCase
     keys can't be pasted into the file.
     - Edit is disabled unless `remoteConfiguration`. It opens the file in a modal and validates on every keystroke,
@@ -1171,7 +1175,8 @@ Paths are relative to `slskd/src/web/src`.
       startup.
   - Data has two buttons that clear completed uploads or completed downloads.
   - Events shows 10 rows a page, counted from `X-Total-Count`, with the page in component state. The data is
-    `JSON.stringify(…, null, 2)` in a cell that collapses its whitespace. There's no polling, filter or error handling.
+    `JSON.stringify(…, null, 2)` in a cell that collapses its whitespace. There's no polling or filter. Up to 0.26.2
+    there's no error handling either, and from slskd#1913 (unreleased) a failure shows no events.
 - Transfers (`components/Transfers/`): one card per user, then one table per remote directory, all expanded,
   unsorted except by file name within a directory, with no filtering or virtualisation. Selection is per user
   card, with a select-all per directory. Per-file actions are a click on the state (retry when failed, queue
@@ -1212,7 +1217,8 @@ Paths are relative to `slskd/src/web/src`.
   - Joining is only from the available list, in a modal, so a room can't be created or typed. A failed list leaves
     the modal spinning. Leaving has no confirmation.
   - The user list shows a flag and the name. Right-clicking a message offers Reply, User Profile and Browse Shares,
-    which pass the user through router state on paths that ignore `urlBase`.
+    which pass the user through router state, on paths that ignore `urlBase` up to 0.26.2 and include it from
+    slskd#1913 (unreleased).
   - Nothing handles errors or the Soulseek connection.
 - Chat (`components/Chat/`): it polls `GET conversations` every 5 s and, on the same tick, acknowledges the open
   conversation if it has unread messages and then fetches it. Tabs show unread counts, and there's no nav badge.
@@ -1224,8 +1230,8 @@ Paths are relative to `slskd/src/web/src`.
   - A username box. Submitting sends `info`, `status` and `endpoint` together, and any one failing fails the whole
     lookup with "Failed to retrieve information for X".
   - It shows the picture (`data:image;base64,…`), presence, free slot, upload slots, queue length, IP, port and the
-    description. The free slot always shows a tick, because `hasFreeUploadSlot` is passed as a bare JSX prop, which
-    means `true`.
+    description. Up to 0.26.2, the free slot always shows a tick, because `hasFreeUploadSlot` is passed as a bare JSX
+    prop, which means `true`. From slskd#1913 (unreleased), it shows the user's.
   - The last user is kept in localStorage `slskd-active-user` and looked up again whenever the page mounts.
 
 ### Search filter syntax
