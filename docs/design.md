@@ -324,7 +324,8 @@ The whole app works from the keyboard, for sighted keyboard users first. `?` lis
   a button, so a filter that matches little can't page through the whole table on its own.
   - Rejected: stock's pager, which can jump to the oldest page. Events are read newest first, and a filter finds
     older ones.
-- Test events aren't offered: slskd stores them without their data, sends them to webhooks twice, and can't delete them.
+- Test events aren't offered: they can't be deleted, and up to 0.26.2 slskd stores them without their data and sends
+  them to webhooks twice (see the facts).
 
 ### Options
 

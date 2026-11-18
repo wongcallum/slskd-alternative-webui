@@ -152,7 +152,7 @@ export const logs = shape<RawLog[]>(
   v.array(
     v.object({
       timestamp: withOffset,
-      context: v.string(),
+      context: v.nullish(v.string()),
       subContext: v.nullish(v.string()),
       level: v.picklist(['Verbose', 'Debug', 'Information', 'Warning', 'Error', 'Fatal']),
       message: v.string(),

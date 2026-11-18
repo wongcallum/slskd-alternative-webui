@@ -45,16 +45,21 @@ Paths below are relative to `Transfers/` unless they start with another director
     `floor((2^n − 1) / 2) × 5 s` plus up to 5 s of jitter: 0–5 s before the second, 5–10 s before the third
     (`Common/Compute.cs`, `Common/Retry.cs`). Observed on the test network: a download whose peer was killed while
     it ran went through all 3 attempts under one id.
+  - Up to 0.26.2, the failed attempt's state is written for a moment before the wait sets `Queued, Locally`. From
+    slskd#1913 (unreleased), an attempt that fails with retries left is written as `Queued, Locally` at once (from
+    the source).
   - While it waits, the record keeps the failed attempt's `startedAt`, `endedAt`, `exception`,
     `bytesTransferred` and `averageSpeed`. They're overwritten by the next attempt's first state change.
     `placeInQueue` is already cleared.
-  - Cancelling during that wait ends as `Completed, Errored`, not `Cancelled`.
-  - A comment in `Downloads/DownloadService.cs` says a download the peer doesn't acknowledge within 3 minutes is
-    recorded as `Cancelled`. From reading the code, the `TimeoutException` is probably recorded first, which makes
-    it `TimedOut` (not observed).
-  - A failure before Soulseek reports any state flips the state
+  - Cancelling during that wait ends as `Completed, Cancelled`, keeping the failed attempt's `exception` (observed on
+    the test network).
+  - A download the peer doesn't acknowledge within 3 minutes is cancelled. From reading the code
+    (`Downloads/DownloadService.cs`), the `TimeoutException` is probably recorded first, which makes it `TimedOut`
+    rather than `Cancelled` (not observed).
+  - Up to 0.26.2, a failure before Soulseek reports any state flips the state
     `Completed, Errored` → `Queued, Locally` → `Completed, Errored` within milliseconds, for example when
-    enqueueing while disconnected. This affects downloads and uploads.
+    enqueueing while disconnected. This affects downloads and uploads. From slskd#1913 (unreleased), the failure is
+    written last, so it doesn't flip (from the source).
   - A download cancelled while it's `Initializing` can end as `Completed, Errored` rather than `Cancelled`
     (observed on the test network).
   - If moving the file after a download fails, the state stays `Completed, Succeeded` but the record gains an `exception`.
@@ -274,10 +279,12 @@ observed on throwaway instances of the dev build and the 0.26.0 release binary.
   scan that ends any other way clears it, a cancelled one included (see [Scanning](#scanning)). Changes are compared
   as sets, so reordering the entries or adding a duplicate doesn't set it. While a scan runs it comes from the share
   service's own flag, which never sees config changes.
-- `PUT /shares` rescans and always returns 200, even while a scan runs (observed). Its 409 for a scan in progress can't
-  happen, because the exception lands in the returned task (`Shares/ShareService.cs`). So a `PUT` while a scan runs is
-  dropped with only a logged warning, and that includes the moment after a scan sets `ready` and before it lets go
-  (observed in CI). `DELETE /shares` cancels (204, or 404 when none runs; observed).
+- `PUT /shares` rescans. Up to 0.26.2, it always returns 200, even while a scan runs: its 409 for a scan in progress
+  can't happen, because the exception lands in the returned task (`Shares/ShareService.cs`), so the `PUT` is dropped
+  with only a logged warning. From slskd#1913 (unreleased), it's a 409, `"A share scan is already in progress"`, while
+  `STATE.shares.scanning` is true. Either way, a `PUT` just after another, before the scan has started, and one after
+  a scan sets `ready` and before it lets go are 200s that are dropped (all observed, the last in CI). `DELETE /shares`
+  cancels (204, or 404 when none runs; observed).
 
 ### Privileges
 
@@ -316,7 +323,8 @@ observed on throwaway instances of the dev build and the 0.26.0 release binary.
 - **So `inProgress.files + queued.files` doesn't match the unfinished rows of `GET /transfers/downloads`.**
   Rows are written as `Queued, Locally` straight away but reach Soulseek.NET through an enqueue limiter:
   every file at once for requests of 30 or fewer, otherwise 5 at a time, each slot held until its file is
-  `Queued, Remotely` (`DownloadService.cs:417-538`). Rows waiting out a retry backoff also show
+  `Queued, Remotely` (`DownloadService.cs:417-538`) or `Completed`. Observed on the test network: all 40 files of a
+  batch the peer rejected were `Completed, Rejected` within 2 s. Rows waiting out a retry backoff also show
   `Queued, Locally` without being in `Client.Downloads`. Uploads come closer, because they enter Soulseek.NET
   immediately.
 - Observed with a 41-file batch from one peer: the sum read 0 while the list had 41 unfinished rows, and caught
@@ -365,6 +373,11 @@ observed on throwaway instances of the dev build and the 0.26.0 release binary.
   - `context` is Serilog's `SourceContext`, a full type name like `slskd.Shares.SqliteShareRepository`. Soulseek.NET's
     diagnostics are logged as `slskd.Application` with the Soulseek.NET class's full name in `subContext`
     (`Application.cs`, `Client_DiagnosticGenerated`). Nothing else sets `subContext`.
+  - Only the records `Program.cs` logs through `Serilog.Log.Logger` have no `SourceContext`: the
+    `Unobserved exception` error that `flags.log_unobserved_exceptions` turns on, and the unhandled exception that ends
+    the process. Up to 0.26.2, the sink throws on them, so they never reach the buffer or the hub, and an Error
+    `Misconfigured delegating logger` from `slskd.Program` takes their place. From slskd#1913 (unreleased), they arrive
+    without a `context`, which REST omits and the hub sends as null.
   - The minimum level is `Debug` with `debug` on and `Information` otherwise, so `Verbose` never arrives.
   - `message` is the rendered template, which puts string values in quotes. When there's an exception, its whole
     `ToString()` is appended after `": "`, stack trace and all, over several lines.
@@ -401,10 +414,11 @@ Paths are relative to `Events/` unless they start with another directory.
   a download's event can land below rows written before it.
 - **Nothing is ever pruned**, and there's no retention option for events. Observed on dev: 117 rows in about 29 hours,
   about 770 B each on the wire (a file event's `data` alone is about 900 B), so 100 rows are about 76 KB.
-- `POST /events/{type}` (a JSON string body, which may be empty) raises a sample and returns 201. It's buggy: the
-  sample is declared as the base `Event`, so the stored copy is only `{"version":0}` and webhooks and scripts get it
-  twice (from the source and a serialisation check; only `Noop` was raised). `SoulseekClientConnected` and
-  `SoulseekClientDisconnected` are listed as valid but are a 500.
+- `POST /events/{type}` (a JSON string body, which may be empty) raises a sample, with the body in front of its
+  names, and returns 201. Up to 0.26.2, the sample is declared as the base `Event`, so the stored copy is only
+  `{"version":0}` and webhooks and scripts get it twice (from the source and a serialisation check). From slskd#1913
+  (unreleased), it's stored with its fields and they get it once. `SoulseekClientConnected` and
+  `SoulseekClientDisconnected` are listed as valid but are a 500 (observed).
 - Webhooks and scripts (`Integrations/`) are the only subscribers, and are configured in YAML only.
 
 ## Shares
@@ -779,8 +793,11 @@ agent pair.
 - Files whose own name starts with a dot are a 404, but files inside a dot-named directory such as `.vite/` are served.
   Types come from ASP.NET's extension map: `.md` is `text/markdown`, `.txt` is `text/plain`. Static files need no
   login (all observed).
-- For a GET that returns 200, slskd checks the `Accept` header: split on commas, it must contain an exact
-  `text/html` token (`application/json, text/html`, with the space, doesn't match). If it does, slskd:
+- For a GET that returns 200, slskd checks the `Accept` header, ignoring case. Up to 0.26.2, split on commas, it must
+  contain an exact `text/html` or `application/xml` token (`application/json, text/html`, with the space, and
+  `text/html;q=0.9` don't match). From slskd#1913 (unreleased), each token is trimmed and its parameters dropped, and
+  `application/xhtml+xml` matches too, and then only an HTML or XML response is changed (observed). If it matches,
+  slskd:
   - regex-rewrites `./static` and `/static` to `{urlBase}/static`, and `./favicon.ico` and
     `/favicon.ico` to `{urlBase}/favicon.ico`, across the **whole** HTML body, inline scripts included
   - appends `<script>window.urlBase="/slskd";window.port=5030</script>` **after `</html>`**
@@ -1120,7 +1137,8 @@ Paths are relative to `slskd/src/web/src`.
   `document.title`.
 - System (`components/System/`): `/system` redirects to `/system/info`, and every tab is always shown.
   - Info is a read-only YAML dump of the whole `STATE` with four buttons. Check for Updates ignores the response and
-    shows no error. Get Privileges opens `http://www.slsknet.org/qtlogin.php?username=` with the name unencoded.
+    shows no error. Get Privileges opens `http://www.slsknet.org/qtlogin.php?username=` with the name, unencoded up to
+    0.26.2 and encoded from slskd#1913 (unreleased).
     Shut Down and Restart confirm, then fire and forget. Restart turns yellow while `pendingRestart`.
   - The nav reaches System through a cogs item on the right. A "Pending Action" item appears for `pendingRestart`,
     `pendingReconnect` or `shares.scanPending` and links to `/system/info` even for a rescan. A "New Version!" item
@@ -1136,14 +1154,18 @@ Paths are relative to `slskd/src/web/src`.
     - Rescan turns yellow while `scanPending`, and Cancel replaces it during a scan. `cancelled`, `faulted`, the
       filters and the hosts are never shown.
     - It fetches `GET /shares` on mount and whenever `scanPending` or `scanning` changes.
-    - A share's contents open in a modal as plain text, with no error handling. Names are built by string
-      replacement, which mixes separators, and an alias that starts a file name removes it from the name.
+    - A share's contents open in a modal as plain text. Up to 0.26.2 there's no error handling, and from slskd#1913
+      (unreleased) a failure shows its message instead. Names are built by string replacement, which mixes
+      separators, and an alias that starts a file name removes it from the name.
   - Files has Downloads and Incomplete sub-tabs, and lists one level at a time with a `..` row. It shows name,
     modified time and size, and fetches on each navigation, with no polling.
     - While remote file management is on, each row has a trash icon with a confirmation.
-    - Paths are encoded with `btoa` and not URL-encoded. So a character above U+00FF throws and the loader spins
-      forever, Latin-1 accents send the wrong bytes (a 404), and a `/` in the base64 breaks the request.
-    - After deleting it calls `window.fetch()` instead of refreshing, which throws.
+    - Up to 0.26.2, paths are encoded with `btoa` and not URL-encoded. So a character above U+00FF throws, Latin-1
+      accents send the wrong bytes (a 404), and a `/` in the base64 breaks the request. From slskd#1926 (unreleased),
+      they're encoded as UTF-8 and the base64 is URL-encoded. A failure leaves the loader spinning forever up to
+      0.26.2, and shows an empty folder from slskd#1913 (unreleased).
+    - Up to 0.26.2, after deleting it calls `window.fetch()` instead of refreshing, which throws. From slskd#1913
+      (unreleased), it refreshes.
   - Options shows `YAML.stringify` (`yaml` 1.10) of the hub's `OPTIONS` in a read-only CodeMirror, so its camelCase
     keys can't be pasted into the file.
     - Edit is disabled unless `remoteConfiguration`. It opens the file in a modal and validates on every keystroke,
@@ -1152,7 +1174,8 @@ Paths are relative to `slskd/src/web/src`.
       startup.
   - Data has two buttons that clear completed uploads or completed downloads.
   - Events shows 10 rows a page, counted from `X-Total-Count`, with the page in component state. The data is
-    `JSON.stringify(…, null, 2)` in a cell that collapses its whitespace. There's no polling, filter or error handling.
+    `JSON.stringify(…, null, 2)` in a cell that collapses its whitespace. There's no polling or filter. Up to 0.26.2
+    there's no error handling either, and from slskd#1913 (unreleased) a failure shows no events.
 - Transfers (`components/Transfers/`): one card per user, then one table per remote directory, all expanded,
   unsorted except by file name within a directory, with no filtering or virtualisation. Selection is per user
   card, with a select-all per directory. Per-file actions are a click on the state (retry when failed, queue
@@ -1193,7 +1216,8 @@ Paths are relative to `slskd/src/web/src`.
   - Joining is only from the available list, in a modal, so a room can't be created or typed. A failed list leaves
     the modal spinning. Leaving has no confirmation.
   - The user list shows a flag and the name. Right-clicking a message offers Reply, User Profile and Browse Shares,
-    which pass the user through router state on paths that ignore `urlBase`.
+    which pass the user through router state, on paths that ignore `urlBase` up to 0.26.2 and include it from
+    slskd#1913 (unreleased).
   - Nothing handles errors or the Soulseek connection.
 - Chat (`components/Chat/`): it polls `GET conversations` every 5 s and, on the same tick, acknowledges the open
   conversation if it has unread messages and then fetches it. Tabs show unread counts, and there's no nav badge.
@@ -1205,8 +1229,8 @@ Paths are relative to `slskd/src/web/src`.
   - A username box. Submitting sends `info`, `status` and `endpoint` together, and any one failing fails the whole
     lookup with "Failed to retrieve information for X".
   - It shows the picture (`data:image;base64,…`), presence, free slot, upload slots, queue length, IP, port and the
-    description. The free slot always shows a tick, because `hasFreeUploadSlot` is passed as a bare JSX prop, which
-    means `true`.
+    description. Up to 0.26.2, the free slot always shows a tick, because `hasFreeUploadSlot` is passed as a bare JSX
+    prop, which means `true`. From slskd#1913 (unreleased), it shows the user's.
   - The last user is kept in localStorage `slskd-active-user` and looked up again whenever the page mounts.
 
 ### Search filter syntax
