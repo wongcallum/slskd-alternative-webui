@@ -1160,9 +1160,10 @@ Paths are relative to `slskd/src/web/src`.
   - Files has Downloads and Incomplete sub-tabs, and lists one level at a time with a `..` row. It shows name,
     modified time and size, and fetches on each navigation, with no polling.
     - While remote file management is on, each row has a trash icon with a confirmation.
-    - Paths are encoded with `btoa` and not URL-encoded. So a character above U+00FF throws, Latin-1 accents send the
-      wrong bytes (a 404), and a `/` in the base64 breaks the request. A failure leaves the loader spinning forever up
-      to 0.26.2, and shows an empty folder from slskd#1913 (unreleased).
+    - Up to 0.26.2, paths are encoded with `btoa` and not URL-encoded. So a character above U+00FF throws, Latin-1
+      accents send the wrong bytes (a 404), and a `/` in the base64 breaks the request. From slskd#1926 (unreleased),
+      they're encoded as UTF-8 and the base64 is URL-encoded. A failure leaves the loader spinning forever up to
+      0.26.2, and shows an empty folder from slskd#1913 (unreleased).
     - Up to 0.26.2, after deleting it calls `window.fetch()` instead of refreshing, which throws. From slskd#1913
       (unreleased), it refreshes.
   - Options shows `YAML.stringify` (`yaml` 1.10) of the hub's `OPTIONS` in a read-only CodeMirror, so its camelCase
