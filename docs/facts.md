@@ -53,9 +53,9 @@ Paths below are relative to `Transfers/` unless they start with another director
     `placeInQueue` is already cleared.
   - Cancelling during that wait ends as `Completed, Cancelled`, keeping the failed attempt's `exception` (observed on
     the test network).
-  - A comment in `Downloads/DownloadService.cs` says a download the peer doesn't acknowledge within 3 minutes is
-    recorded as `Cancelled`. From reading the code, the `TimeoutException` is probably recorded first, which makes
-    it `TimedOut` (not observed).
+  - A download the peer doesn't acknowledge within 3 minutes is cancelled. From reading the code
+    (`Downloads/DownloadService.cs`), the `TimeoutException` is probably recorded first, which makes it `TimedOut`
+    rather than `Cancelled` (not observed).
   - Up to 0.26.2, a failure before Soulseek reports any state flips the state
     `Completed, Errored` → `Queued, Locally` → `Completed, Errored` within milliseconds, for example when
     enqueueing while disconnected. This affects downloads and uploads. From slskd#1913 (unreleased), the failure is
@@ -323,12 +323,10 @@ observed on throwaway instances of the dev build and the 0.26.0 release binary.
 - **So `inProgress.files + queued.files` doesn't match the unfinished rows of `GET /transfers/downloads`.**
   Rows are written as `Queued, Locally` straight away but reach Soulseek.NET through an enqueue limiter:
   every file at once for requests of 30 or fewer, otherwise 5 at a time, each slot held until its file is
-  `Queued, Remotely` (`DownloadService.cs:417-538`) or `Completed`. From slskd#1913 (unreleased), a file that fails
-  before reaching the peer's queue with retries left, such as one the peer rejects, is only ever reported to the
-  limiter as `Queued, Locally`, so it holds its slot for the limiter's 3-minute limit, although its row is already
-  `Completed`. Observed on the test network: of a 300-file batch the peer rejected, 5 files were `Completed, Rejected`
-  after 30 s, where before all were within seconds. Rows waiting out a retry backoff also show `Queued, Locally`
-  without being in `Client.Downloads`. Uploads come closer, because they enter Soulseek.NET immediately.
+  `Queued, Remotely` (`DownloadService.cs:417-538`) or `Completed`. Observed on the test network: all 40 files of a
+  batch the peer rejected were `Completed, Rejected` within 2 s. Rows waiting out a retry backoff also show
+  `Queued, Locally` without being in `Client.Downloads`. Uploads come closer, because they enter Soulseek.NET
+  immediately.
 - Observed with a 41-file batch from one peer: the sum read 0 while the list had 41 unfinished rows, and caught
   up about 10 s later, once every file was `Queued, Remotely`. While files downloaded it ran 1–4 below the list,
   and `inProgress.files` dipped to -2. Each file was `InProgress` for only a few seconds, so `inProgress.files`
