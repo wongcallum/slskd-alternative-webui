@@ -29,7 +29,7 @@ import { Ago, Empty } from '../status'
 import { rowId, rowSelected, useSelectionKeys } from '../table'
 import { type ExtraColumn, paneColumns, paneFeatures, paneLayout, sortItems, usePaneWidth } from './columns'
 import { type FileBadge, ItemList } from './ItemList'
-import { type KeysProps, upKeys } from './keys'
+import { type KeysProps, type Selection, upKeys } from './keys'
 
 type Page = '/browse' | '/system/files' | '/system/shares'
 
@@ -41,8 +41,6 @@ function FolderLink({ page, path, ...props }: { page: Page; path: string } & Omi
 // What a view adds to the shared tree: its page and columns, and optionally what can be selected, what to do with a
 // selection, what to show beside it, a badge on files, and keys. The list the top shows instead of its folders, if it
 // does, is where going up from a top folder lands.
-export type Selection = { tree: Tree; folder: Folder; items: Item[]; clear: () => void }
-
 export type TreeConfig = {
   page: Page
   scope: string
@@ -152,7 +150,7 @@ export function FolderPane({
         px="4"
         py="2"
         flexShrink="0"
-        minHeight={barHeight}
+        minHeight={`${barHeight}px`}
         style={toolbarStyle}
       >
         <Flex align="center" gap="3" minWidth="0" style={{ overflow: 'hidden' }}>

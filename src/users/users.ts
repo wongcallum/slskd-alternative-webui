@@ -1,25 +1,17 @@
-import { api, describeError } from '../lib/api'
-import { announce, createRecordList, type Database, db, onAnnounce, removeUser } from '../lib/db'
-import { createAtom, createResource, createResourceMap, load, without } from '../lib/store'
-import { sessionSignal } from '../session/session'
+import { api } from '../lib/api'
+import {
+  announce,
+  createRecordList,
+  type Database,
+  db,
+  onAnnounce,
+  type Presence,
+  removeUser,
+  type UserRecord,
+} from '../lib/db'
+import { sessionSignal } from '../lib/session'
+import { createAtom, createResource, createKeyed, load, without } from '../lib/store'
 import { describePeerError } from '../soulseek/soulseek'
-
-export type Presence = 'Online' | 'Away' | 'Offline'
-
-// From the server, along with the address.
-type UserStatus = { presence: Presence; privileged: boolean; address?: string; fetchedAt: number }
-
-// From the user's own client. The picture is stored apart, so the list stays small.
-type UserInfo = {
-  description: string
-  hasPicture: boolean
-  freeSlot: boolean
-  slots: number
-  queue: number
-  fetchedAt: number
-}
-
-export type UserRecord = { username: string; status?: UserStatus; info?: UserInfo }
 
 export type RawStatus = { presence: Presence; isPrivileged: boolean }
 
@@ -58,7 +50,8 @@ export async function loadPicture(username: string) {
 
 export const lookups = createAtom<ReadonlyMap<string, number>>(new Map())
 
-export type LookupErrors = { status?: string; info?: string; notStored?: string; at: number }
+// The parts that failed. status and info are described for the peer, and notStored is the raw error.
+export type LookupErrors = { status?: string; info?: string; notStored?: unknown; at: number }
 
 export const lookupErrors = createAtom<ReadonlyMap<string, LookupErrors>>(new Map())
 
@@ -87,6 +80,53 @@ async function store(fresh: UserRecord, picture: string | null | undefined) {
   await evict(database)
 }
 
+type Settled<T> = PromiseSettledResult<T>
+
+// What each part of a lookup found or why it failed. A null picture means the user has none.
+function toLookup(
+  username: string,
+  status: Settled<RawStatus>,
+  endpoint: Settled<RawEndpoint>,
+  info: Settled<RawInfo>,
+) {
+  const now = Date.now()
+  const fresh: UserRecord = { username }
+  const errors: LookupErrors = { at: now }
+  if (status.status === 'fulfilled') {
+    fresh.status = { presence: status.value.presence, privileged: status.value.isPrivileged, fetchedAt: now }
+    if (endpoint.status === 'fulfilled') fresh.status.address = `${endpoint.value.address}:${endpoint.value.port}`
+  } else errors.status = describePeerError(status.reason)
+  let picture: string | null | undefined
+  if (info.status === 'fulfilled') {
+    picture = info.value.picture || null
+    fresh.info = {
+      description: info.value.description,
+      hasPicture: picture !== null,
+      freeSlot: info.value.hasFreeUploadSlot,
+      slots: info.value.uploadSlots,
+      queue: info.value.queueLength,
+      fetchedAt: now,
+    }
+  } else errors.info = describePeerError(info.reason)
+  return { fresh, picture, errors }
+}
+
+// Stores what a lookup found, or else keeps it in the list for now. Returns why it wasn't stored, if it wasn't.
+async function saveLookup(fresh: UserRecord, picture: string | null | undefined) {
+  try {
+    await store(fresh, picture)
+    announce({ type: 'user', username: fresh.username })
+    await loadUserList()
+    return undefined
+  } catch (error) {
+    userList.set((current) => {
+      const previous = current.records.get(fresh.username)
+      return { ...current, records: new Map(current.records).set(fresh.username, { ...previous, ...fresh }) }
+    })
+    return error
+  }
+}
+
 export async function lookUp(username: string) {
   if (lookups.get().has(username)) return
   const signal = sessionSignal()
@@ -100,42 +140,8 @@ export async function lookUp(username: string) {
       api.get(`${path}/info`, { signal }).json<RawInfo>(),
     ])
     if (signal.aborted) return
-    const now = Date.now()
-    const fresh: UserRecord = { username }
-    const errors: LookupErrors = { at: now }
-    if (status.status === 'fulfilled') {
-      fresh.status = {
-        presence: status.value.presence,
-        privileged: status.value.isPrivileged,
-        fetchedAt: now,
-      }
-      if (endpoint.status === 'fulfilled') fresh.status.address = `${endpoint.value.address}:${endpoint.value.port}`
-    } else errors.status = describePeerError(status.reason)
-    let picture: string | null | undefined
-    if (info.status === 'fulfilled') {
-      picture = info.value.picture || null
-      fresh.info = {
-        description: info.value.description,
-        hasPicture: picture !== null,
-        freeSlot: info.value.hasFreeUploadSlot,
-        slots: info.value.uploadSlots,
-        queue: info.value.queueLength,
-        fetchedAt: now,
-      }
-    } else errors.info = describePeerError(info.reason)
-    if (fresh.status !== undefined || fresh.info !== undefined) {
-      try {
-        await store(fresh, picture)
-        announce({ type: 'user', username })
-        await loadUserList()
-      } catch (error) {
-        errors.notStored = describeError(error)
-        userList.set((current) => {
-          const previous = current.records.get(username)
-          return { ...current, records: new Map(current.records).set(username, { ...previous, ...fresh }) }
-        })
-      }
-    }
+    const { fresh, picture, errors } = toLookup(username, status, endpoint, info)
+    if (fresh.status !== undefined || fresh.info !== undefined) errors.notStored = await saveLookup(fresh, picture)
     if (signal.aborted) return
     transferHistory.get(username).refresh()
     if (picture !== undefined) pictures.set((current) => new Map(current).set(username, picture))
@@ -167,10 +173,10 @@ onAnnounce('user', (username) => {
 export type RawDirection = {
   summary: Partial<Record<string, { totalBytes: number }>>
   statistics: { total: number; successful: number; cancelled: number }
-  exceptions: { exception: string; count: number }[]
+  exceptions: { exception?: string; count: number }[]
 }
 
-type Reason = { exception: string; count: number }
+type Reason = { exception?: string; count: number }
 
 export type DirectionHistory = {
   total: number
@@ -184,7 +190,7 @@ export type DirectionHistory = {
 type History = { download: DirectionHistory; upload: DirectionHistory }
 
 // slskd's own errored count takes four exact states, so failed is whatever else didn't succeed.
-const directionOf = (raw: RawDirection): DirectionHistory => ({
+const toDirectionHistory = (raw: RawDirection): DirectionHistory => ({
   total: raw.statistics.total,
   succeeded: raw.statistics.successful,
   failed: raw.statistics.total - raw.statistics.successful - raw.statistics.cancelled,
@@ -194,13 +200,13 @@ const directionOf = (raw: RawDirection): DirectionHistory => ({
 })
 
 // Read from slskd's own database, so it loads with the page rather than on a gesture.
-export const transferHistory = createResourceMap((username) =>
+export const transferHistory = createKeyed((username: string) =>
   createResource<History>((sink) =>
     load(sink, async (signal) => {
       const raw = await api
         .get(`telemetry/reports/transfers/users/${encodeURIComponent(username)}`, { signal })
         .json<{ Download: RawDirection; Upload: RawDirection }>()
-      return { download: directionOf(raw.Download), upload: directionOf(raw.Upload) }
+      return { download: toDirectionHistory(raw.Download), upload: toDirectionHistory(raw.Upload) }
     }),
   ),
 )

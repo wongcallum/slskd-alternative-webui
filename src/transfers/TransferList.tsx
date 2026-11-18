@@ -1,5 +1,5 @@
 import { ChevronDownIcon, ChevronRightIcon } from '@radix-ui/react-icons'
-import { Button, DropdownMenu, Flex, SegmentedControl, Text } from '@radix-ui/themes'
+import { Button, DropdownMenu, Flex, Text } from '@radix-ui/themes'
 import { defaultRangeExtractor, type Range, useVirtualizer } from '@tanstack/react-virtual'
 import { type ReactNode, useCallback, useMemo, useRef, useState } from 'react'
 
@@ -8,9 +8,18 @@ import { formatSpeed, plural } from '../lib/format'
 import { useFrom } from '../lib/media'
 import { useAtom } from '../lib/store'
 import { ColumnsMenu } from '../ui/ColumnsMenu'
-import { type Choices, ChoiceSelect, ConfirmButton, ConfirmDialog, disabledProps, Tip } from '../ui/controls'
+import {
+  type Choices,
+  ChoiceSegments,
+  ChoiceSelect,
+  ConfirmButton,
+  ConfirmDialog,
+  disabledProps,
+  Tip,
+  barHeight,
+} from '../ui/controls'
 import { type ListKey, useListKeys } from '../ui/keys'
-import { RowScope, useListNav } from '../ui/listNav'
+import { type ListNav, RowScope, useListNav } from '../ui/listNav'
 import {
   ColumnHeader,
   columnsHeight,
@@ -19,21 +28,21 @@ import {
   HeaderRow,
   type Layout,
   rowHeight,
-  stackedHeight,
-  stackedHeight3,
+  stackedRowHeight,
   toggleExpanded,
+  tracksFor,
   useLayout,
   useRowToggle,
   useSelectionKeys,
   virtualRowStyle,
 } from '../ui/table'
 import { type Columns, columnsVar, useColumns } from '../ui/widths'
-import { actions, cancel, clearFinished, lookups, remove, retry } from './actions'
+import { actions, cancel, clearFinished, positionLookups, remove, retry } from './actions'
 import { FileRow, GroupRow } from './rows'
 import {
-  barHeight,
   columnLabels,
   columnsOf,
+  endAligned,
   expansions,
   type Gates,
   openSections,
@@ -60,17 +69,37 @@ type RowItem = { type: 'row'; section: Section; row: TableRow }
 
 type ListItem = { type: 'header'; section: Section } | { type: 'empty'; section: Section } | RowItem
 
-const listKey = (item: ListItem) => (item.type === 'row' ? item.row.id : `${item.type}:${item.section}`)
+const itemKey = (item: ListItem) => (item.type === 'row' ? item.row.id : `${item.type}:${item.section}`)
 
 const isRow = (item: ListItem): item is RowItem => item.type === 'row'
+
+function useSectionColumns(layout: Layout) {
+  const sectionTracks = tracksFor(tracks, layout)
+  return {
+    active: useColumns('transfers', sectionTracks.active),
+    finished: useColumns('transfers', sectionTracks.finished),
+  }
+}
+
+function listItems(active: TableRow[], finished: TableRow[], open: Record<Section, boolean>) {
+  const list: ListItem[] = []
+  for (const [section, rows] of [
+    ['active', active],
+    ['finished', finished],
+  ] as const) {
+    list.push({ type: 'header', section })
+    if (!open[section]) continue
+    if (rows.length === 0) list.push({ type: 'empty', section })
+    for (const row of rows) list.push({ type: 'row', section, row })
+  }
+  return list
+}
 
 type ListProps = {
   direction: Direction
   data: Transfers
-  active: Group[]
-  finished: Group[]
-  activeTable: SectionTable
-  finishedTable: SectionTable
+  groups: Record<Section, Group[]>
+  tables: Record<Section, SectionTable>
   filtered: boolean
   selected: Transfer[]
   show: Show
@@ -79,34 +108,18 @@ type ListProps = {
 }
 
 export function TransferList(props: ListProps) {
-  const { direction, activeTable, finishedTable, gates } = props
+  const { direction, data, groups, tables, filtered, selected, show, onShowChange, gates } = props
   const layout = useLayout()
   const twoLines = !useFrom('sm')
-  const sectionTracks = tracks[layout === 'stacked' ? 'medium' : layout]
-  const columns = {
-    active: useColumns('transfers', sectionTracks.active),
-    finished: useColumns('transfers', sectionTracks.finished),
-  }
+  const columns = useSectionColumns(layout)
   const open = useAtom(openSections[direction])
   const { pending, running } = useAtom(actions[direction])
-  const lookupMap = useAtom(lookups)
+  const lookupMap = useAtom(positionLookups)
   // A second retry would re-enqueue what the first hasn't reached yet, and they'd share one progress count.
   const retryGate = running.retry === undefined ? gates.soulseek : 'A retry is running'
-  const activeRows = activeTable.getRowModel().rows
-  const finishedRows = finishedTable.getRowModel().rows
-  const items = useMemo(() => {
-    const list: ListItem[] = []
-    for (const [section, rows] of [
-      ['active', activeRows],
-      ['finished', finishedRows],
-    ] as const) {
-      list.push({ type: 'header', section })
-      if (!open[section]) continue
-      if (rows.length === 0) list.push({ type: 'empty', section })
-      for (const row of rows) list.push({ type: 'row', section, row })
-    }
-    return list
-  }, [activeRows, finishedRows, open])
+  const activeRows = tables.active.getRowModel().rows
+  const finishedRows = tables.finished.getRowModel().rows
+  const items = useMemo(() => listItems(activeRows, finishedRows, open), [activeRows, finishedRows, open])
   const finishedHeader = open.active ? Math.max(activeRows.length, 1) + 1 : 1
   const itemAt = useCallback((index: number) => items[index] as ListItem, [items])
 
@@ -114,45 +127,7 @@ export function TransferList(props: ListProps) {
     (twoLines ? twoLineBarHeight : barHeight) + (open[section] ? columnsHeight : 0)
   const scrollRef = useRef<HTMLDivElement>(null)
   const stickyRef = useRef(0)
-  const onSelect = { active: useRowToggle(activeTable), finished: useRowToggle(finishedTable) }
-  const onToggle = useCallback(
-    (section: Section, id: string) =>
-      expansions[direction].set((state) => ({ ...state, [section]: toggleExpanded(state[section], id) })),
-    [direction],
-  )
-  const keys = { active: useSelectionKeys(activeTable), finished: useSelectionKeys(finishedTable) }
-  const nav = useListNav<ListItem>({
-    name: 'transfers',
-    items,
-    itemKey: listKey,
-    isRow,
-    rank: 1,
-    label: direction === 'download' ? 'Downloads' : 'Uploads',
-    role: 'treegrid',
-    multiselectable: true,
-    depth: (item) => (isRow(item) ? item.row.depth : -1),
-    canToggle: (item) => isRow(item) && groupNav.canToggle(item.row),
-    isOpen: (item) => isRow(item) && item.row.getIsExpanded(),
-    aria: (item) => (isRow(item) ? groupNav.aria(item.row) : {}),
-    onToggle: (item) => isRow(item) && onToggle(item.section, item.row.id),
-    onEnter: (item) => {
-      if (!isRow(item)) return
-      if (item.row.original.kind === 'group') onToggle(item.section, item.row.id)
-      else onSelect[item.section](item.row.id, false)
-    },
-    onSpace: (item, range) => isRow(item) && keys[item.section].onSpace(item.row, range),
-    // Selection stays within a section, as Shift+click's does.
-    onExtend: (from, to) =>
-      isRow(from) && isRow(to) && from.section === to.section && keys[from.section].onExtend(from.row, to.row),
-    onSelectAll: () => {
-      keys.active.onSelectAll()
-      keys.finished.onSelectAll()
-    },
-    onEscape: () => {
-      const active = keys.active.onEscape()
-      return keys.finished.onEscape() || active
-    },
-  })
+  const { nav, onSelect, onToggle } = useTransferNav({ direction, items, tables })
   const setRef = useCallback(
     (element: HTMLDivElement | null) => {
       scrollRef.current = element
@@ -160,37 +135,7 @@ export function TransferList(props: ListProps) {
     },
     [nav.containerRef],
   )
-  const chosen = () => {
-    if (props.selected.length > 0) return props.selected
-    const item = nav.focused()
-    if (item === undefined || !isRow(item)) return []
-    const original = item.row.original
-    return original.kind === 'group' ? original.files : [original]
-  }
-  const retryKey: ListKey = {
-    hotkeys: ['R'],
-    name: 'Retry',
-    enabled: retryGate === undefined,
-    run: () => {
-      const files = chosen().filter((file) => isRetryable(file.state))
-      if (files.length > 0) void retry(files)
-    },
-  }
-  useListKeys(nav.containerRef, [
-    ...(direction === 'download' ? [retryKey] : []),
-    {
-      hotkeys: ['Delete', 'Mod+Backspace'],
-      name: 'Cancel, or remove what has finished',
-      enabled: gates.list === undefined && running.cancel === undefined && running.remove === undefined,
-      run: () => {
-        const files = chosen()
-        const active = files.filter((file) => !isFinished(file.state))
-        const done = files.filter((file) => isFinished(file.state))
-        if (active.length > 0) void cancel(direction, active)
-        if (done.length > 0) void remove(direction, done)
-      },
-    },
-  ])
+  useTransferKeys({ nav, direction, selected, retryGate, gates })
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => scrollRef.current,
@@ -199,7 +144,7 @@ export function TransferList(props: ListProps) {
       if (index === finishedHeader) return headerHeight('finished')
       const item = itemAt(index)
       if (layout !== 'stacked' || item.type !== 'row') return rowHeight
-      return item.row.original.kind === 'group' ? stackedHeight3 : stackedHeight
+      return stackedRowHeight(item.row)
     },
     // A new key function is what makes the virtualizer measure again, so a new layout has to make one.
     getItemKey: useCallback(
@@ -223,26 +168,29 @@ export function TransferList(props: ListProps) {
     if (item.type === 'header') {
       return (
         <SectionHeader
-          {...props}
+          direction={direction}
+          section={item.section}
+          data={data}
+          table={tables[item.section]}
+          groups={groups[item.section]}
+          filtered={filtered}
+          show={show}
+          onShowChange={onShowChange}
+          gates={gates}
           columns={columns[item.section]}
           layout={layout}
           twoLines={twoLines}
-          section={item.section}
           open={open[item.section]}
         />
       )
     }
     if (item.type === 'empty') {
       return (
-        <Flex align="center" height="100%" px="4">
-          <Text size="2" color="gray">
-            {props.filtered || (item.section === 'finished' && props.show !== 'all')
-              ? 'Nothing matches.'
-              : item.section === 'active'
-                ? `Nothing ${direction === 'download' ? 'downloading' : 'uploading'} or queued.`
-                : 'Nothing finished.'}
-          </Text>
-        </Flex>
+        <EmptySection
+          direction={direction}
+          section={item.section}
+          filtered={filtered || (item.section === 'finished' && show !== 'all')}
+        />
       )
     }
     const { row, section } = item
@@ -322,15 +270,7 @@ const showChoices: Choices<Show> = [
 function ShowControl({ show, onShowChange }: { show: Show; onShowChange: (show: Show) => void }) {
   const md = useFrom('md')
   if (!md) return <ChoiceSelect label="Show" size="1" soft choices={showChoices} value={show} onChange={onShowChange} />
-  return (
-    <SegmentedControl.Root size="1" value={show} onValueChange={(value) => onShowChange(value as Show)}>
-      {showChoices.map(([value, label]) => (
-        <SegmentedControl.Item key={value} value={value}>
-          {label}
-        </SegmentedControl.Item>
-      ))}
-    </SegmentedControl.Root>
-  )
+  return <ChoiceSegments choices={showChoices} value={show} onChange={onShowChange} />
 }
 
 type CancelScope = 'all' | 'queued' | 'transferring'
@@ -386,13 +326,22 @@ function CancelMenu({ direction, files, gate }: { direction: Direction; files: T
   )
 }
 
+type SectionHeaderProps = Pick<ListProps, 'direction' | 'data' | 'filtered' | 'show' | 'onShowChange' | 'gates'> & {
+  section: Section
+  table: SectionTable
+  groups: Group[]
+  columns: Columns
+  layout: Layout
+  twoLines: boolean
+  open: boolean
+}
+
 function SectionHeader({
   direction,
+  section,
   data,
-  active,
-  finished,
-  activeTable,
-  finishedTable,
+  table,
+  groups,
   filtered,
   show,
   onShowChange,
@@ -400,12 +349,9 @@ function SectionHeader({
   columns,
   layout,
   twoLines,
-  section,
   open,
-}: ListProps & { columns: Columns; layout: Layout; twoLines: boolean; section: Section; open: boolean }) {
+}: SectionHeaderProps) {
   const { running } = useAtom(actions[direction])
-  const table = section === 'active' ? activeTable : finishedTable
-  const groups = section === 'active' ? active : finished
   let summary: string
   let speed: string | undefined
   if (filtered || (section === 'finished' && show !== 'all')) {
@@ -513,7 +459,7 @@ function SectionHeader({
             <ColumnHeader
               key={id}
               label={columnLabels[section][id]}
-              end={!stacked && (id === 'size' || id === 'speed')}
+              end={!stacked && endAligned.has(id)}
               column={table.getColumn(id)}
             />
           ))}
@@ -522,4 +468,110 @@ function SectionHeader({
       )}
     </div>
   )
+}
+
+type TransferKeysOptions = {
+  nav: ListNav<ListItem>
+  direction: Direction
+  selected: Transfer[]
+  retryGate?: string
+  gates: Gates
+}
+
+// The keys act on the selection, or else on the row the keyboard is on.
+function useTransferKeys({ nav, direction, selected, retryGate, gates }: TransferKeysOptions) {
+  const { running } = useAtom(actions[direction])
+  const chosen = () => {
+    if (selected.length > 0) return selected
+    const item = nav.focused()
+    if (item === undefined || !isRow(item)) return []
+    const original = item.row.original
+    return original.kind === 'group' ? original.files : [original]
+  }
+  const retryKey: ListKey = {
+    hotkeys: ['R'],
+    name: 'Retry',
+    enabled: retryGate === undefined,
+    run: () => {
+      const files = chosen().filter((file) => isRetryable(file.state))
+      if (files.length > 0) void retry(files)
+    },
+  }
+  useListKeys(nav.containerRef, [
+    ...(direction === 'download' ? [retryKey] : []),
+    {
+      hotkeys: ['Delete', 'Mod+Backspace'],
+      name: 'Cancel, or remove what has finished',
+      enabled: gates.list === undefined && running.cancel === undefined && running.remove === undefined,
+      run: () => {
+        const files = chosen()
+        const active = files.filter((file) => !isFinished(file.state))
+        const done = files.filter((file) => isFinished(file.state))
+        if (active.length > 0) void cancel(direction, active)
+        if (done.length > 0) void remove(direction, done)
+      },
+    },
+  ])
+}
+
+function EmptySection({ direction, section, filtered }: { direction: Direction; section: Section; filtered: boolean }) {
+  let text = 'Nothing finished.'
+  if (filtered) text = 'Nothing matches.'
+  else if (section === 'active') text = `Nothing ${direction === 'download' ? 'downloading' : 'uploading'} or queued.`
+  return (
+    <Flex align="center" height="100%" px="4">
+      <Text size="2" color="gray">
+        {text}
+      </Text>
+    </Flex>
+  )
+}
+
+type TransferNavOptions = { direction: Direction; items: ListItem[]; tables: Record<Section, SectionTable> }
+
+function useTransferNav({ direction, items, tables }: TransferNavOptions) {
+  const onToggle = useCallback(
+    (section: Section, id: string) =>
+      expansions[direction].set((state) => ({ ...state, [section]: toggleExpanded(state[section], id) })),
+    [direction],
+  )
+  const onSelect = { active: useRowToggle(tables.active), finished: useRowToggle(tables.finished) }
+  const keys = { active: useSelectionKeys(tables.active), finished: useSelectionKeys(tables.finished) }
+  const nav = useListNav<ListItem>({
+    name: 'transfers',
+    items,
+    itemKey,
+    isRow,
+    rank: 1,
+    label: direction === 'download' ? 'Downloads' : 'Uploads',
+    role: 'treegrid',
+    multiselectable: true,
+    depth: (item) => (isRow(item) ? item.row.depth : -1),
+    canToggle: (item) => isRow(item) && groupNav.canToggle(item.row),
+    isOpen: (item) => isRow(item) && item.row.getIsExpanded(),
+    aria: (item) => (isRow(item) ? groupNav.aria(item.row) : {}),
+    onToggle: (item) => {
+      if (isRow(item)) onToggle(item.section, item.row.id)
+    },
+    onEnter: (item) => {
+      if (!isRow(item)) return
+      if (item.row.original.kind === 'group') onToggle(item.section, item.row.id)
+      else onSelect[item.section](item.row.id, false)
+    },
+    onSpace: (item, range) => {
+      if (isRow(item)) keys[item.section].onSpace(item.row, range)
+    },
+    // Selection stays within a section, as Shift+click's does.
+    onExtend: (from, to) =>
+      isRow(from) && isRow(to) && from.section === to.section && keys[from.section].onExtend(from.row, to.row),
+    onSelectAll: () => {
+      keys.active.onSelectAll()
+      keys.finished.onSelectAll()
+    },
+    onEscape: () => {
+      const active = keys.active.onEscape()
+      return keys.finished.onEscape() || active
+    },
+  })
+  return { nav, onSelect, onToggle }
 }

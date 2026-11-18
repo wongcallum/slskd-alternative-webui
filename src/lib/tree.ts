@@ -1,4 +1,4 @@
-import { type Criteria, hasAttributes, judging, passes } from './criteria'
+import { type Criteria, hasAttributes, isJudging, passes } from './criteria'
 import { describeRange, qualityOf, type RawFile, widenRange } from './files'
 import { byName, matchesTerms, queryTerms, type Terms } from './text'
 
@@ -249,7 +249,7 @@ const lastMatches = new WeakMap<Tree, { terms?: Terms; criteria: Criteria; match
 
 export function matchTree(tree: Tree, query: string, criteria: Criteria): Matches | undefined {
   const terms = queryTerms(query)
-  const judged = judging(criteria)
+  const judged = isJudging(criteria)
   if (terms === undefined && !judged) return undefined
   const last = lastMatches.get(tree)
   const previous =

@@ -4,7 +4,7 @@ import { type SubmitEvent, useState } from 'react'
 
 import { useTouch } from '../lib/media'
 import { useSoulseekGate } from '../soulseek/soulseek'
-import { disabledProps, mainField, toList, Toolbar } from '../ui/controls'
+import { disabledProps, mainField, onKeyDownToList, Toolbar } from '../ui/controls'
 import { ActionNote } from '../ui/status'
 import { useCreateSearch } from './useCreateSearch'
 
@@ -12,7 +12,7 @@ export function NewSearch() {
   const gate = useSoulseekGate()
   const touch = useTouch()
   const [text, setText] = useState('')
-  const { busy, error, create } = useCreateSearch()
+  const { busy, message, create } = useCreateSearch()
 
   function submit(event: SubmitEvent) {
     event.preventDefault()
@@ -32,7 +32,7 @@ export function NewSearch() {
               autoFocus={!touch}
               value={text}
               onChange={(event) => setText(event.target.value)}
-              onKeyDown={toList('searches')}
+              onKeyDown={onKeyDownToList('searches')}
               {...mainField(true)}
               style={{ flexGrow: 1 }}
             >
@@ -51,7 +51,7 @@ export function NewSearch() {
           </Flex>
         </form>
       </Box>
-      <ActionNote error={error} gate={gate} size="2" />
+      <ActionNote message={message} gate={gate} size="2" />
     </Toolbar>
   )
 }

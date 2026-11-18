@@ -83,7 +83,7 @@ function Header({ search, known, live }: { search: Search; known: boolean; live:
   const gate = listGate(known)
   const stop = useRun()
   const again = useCreateSearch()
-  const failure = stop.error === undefined ? again.error : `Couldn't stop: ${stop.error}`
+  const failure = stop.message === undefined ? again.message : `Couldn't stop: ${stop.message}`
 
   // Below md the title, the summary and the actions each take a line.
   return (
@@ -94,7 +94,7 @@ function Header({ search, known, live }: { search: Search; known: boolean; live:
       px="4"
       py="2"
       flexShrink="0"
-      minHeight={barHeight}
+      minHeight={`${barHeight}px`}
       style={toolbarStyle}
     >
       <Flex align="center" gap="3" minWidth="0" flexBasis={{ initial: '100%', md: 'auto' }}>

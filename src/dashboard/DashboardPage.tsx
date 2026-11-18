@@ -1,5 +1,5 @@
 import './dashboard.css'
-import { Box, Card, Flex, Grid, Heading, Inset, Link, SegmentedControl, Text } from '@radix-ui/themes'
+import { Box, Card, Flex, Grid, Heading, Inset, Link, Text } from '@radix-ui/themes'
 import { Link as RouterLink } from '@tanstack/react-router'
 import { lazy, type ReactNode, Suspense, useId } from 'react'
 
@@ -8,7 +8,7 @@ import type { SearchProps } from '../lib/params'
 import { useResource } from '../lib/store'
 import { NewSearch } from '../search/NewSearch'
 import type { Direction } from '../transfers/transfers'
-import { Toolbar, ToolbarEnd } from '../ui/controls'
+import { type Choices, ChoiceSegments, Toolbar, ToolbarEnd } from '../ui/controls'
 import { Empty, Fetching, Freshness } from '../ui/status'
 import {
   Cell,
@@ -23,16 +23,7 @@ import {
 } from '../ui/table'
 import { UserCell, UserMenu } from '../users/UserMenu'
 import { type DashboardSearch, type Measure, type Range, type UserSort, userSorts } from './params'
-import {
-  type Folder,
-  type Leader,
-  leaderboards,
-  leadersKey,
-  type Reason,
-  type Report,
-  reports,
-  type Totals,
-} from './reports'
+import { type Folder, type Leader, leaderboards, type Reason, type Report, reports, type Totals } from './reports'
 
 export const loadChart = () => import('./Chart')
 
@@ -40,9 +31,19 @@ const Chart = lazy(async () => ({ default: (await loadChart()).Chart }))
 
 const chartHeight = 240
 
-const rangeLabels: Record<Range, string> = { '24h': '24h', '7d': '7d', '30d': '30d', '1y': '1y', all: 'All' }
+const rangeChoices: Choices<Range> = [
+  ['24h', '24h'],
+  ['7d', '7d'],
+  ['30d', '30d'],
+  ['1y', '1y'],
+  ['all', 'All'],
+]
 
-const measureLabels: Record<Measure, string> = { size: 'Size', files: 'Files', failed: 'Failed' }
+const measureChoices: Choices<Measure> = [
+  ['size', 'Size'],
+  ['files', 'Files'],
+  ['failed', 'Failed'],
+]
 
 const unitHeadings: Record<Report['unit'], string> = {
   hour: 'By hour',
@@ -52,26 +53,6 @@ const unitHeadings: Record<Report['unit'], string> = {
 }
 
 type Props = SearchProps<DashboardSearch>
-
-function Segments<V extends string>({
-  labels,
-  value,
-  onChange,
-}: {
-  labels: Record<V, string>
-  value: V
-  onChange: (value: V) => void
-}) {
-  return (
-    <SegmentedControl.Root size="1" value={value} onValueChange={(next) => onChange(next as V)}>
-      {(Object.keys(labels) as V[]).map((choice) => (
-        <SegmentedControl.Item key={choice} value={choice}>
-          {labels[choice]}
-        </SegmentedControl.Item>
-      ))}
-    </SegmentedControl.Root>
-  )
-}
 
 export function DashboardPage({ search, onSearchChange }: Props) {
   const resource = reports.get(search.range)
@@ -89,7 +70,7 @@ export function DashboardPage({ search, onSearchChange }: Props) {
     <Flex direction="column" height="100%">
       <NewSearch />
       <Toolbar>
-        <Segments labels={rangeLabels} value={search.range} onChange={(range) => onSearchChange({ range })} />
+        <ChoiceSegments choices={rangeChoices} value={search.range} onChange={(range) => onSearchChange({ range })} />
         <ToolbarEnd>
           <Freshness resource={resource} />
         </ToolbarEnd>
@@ -108,7 +89,11 @@ function History({ report, search, onSearchChange }: Props & { report: Report })
       <Section
         title={unitHeadings[report.unit]}
         actions={
-          <Segments labels={measureLabels} value={search.chart} onChange={(chart) => onSearchChange({ chart })} />
+          <ChoiceSegments
+            choices={measureChoices}
+            value={search.chart}
+            onChange={(chart) => onSearchChange({ chart })}
+          />
         }
       >
         <Suspense fallback={<Box height={`${chartHeight + 24}px`} />}>
@@ -258,7 +243,7 @@ const userColumns: Record<UserSort, string> = { files: 'Files', size: 'Size', sp
 const leaderTemplate = 'minmax(0, 1fr) 64px 88px 100px'
 
 function LeaderCards({ range, sort, onSort }: { range: Range; sort: UserSort; onSort: (sort: UserSort) => void }) {
-  const resource = leaderboards.get(leadersKey(range, sort))
+  const resource = leaderboards.get({ range, sort })
   const { data, error } = useResource(resource)
   const table = (leaders: readonly Leader[] | undefined) =>
     leaders === undefined ? (
@@ -359,7 +344,10 @@ function FolderCard({ folders }: { folders: readonly Folder[] }) {
   )
 }
 
-const directionLabels: Record<Direction, string> = { download: 'Downloads', upload: 'Uploads' }
+const directionChoices: Choices<Direction> = [
+  ['download', 'Downloads'],
+  ['upload', 'Uploads'],
+]
 
 function Message({ reason }: { reason: Reason }) {
   return (
@@ -381,7 +369,7 @@ function ReasonCard({
   return (
     <Section
       title="Errors and cancellations"
-      actions={<Segments labels={directionLabels} value={direction} onChange={onDirectionChange} />}
+      actions={<ChoiceSegments choices={directionChoices} value={direction} onChange={onDirectionChange} />}
     >
       <Rows
         items={reasons}

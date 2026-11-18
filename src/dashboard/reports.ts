@@ -1,6 +1,7 @@
 import { api } from '../lib/api'
 import { metricsHub } from '../lib/hubs'
-import { createResource, createResourceMap, load } from '../lib/store'
+import { createResource, createKeyed, load } from '../lib/store'
+import { compareNames } from '../lib/text'
 import type { RawMetrics } from '../transfers/metrics'
 import type { Direction } from '../transfers/transfers'
 import type { Range, UserSort } from './params'
@@ -139,10 +140,10 @@ function barsOf(histogram: RawHistogram, unit: Unit, start: number, now: number)
 }
 
 // slskd orders them by count alone, so ties would swap places between loads.
-const reasonsOf = (raw: RawReason[]): Reason[] =>
+const toReasons = (raw: RawReason[]): Reason[] =>
   raw
     .map((reason) => ({ message: reason.exception, files: reason.count, users: reason.distinctUsers }))
-    .sort((a, b) => b.files - a.files || (a.message ?? '').localeCompare(b.message ?? ''))
+    .sort((a, b) => b.files - a.files || compareNames(a.message ?? '', b.message ?? ''))
 
 async function fetchReport(range: Range, signal: AbortSignal): Promise<Report> {
   const now = Date.now()
@@ -163,14 +164,14 @@ async function fetchReport(range: Range, signal: AbortSignal): Promise<Report> {
     bars: barsOf(histogram, unit, start, now),
     totals: { download: totalsOf(summary.Download), upload: totalsOf(summary.Upload) },
     folders: folders.map((folder) => ({ path: folder.directory, files: folder.count, users: folder.distinctUsers })),
-    reasons: { download: reasonsOf(downloadReasons), upload: reasonsOf(uploadReasons) },
+    reasons: { download: toReasons(downloadReasons), upload: toReasons(uploadReasons) },
     any,
   }
 }
 
 const sortKeys: Record<UserSort, string> = { files: 'Count', size: 'TotalBytes', speed: 'AverageSpeed' }
 
-const leaderOf = (raw: RawLeader): Leader => ({
+const toLeader = (raw: RawLeader): Leader => ({
   username: raw.username,
   files: raw.count,
   bytes: raw.totalBytes,
@@ -187,7 +188,7 @@ async function fetchLeaders(range: Range, sort: UserSort, signal: AbortSignal): 
     limit: 10,
   }
   const leaders = async (direction: string) =>
-    (await request<RawLeader[]>('leaderboard', { ...params, direction }, signal)).map(leaderOf)
+    (await request<RawLeader[]>('leaderboard', { ...params, direction }, signal)).map(toLeader)
   const [download, upload] = await Promise.all([leaders('Download'), leaders('Upload')])
   return { download, upload }
 }
@@ -246,11 +247,9 @@ function createReport<T extends object>(read: (signal: AbortSignal) => Promise<T
   })
 }
 
-export const reports = createResourceMap((range) => createReport((signal) => fetchReport(range as Range, signal)))
+export const reports = createKeyed((range: Range) => createReport((signal) => fetchReport(range, signal)))
 
-export const leaderboards = createResourceMap((key) => {
-  const [range, sort] = key.split(' ') as [Range, UserSort]
-  return createReport((signal) => fetchLeaders(range, sort, signal))
-})
-
-export const leadersKey = (range: Range, sort: UserSort) => `${range} ${sort}`
+export const leaderboards = createKeyed(
+  ({ range, sort }: { range: Range; sort: UserSort }) => createReport((signal) => fetchLeaders(range, sort, signal)),
+  ({ range, sort }) => `${range} ${sort}`,
+)

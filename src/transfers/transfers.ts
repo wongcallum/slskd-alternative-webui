@@ -1,10 +1,10 @@
 import { api } from '../lib/api'
 import { nameOf } from '../lib/files'
 import { toTime } from '../lib/format'
-import { createRate } from '../lib/rate'
+import { onSessionEnd } from '../lib/session'
 import { createResource, isStale, poll, type Resource } from '../lib/store'
-import { byName, compareNames } from '../lib/text'
-import { onSessionEnd } from '../session/session'
+import { byName, compareNames, queryMatcher } from '../lib/text'
+import { createRate } from './rate'
 
 export type Direction = 'download' | 'upload'
 
@@ -13,6 +13,20 @@ export const perDirection = <T>(create: (direction: Direction) => T): Record<Dir
   upload: create('upload'),
 })
 
+// Soulseek.NET's TransferStates, which slskd serialises by their flags.
+export type TransferState =
+  | 'Requested'
+  | 'Queued, Locally'
+  | 'Queued, Remotely'
+  | 'Initializing'
+  | 'InProgress'
+  | 'Completed, Succeeded'
+  | 'Completed, Cancelled'
+  | 'Completed, TimedOut'
+  | 'Completed, Errored'
+  | 'Completed, Rejected'
+  | 'Completed, Aborted'
+
 export type Section = 'active' | 'finished'
 
 export type RawTransfer = {
@@ -20,7 +34,7 @@ export type RawTransfer = {
   batchId?: string
   filename: string
   size: number
-  state: string
+  state: TransferState
   requestedAt: string
   enqueuedAt?: string
   startedAt?: string
@@ -67,12 +81,12 @@ export type Transfers = {
   speed?: number
 }
 
-export const isFinished = (state: string) => state.startsWith('Completed')
-const isSucceeded = (state: string) => state === 'Completed, Succeeded'
-const isCancelled = (state: string) => state === 'Completed, Cancelled'
-export const isRetryable = (state: string) => isFinished(state) && !isSucceeded(state)
-export const isFailed = (state: string) => isRetryable(state) && !isCancelled(state)
-export const isTransferring = (state: string) => state === 'InProgress' || state === 'Initializing'
+export const isFinished = (state: TransferState) => state.startsWith('Completed')
+const isSucceeded = (state: TransferState) => state === 'Completed, Succeeded'
+const isCancelled = (state: TransferState) => state === 'Completed, Cancelled'
+export const isRetryable = (state: TransferState) => isFinished(state) && !isSucceeded(state)
+export const isFailed = (state: TransferState) => isRetryable(state) && !isCancelled(state)
+export const isTransferring = (state: TransferState) => state === 'InProgress' || state === 'Initializing'
 
 const unchanged = (file: Transfer, raw: RawTransfer) =>
   file.state === raw.state &&
@@ -230,16 +244,16 @@ export const shows = ['all', 'succeeded', 'failed', 'cancelled'] as const
 
 export type Show = (typeof shows)[number]
 
-const outcomeOf = (state: string): Show =>
+const outcomeOf = (state: TransferState): Show =>
   isSucceeded(state) ? 'succeeded' : isCancelled(state) ? 'cancelled' : 'failed'
 
 export function filterGroups(groups: Group[], query: string, show: Show) {
-  if (query === '' && show === 'all') return groups
-  const needle = query.toLowerCase()
+  const matches = queryMatcher(query)
+  if (matches === undefined && show === 'all') return groups
   const result: Group[] = []
   for (const group of groups) {
     const files = group.files.filter(
-      (file) => file.search.includes(needle) && (show === 'all' || outcomeOf(file.state) === show),
+      (file) => (matches?.(file.search) ?? true) && (show === 'all' || outcomeOf(file.state) === show),
     )
     if (files.length === group.files.length) result.push(group)
     else if (files.length > 0) {
@@ -249,7 +263,7 @@ export function filterGroups(groups: Group[], query: string, show: Show) {
   return result
 }
 
-export const pollInterval = 1000
+export const transfersPollInterval = 1000
 
 function createTransfers(direction: Direction) {
   const rate = createRate()
@@ -265,12 +279,14 @@ function createTransfers(direction: Direction) {
         const last = resource.getUpdatedAt()
         // After a gap long enough to count as stale, the poll only sets a new baseline for the speed.
         const elapsed =
-          last === undefined || isStale(now - last, resource.getInterval() ?? pollInterval) ? undefined : now - last
+          last === undefined || isStale(now - last, resource.getInterval() ?? transfersPollInterval)
+            ? undefined
+            : now - last
         if (elapsed === undefined) rate.reset()
         const measureSpeed = (moved: number) => (elapsed === undefined ? undefined : rate.add(now, elapsed, moved))
         return measure(() => merge(resource.getSnapshot().data, JSON.parse(text) as RawUser[], measureSpeed, partials))
       },
-      pollInterval,
+      transfersPollInterval,
     ),
   )
   return resource

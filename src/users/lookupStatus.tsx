@@ -1,8 +1,10 @@
 import { Flex, Text } from '@radix-ui/themes'
 
+import { describeError } from '../lib/api'
+import type { Presence } from '../lib/db'
 import type { Color } from '../ui/controls'
 import { DismissibleText, StatusDot } from '../ui/status'
-import { dismissLookupErrors, type LookupErrors, type Presence } from './users'
+import { dismissLookupErrors, type LookupErrors } from './users'
 
 const presenceColors: Record<Presence, Color> = { Online: 'green', Away: 'amber', Offline: 'gray' }
 
@@ -20,7 +22,7 @@ function describeLookupErrors(errors: LookupErrors) {
   const lines: string[] = []
   if (errors.status !== undefined) lines.push(`Couldn't get the status: ${errors.status}`)
   if (errors.info !== undefined) lines.push(`Couldn't get the profile: ${errors.info}`)
-  if (errors.notStored !== undefined) lines.push(`Couldn't store the profile: ${errors.notStored}`)
+  if (errors.notStored !== undefined) lines.push(`Couldn't store the profile: ${describeError(errors.notStored)}`)
   const quiet = errors.status === undefined && errors.notStored === undefined && errors.info === 'Appears to be offline'
   return { lines, color: quiet ? 'gray' : 'red' } as const
 }

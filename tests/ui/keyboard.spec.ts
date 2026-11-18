@@ -24,14 +24,17 @@ test('Files is used from the keyboard alone', async ({ page, slskd }) => {
   const tree = page.getByRole('tree', { name: 'Folders' })
   await expect(tree.getByRole('treeitem', { name: /^Downloads/ })).toBeFocused()
 
-  await page.keyboard.press('ArrowDown')
-  await page.keyboard.press('ArrowDown')
-  await expect(tree.getByRole('treeitem', { name: /^Keyboard/ })).toBeFocused()
+  // Other tests leave folders in the same Downloads, which can sort before this one.
+  const keyboard = tree.getByRole('treeitem', { name: /^Keyboard/ })
+  await expect(async () => {
+    await page.keyboard.press('ArrowDown')
+    await expect(keyboard).toBeFocused({ timeout: 200 })
+  }).toPass()
   await page.keyboard.press('g')
   await page.keyboard.press('d')
   await expect(page).toHaveURL(/\/downloads$/)
   await page.goBack()
-  await expect(tree.getByRole('treeitem', { name: /^Keyboard/ })).toBeFocused()
+  await expect(keyboard).toBeFocused()
   await page.keyboard.press('Enter')
   await page.keyboard.press('Enter')
   const pane = page.getByRole('grid', { name: 'Contents' })

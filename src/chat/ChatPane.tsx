@@ -13,7 +13,7 @@ import { type Target, targetKey } from './messages'
 export function ChatToolbar({ title, children }: { title: ReactNode; children?: ReactNode }) {
   const sm = useFrom('sm')
   return (
-    <Flex align="center" gap="3" px="4" py="2" flexShrink="0" minHeight={barHeight} style={toolbarStyle}>
+    <Flex align="center" gap="3" px="4" py="2" flexShrink="0" minHeight={`${barHeight}px`} style={toolbarStyle}>
       {!sm && <BackLink to="/chat" label="Back to chats" />}
       <Heading size="4" truncate>
         {title}

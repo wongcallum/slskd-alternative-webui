@@ -10,13 +10,13 @@ import type { SearchProps } from '../../lib/params'
 import { useAtom } from '../../lib/store'
 import { useSoulseekGate } from '../../soulseek/soulseek'
 import { ActionButton, Tip, toolbarStyle } from '../../ui/controls'
-import { FiltersButton } from '../../ui/Filters'
+import { FiltersButton } from '../../ui/filters'
 import { Ago, Empty, ErrorCallout, Loading } from '../../ui/status'
 import { TreeView } from '../../ui/tree/TreeView'
-import { UserPage } from '../../ui/UserList'
+import { UserPage } from '../../ui/userList'
 import { UserMenu } from '../../users/UserMenu'
 import { browse, browses, failures, loadedShares, reloadShare, viewShare } from '../browse'
-import { BrowseProgress, FailureLine } from '../BrowseStatus'
+import { BrowseProgress, FailureLine } from '../browseStatus'
 import type { BrowseSearch } from '../params'
 import { UserBox } from '../UserBox'
 import { shareConfig } from './shareConfig'
@@ -32,7 +32,6 @@ export function SharePage({ search, onSearchChange }: Props) {
   const soulseekGate = useSoulseekGate()
   const gate = running === undefined ? soulseekGate : `Already browsing ${username}`
   const ready = loaded?.status === 'ready' ? loaded : undefined
-  const top = ready?.share.top
   const config = useMemo(() => shareConfig(username), [username])
   const criteria = useCriteria(search)
   const sm = useFrom('sm')
@@ -91,11 +90,11 @@ export function SharePage({ search, onSearchChange }: Props) {
           </UserMenu>
           {/* Below sm the summary, its age and Browse again share the line under the box. */}
           <Flex align="center" gap="3" minWidth="0" flexGrow="1" flexBasis={{ initial: '100%', sm: '0' }}>
-            {ready !== undefined && top !== undefined && (
+            {ready !== undefined && (
               <Text size="2" color="gray" truncate>
-                {plural(top.fileCount, 'file')}
-                {top.lockedCount > 0 && ` (${top.lockedCount.toLocaleString()} locked)`} in{' '}
-                {plural(ready.share.folderCount, 'folder')}, {formatBytes(top.size)}
+                {plural(ready.share.top.fileCount, 'file')}
+                {ready.share.top.lockedCount > 0 && ` (${ready.share.top.lockedCount.toLocaleString()} locked)`} in{' '}
+                {plural(ready.share.folderCount, 'folder')}, {formatBytes(ready.share.top.size)}
                 {!sm && (
                   <>
                     , browsed <Ago time={ready.fetchedAt} />
@@ -105,7 +104,7 @@ export function SharePage({ search, onSearchChange }: Props) {
             )}
             <Flex ml="auto" align="center" gap="3" flexShrink="0">
               {ready?.notCached !== undefined && (
-                <Tip content={ready.notCached}>
+                <Tip content={describeError(ready.notCached)}>
                   <Text size="1" color="amber">
                     Not cached
                   </Text>

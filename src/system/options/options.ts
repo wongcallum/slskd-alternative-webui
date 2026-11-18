@@ -1,6 +1,6 @@
-import { api, readsOptions } from '../../lib/api'
+import { api, optionsQueue } from '../../lib/api'
 import { applicationHub, followHub, useLiveResource, type Via } from '../../lib/hubs'
-import { createResource, load, sameItems, useResource } from '../../lib/store'
+import { createResource, load, keepItems, useResource } from '../../lib/store'
 
 // Secrets arrive redacted. Only what's read here is typed, and the rest is shown as it is.
 export type RawOptions = {
@@ -43,14 +43,14 @@ function withoutNulls(value: unknown): unknown {
 let held: { json: string; settings: Settings } | undefined
 
 // The whole object keeps its identity while nothing in it changes.
-function sameSettings(raw: RawOptions) {
+function keepSettings(raw: RawOptions) {
   const settings = withoutNulls(raw) as Settings
   const json = JSON.stringify(settings)
   if (held?.json !== json) held = { json, settings }
   return held.settings
 }
 
-function fromOptions(via: Via, raw: RawOptions): Options {
+function toOptions(via: Via, raw: RawOptions): Options {
   const previous = options.getSnapshot().data
   return {
     via,
@@ -58,19 +58,19 @@ function fromOptions(via: Via, raw: RawOptions): Options {
     remoteFileManagement: raw.remoteFileManagement,
     downloads: raw.directories.downloads,
     incomplete: raw.directories.incomplete,
-    shareDirectories: sameItems(previous?.shareDirectories, raw.shares.directories),
-    shareFilters: sameItems(previous?.shareFilters, raw.shares.filters),
+    shareDirectories: keepItems(previous?.shareDirectories, raw.shares.directories),
+    shareFilters: keepItems(previous?.shareFilters, raw.shares.filters),
     relay: raw.relay.enabled,
     vpn: raw.integrations.vpn?.enabled === true,
-    settings: sameSettings(raw),
+    settings: keepSettings(raw),
   }
 }
 
 const fetchOptions = async (via: Via, signal: AbortSignal) =>
-  fromOptions(via, await readsOptions(() => api.get('options', { signal }).json<RawOptions>()))
+  toOptions(via, await optionsQueue(() => api.get('options', { signal }).json<RawOptions>()))
 
 export const options = createResource<Options>((sink) => {
-  const offOptions = applicationHub.on<RawOptions>('OPTIONS', (raw) => sink.set(fromOptions('hub', raw)))
+  const offOptions = applicationHub.on<RawOptions>('OPTIONS', (raw) => sink.set(toOptions('hub', raw)))
   const following = followHub(applicationHub, sink, {
     snapshot: (signal) => fetchOptions('hub', signal),
     request: (signal) => fetchOptions('poll', signal),
@@ -84,9 +84,11 @@ export const options = createResource<Options>((sink) => {
   }
 })
 
-export const useOptions = () => useResource(options).data
+export const optionsPending = "Checking slskd's options"
 
-export const useLiveOptions = () => useLiveResource(options, applicationHub, optionsPollInterval)
+export const useOptionsData = () => useResource(options).data
+
+export const useOptions = () => useLiveResource(options, applicationHub, optionsPollInterval)
 
 // Only a new process changes these, so they're read again whenever the application hub connects.
 export const startupOptions = createResource<{ debug: boolean }>((sink) => {

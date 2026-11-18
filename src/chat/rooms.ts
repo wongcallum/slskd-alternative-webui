@@ -2,16 +2,34 @@ import { isHTTPError } from 'ky'
 import { useMemo } from 'react'
 
 import { api } from '../lib/api'
+import { application, ownUsername } from '../lib/application'
 import { toTime } from '../lib/format'
-import { createAtom, createResource, createResourceMap, poll, type Resource, useAtom, useResource } from '../lib/store'
+import { sessionSignal } from '../lib/session'
+import {
+  createAtom,
+  createResource,
+  createKeyed,
+  poll,
+  type Resource,
+  useAtom,
+  useResource,
+  without,
+} from '../lib/store'
 import { createStoredAtom } from '../lib/stored'
 import { byUsername, compareExactly } from '../lib/text'
-import { application, ownUsername } from '../system/application'
 import { lastOpen, mentionMatcher, type Message, reuseMessages } from './messages'
 
 export type RawRoomMessage = { timestamp: string; username: string; message: string; self?: boolean }
 
-export type RawRoomUser = { username: string; countryCode?: string | null; fileCount: number; self?: boolean }
+export type RawAvailableRoom = {
+  name: string
+  userCount: number
+  isPrivate: boolean
+  isOwned: boolean
+  isModerated: boolean
+}
+
+export type RawRoomUser = { username: string; countryCode?: string; fileCount: number; self?: boolean }
 
 export type RoomUser = { username: string; country?: string; files: number; self: boolean }
 
@@ -40,7 +58,10 @@ export function setOpenRoom(room: string | undefined) {
 // already holds, so joining a busy room doesn't count 250 messages as unread.
 const roomsSeen = createStoredAtom<Readonly<Record<string, number>>>(
   'slskd-alt-rooms-seen',
-  (stored) => (typeof stored === 'object' && stored !== null ? (stored as Record<string, number>) : undefined),
+  (stored) =>
+    typeof stored === 'object' && stored !== null
+      ? Object.fromEntries(Object.entries(stored).filter(([, time]) => Number.isFinite(time)))
+      : undefined,
   {},
 )
 
@@ -85,7 +106,7 @@ function settlePending(room: string, messages: readonly Message[]) {
   if (left.length !== list.length) setPending(room, () => left)
 }
 
-function toMessages(room: string, raws: RawRoomMessage[], previous?: readonly Message[]): RoomMessages {
+function toMessages(raws: RawRoomMessage[], previous?: readonly Message[]): RoomMessages {
   const mentions = mentionMatcher(ownUsername.get())
   const counts = new Map<string, number>()
   const messages = raws.map((raw): Message => {
@@ -103,21 +124,25 @@ function toMessages(room: string, raws: RawRoomMessage[], previous?: readonly Me
       mention: !self && mentions(raw.message),
     }
   })
-  const reused = reuseMessages(previous, messages)
-  if (roomsSeen.get()[room] === undefined) markSeen(room, reused.at(-1)?.time ?? 0)
-  settlePending(room, reused)
-  return { messages: reused }
+  return { messages: reuseMessages(previous, messages) }
+}
+
+function received(room: string, messages: readonly Message[]) {
+  if (roomsSeen.get()[room] === undefined) markSeen(room, messages.at(-1)?.time ?? 0)
+  settlePending(room, messages)
 }
 
 // Every joined room is polled while the chat page is open, to show which have news, and the open one more often.
-const messageResources = createResourceMap((room) => {
+const messageResources = createKeyed((room: string) => {
   const resource: Resource<RoomMessages> = createResource((sink) =>
     poll(
       sink,
       async (signal, measure) => {
         const text = await api.get(`${path(room)}/messages`, { signal }).text()
         const previous = resource.getSnapshot().data?.messages
-        return measure(() => toMessages(room, JSON.parse(text) as RawRoomMessage[], previous))
+        const data = measure(() => toMessages(JSON.parse(text) as RawRoomMessage[], previous))
+        received(room, data.messages)
+        return data
       },
       () => (room === openRoom ? roomPollInterval : backgroundInterval),
     ),
@@ -137,7 +162,7 @@ function toUser(raw: RawRoomUser): RoomUser {
   }
 }
 
-const userResources = createResourceMap((room) =>
+const userResources = createKeyed((room: string) =>
   createResource<RoomUsers>((sink) => {
     let last: { text: string; data: RoomUsers } | undefined
     return poll(
@@ -216,27 +241,33 @@ export function useRoomNews(room: string) {
   }, [data, seen])
 }
 
+export const fetchAvailableRooms = (signal: AbortSignal) =>
+  api.get('rooms/available', { signal }).json<RawAvailableRoom[]>()
+
 export async function joinRoom(room: string) {
+  const signal = sessionSignal()
   joining.set((current) => new Set(current).add(room))
   try {
-    await api.post('rooms/joined', { json: room })
-    setOverride(room, true)
+    await api.post('rooms/joined', { json: room, signal })
+    if (!signal.aborted) setOverride(room, true)
   } finally {
     joining.set((current) => new Set([...current].filter((each) => each !== room)))
   }
 }
 
 export async function leaveRoom(room: string) {
+  const signal = sessionSignal()
   try {
-    await api.delete(path(room))
+    await api.delete(path(room), { signal })
   } catch (error) {
     if (!isHTTPError(error) || error.response.status !== 404) throw error
   }
+  if (signal.aborted) return
   setOverride(room, false)
   messageResources.forget(room)
   userResources.forget(room)
   setPending(room, () => [])
-  roomsSeen.set((current) => Object.fromEntries(Object.entries(current).filter(([name]) => name !== room)))
+  roomsSeen.set((current) => without(current, room))
   const open = lastOpen.get()
   if (open?.kind === 'room' && open.name === room) lastOpen.set(undefined)
 }
@@ -244,17 +275,18 @@ export async function leaveRoom(room: string) {
 export async function sendToRoom(room: string, text: string) {
   const resource = roomMessages(room)
   const after = resource.getSnapshot().data?.messages.at(-1)?.time ?? 0
-  await api.post(`${path(room)}/messages`, { json: text })
+  const signal = sessionSignal()
+  await api.post(`${path(room)}/messages`, { json: text, signal })
+  if (signal.aborted) return
   const id = nextPending++
   setPending(room, (list) => [...list, { id, text, sentAt: Date.now(), after, unconfirmed: false }])
-  setTimeout(
-    () =>
-      setPending(room, (list) =>
-        list.some((each) => each.id === id)
-          ? list.map((each) => (each.id === id ? { ...each, unconfirmed: true } : each))
-          : list,
-      ),
-    echoTimeout,
-  )
+  setTimeout(() => {
+    if (signal.aborted) return
+    setPending(room, (list) =>
+      list.some((each) => each.id === id)
+        ? list.map((each) => (each.id === id ? { ...each, unconfirmed: true } : each))
+        : list,
+    )
+  }, echoTimeout)
   resource.refresh()
 }

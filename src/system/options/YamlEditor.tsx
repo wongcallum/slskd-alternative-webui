@@ -15,7 +15,7 @@ import {
 import { tags } from '@lezer/highlight'
 import { useEffect, useLayoutEffect, useRef } from 'react'
 
-import { useAppearance } from '../../app/theme'
+import { useAppearance } from '../../lib/theme'
 import { yamlColors } from '../../ui/YamlView'
 import type { Problem } from './check'
 

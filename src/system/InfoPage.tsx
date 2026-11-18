@@ -2,30 +2,31 @@ import { Box, Button, Card, Flex, Grid, Heading, Link, Text } from '@radix-ui/th
 import type { ReactNode } from 'react'
 
 import { version } from '../../package.json'
-import { api, describeError } from '../lib/api'
+import { describeError } from '../lib/api'
+import {
+  type Application,
+  application,
+  applicationPollInterval,
+  checkForUpdate,
+  describePrivileges,
+  releaseNotes,
+  useApplication,
+} from '../lib/application'
 import { formatAge, formatBytes, formatSpeed } from '../lib/format'
 import { useAtom, useClock, useResource } from '../lib/store'
 import { urlBase } from '../lib/urlBase'
 import { useRun } from '../lib/useRun'
 import { ActionButton, ConfirmButton, type Detail, DetailList } from '../ui/controls'
 import { Freshness, Polling } from '../ui/status'
-import {
-  type Application,
-  application,
-  applicationPollInterval,
-  describePrivileges,
-  releaseNotes,
-  useApplication,
-} from './application'
 import { lifecycle, restartPatience, shutDown } from './lifecycle'
-import { useOptions } from './options/options'
+import { useOptionsData } from './options/options'
 import { PendingCallouts, RestartButton, useLifecycleGate } from './PendingCallouts'
 import { processInfo } from './process'
 import { SystemPage } from './SystemPage'
 
 export function InfoPage() {
   const { data, error, live, known } = useApplication()
-  const relay = useOptions()?.relay === true
+  const relay = useOptionsData()?.relay === true
   return (
     <SystemPage status={<Freshness resource={application} interval={applicationPollInterval} live={live} />}>
       <Box flexGrow="1" minHeight="0" overflow="auto">
@@ -108,7 +109,7 @@ function SlskdCard({ data, known }: { data: Application; known: boolean }) {
           label="Check for updates"
           loading={check.running}
           gate={checkGate}
-          onClick={() => check.run(() => api.get('application/version/latest', { searchParams: { forceCheck: true } }))}
+          onClick={() => check.run(checkForUpdate)}
         />
         <RestartButton known={known} />
         <ConfirmButton
@@ -121,12 +122,12 @@ function SlskdCard({ data, known }: { data: Application; known: boolean }) {
           onConfirm={() => void shutDown()}
         />
       </Flex>
-      {check.error !== undefined && (
+      {check.message !== undefined && (
         <Text size="2" color="red">
-          Couldn't check for updates: {check.error}
+          Couldn't check for updates: {check.message}
         </Text>
       )}
-      <LifecycleLine />
+      <LifecycleLine pendingRestart={data.pendingRestart} />
     </Section>
   )
 }
@@ -137,7 +138,8 @@ function Uptime({ startedAt }: { startedAt: number }) {
   return useClock((now) => formatAge(now - startedAt))
 }
 
-function LifecycleLine() {
+// While a restart is pending, its callout is where a failed restart shows.
+function LifecycleLine({ pendingRestart }: { pendingRestart: boolean }) {
   const state = useAtom(lifecycle)
   const overdue = useClock((now) => state.phase === 'restarting' && now - state.since > restartPatience)
   if (state.phase === 'restarting') {
@@ -154,10 +156,11 @@ function LifecycleLine() {
       </Text>
     )
   }
-  if (state.error === undefined) return null
+  const { failed } = state
+  if (failed === undefined || (failed.action === 'restart' && pendingRestart)) return null
   return (
     <Text size="2" color="red">
-      {state.error}
+      {describeError(failed.error)}
     </Text>
   )
 }

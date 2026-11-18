@@ -5,15 +5,16 @@ import { type ReactNode, useEffect } from 'react'
 import { useShareList } from '../browse/browse'
 import { useBrowseUser } from '../browse/useBrowseUser'
 import { describeError } from '../lib/api'
+import type { UserRecord } from '../lib/db'
 import { formatBytes, plural } from '../lib/format'
 import { useAtom, useResource } from '../lib/store'
 import { useSoulseekGate } from '../soulseek/soulseek'
 import { ActionButton, Tip, ToolbarEnd } from '../ui/controls'
 import { LinkedText } from '../ui/LinkedText'
 import { Ago, Busy, Fetched, Loading } from '../ui/status'
-import { UserPage } from '../ui/UserList'
+import { UserPage } from '../ui/userList'
 import { LookUpBox } from './LookUpBox'
-import { LookupErrorLine, PresenceLabel } from './LookupStatus'
+import { LookupErrorLine, PresenceLabel } from './lookupStatus'
 import {
   type DirectionHistory,
   loadPicture,
@@ -24,7 +25,6 @@ import {
   lookups,
   pictures,
   transferHistory,
-  type UserRecord,
   useUserList,
 } from './users'
 
@@ -231,7 +231,9 @@ function Direction({
   username: string
   history: DirectionHistory
 }) {
-  const reasons = history.reasons.map((reason) => `${reason.count.toLocaleString()} × ${reason.exception}`)
+  const reasons = history.reasons.map(
+    (reason) => `${reason.count.toLocaleString()} × ${reason.exception ?? 'No message'}`,
+  )
   return (
     <>
       <Text size="2" weight="medium">

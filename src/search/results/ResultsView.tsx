@@ -21,12 +21,13 @@ import {
   ToolbarEnd,
   useFilterText,
 } from '../../ui/controls'
-import { AmountField, FiltersButton } from '../../ui/Filters'
+import { AmountField, FiltersButton } from '../../ui/filters'
 import { Empty } from '../../ui/status'
 import { collapsed, expandedState, groupFeatures } from '../../ui/table'
+import { searchDownloads } from '../searches'
 import { countFilters, hiddenUsers, noFilters, type ResultsSearch } from './params'
 import { ResultList } from './ResultList'
-import { download, downloadsOf, type FolderFetch, type Results, unfiltered, viewGroups } from './results'
+import { download, type FolderFetch, type Results, unfiltered, viewGroups } from './results'
 import { canSelect, columns, expansions, selectedFiles } from './table'
 
 type Props = {
@@ -88,7 +89,7 @@ export function ResultsView({ searchId, results, folders, params, onSearchChange
 
   const selected = selectedFiles(table)
   const soulseekGate = useSoulseekGate()
-  const downloads = useAtom(downloadsOf(searchId))
+  const downloads = useAtom(searchDownloads.get(searchId))
   const sm = useFrom('sm')
   const lockedField = lockedCount > 0 && (
     <CheckboxField checked={locked} onChange={(checked) => onSearchChange({ locked: checked ? 'show' : 'hide' })}>
@@ -149,7 +150,7 @@ export function ResultsView({ searchId, results, folders, params, onSearchChange
         {selected.length > 0 && (
           <SelectionActions onClear={() => setRowSelection({})}>
             <DownloadButton
-              downloads={downloadsOf(searchId)}
+              downloads={searchDownloads.get(searchId)}
               count={selected.length}
               size={selected.reduce((sum, file) => sum + file.size, 0)}
               onClick={() => void download(searchId, selected).then(() => setRowSelection({}))}
@@ -157,7 +158,7 @@ export function ResultsView({ searchId, results, folders, params, onSearchChange
           </SelectionActions>
         )}
         <ToolbarEnd>
-          <OutcomeLine atom={downloadsOf(searchId)} />
+          <OutcomeLine atom={searchDownloads.get(searchId)} />
           <Text size="2" color="gray">
             {shown === total
               ? `${total.toLocaleString()} files in ${groups.length.toLocaleString()} folders`

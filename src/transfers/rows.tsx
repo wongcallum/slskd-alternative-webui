@@ -18,7 +18,7 @@ import {
   StackedRow,
 } from '../ui/table'
 import { UserCell, UserMenu } from '../users/UserMenu'
-import { type Lookup, lookUpPositions, retry } from './actions'
+import { type PositionLookup, lookUpPositions, retry } from './actions'
 import { fraction, sizeOf, timeKey, timeOf } from './table'
 import {
   type Direction,
@@ -28,9 +28,10 @@ import {
   isTransferring,
   type Section,
   type Transfer,
+  type TransferState,
 } from './transfers'
 
-const stateLabels: Record<string, [string, Color]> = {
+const stateLabels: Record<TransferState, [string, Color]> = {
   Requested: ['Requested', 'gray'],
   'Queued, Locally': ['Queued locally', 'gray'],
   'Queued, Remotely': ['Queued remotely', 'gray'],
@@ -69,7 +70,7 @@ type FileRowProps = {
   shown: ReadonlySet<string>
   selected: boolean
   pending: boolean
-  lookup?: Lookup
+  lookup?: PositionLookup
   gate?: string
   retryGate?: string
   onSelect: (id: string, shiftKey: boolean) => void
@@ -155,7 +156,7 @@ function FileStatus({
   file: Transfer
   direction: Direction
   pending: boolean
-  lookup?: Lookup
+  lookup?: PositionLookup
   layout: Layout
 }) {
   const stacked = layout === 'stacked'
@@ -172,7 +173,7 @@ function FileStatus({
       {file.exception === undefined ? text : <Tip content={file.exception}>{text}</Tip>}
       {file.state === 'Queued, Remotely' &&
         lookup?.pending !== true &&
-        lookup?.error === undefined &&
+        lookup?.message === undefined &&
         place !== undefined && (
           <Text size="1" color="gray">
             #{place}
@@ -184,8 +185,8 @@ function FileStatus({
             )}
           </Text>
         )}
-      {lookup?.error !== undefined && !lookup.pending && file.state === 'Queued, Remotely' && (
-        <Tip content={lookup.error}>
+      {lookup?.message !== undefined && !lookup.pending && file.state === 'Queued, Remotely' && (
+        <Tip content={lookup.message}>
           <Text size="1" color="red">
             position check failed
           </Text>

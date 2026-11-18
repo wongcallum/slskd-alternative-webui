@@ -1,9 +1,9 @@
 import { isHTTPError, type RetryOptions } from 'ky'
 
 import { type Actions, actOnEach, begin, idle, summarise } from '../../lib/actions'
-import { api, readsOptions } from '../../lib/api'
+import { api, optionsQueue } from '../../lib/api'
 import { toTime } from '../../lib/format'
-import { createAtom, createResource, load, type Resource, type Sink } from '../../lib/store'
+import { createAtom, createResource, load, type Resource } from '../../lib/store'
 import { buildTree, type InputDirectory, type Item, type Tree } from '../../lib/tree'
 import { options } from '../options/options'
 import { fetchShares, type Share } from '../shares/shares'
@@ -93,7 +93,7 @@ const retryTripped: RetryOptions = {
 async function fetchFiles(signal: AbortSignal) {
   const listings = await Promise.all(
     roots.map(({ id }) =>
-      readsOptions(() =>
+      optionsQueue(() =>
         api
           .get(`files/${id}/directories`, {
             searchParams: { recursive: true },
@@ -110,19 +110,7 @@ async function fetchFiles(signal: AbortSignal) {
 
 export const filesLoading = createAtom(false)
 
-let active: Sink<Files> | undefined
-
-export const files: Resource<Files> = createResource((sink) => {
-  active = sink
-  const source = load(sink, fetchFiles, { loading: filesLoading })
-  return {
-    stop() {
-      source.stop()
-      if (active === sink) active = undefined
-    },
-    refresh: source.refresh,
-  }
-})
+export const files: Resource<Files> = createResource((sink) => load(sink, fetchFiles, { loading: filesLoading }))
 
 let dropped: string[] = []
 let dropTimer: ReturnType<typeof setTimeout> | undefined
@@ -132,10 +120,8 @@ function drop(path: string) {
   dropped.push(path)
   dropTimer ??= setTimeout(() => {
     dropTimer = undefined
-    const data = files.getSnapshot().data
-    if (data !== undefined && active !== undefined) {
-      active.set(build(data.listings, new Set([...data.removed, ...dropped]), data.fetchedAt))
-    }
+    const paths = dropped
+    files.amend((data) => build(data.listings, new Set([...data.removed, ...paths]), data.fetchedAt))
     dropped = []
   }, 250)
 }
@@ -195,8 +181,9 @@ export function targetsOf(items: readonly Item[]): Target[] {
     const path = item.kind === 'folder' ? item.path : item.filename
     if (inSelectedFolder(path)) return
     const cut = path.indexOf('/')
+    if (cut < 0) return
     const root = roots.find(({ name }) => name === path.slice(0, cut))
-    if (root === undefined || cut < 0) return
+    if (root === undefined) return
     targets.push({ id: path, kind: item.kind, root: root.id, relative: path.slice(cut + 1), size: item.size })
   })
   return targets
@@ -243,7 +230,7 @@ export async function deleteItems(items: readonly Item[]) {
       const encoded = encodePath(target.relative)
       if (encoded === undefined) throw new Error("slskd can't address this name")
       const path = `files/${target.root}/${target.kind === 'folder' ? 'directories' : 'files'}/${encoded}`
-      await readsOptions(() => api.delete(path, { signal }))
+      await optionsQueue(() => api.delete(path, { signal }))
       deleted.push(target)
       drop(target.id)
     },
@@ -253,7 +240,9 @@ export async function deleteItems(items: readonly Item[]) {
   const sharedDeleted = await touchesShares(deleted, operation.signal)
   if (operation.signal.aborted) return
   fileActions.set((state) => ({ ...state, sharedDeleted }))
-  operation.finish(summarise('Deleted', targets.length, errors.length, errors, 'item'))
+  operation.finish(
+    summarise({ verb: 'Deleted', noun: 'item', total: targets.length, failed: errors.length, details: errors }),
+  )
 }
 
 export const dismissSharedHint = () => fileActions.set((state) => ({ ...state, sharedDeleted: false }))

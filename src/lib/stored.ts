@@ -5,9 +5,11 @@ import type { Atom } from './store'
 
 // Another tab changed the key, or cleared the storage.
 export function onStoredChange(key: string, listener: () => void) {
-  window.addEventListener('storage', (event) => {
+  const onStorage = (event: StorageEvent) => {
     if (event.storageArea === localStorage && (event.key === null || event.key === key)) listener()
-  })
+  }
+  window.addEventListener('storage', onStorage)
+  return () => window.removeEventListener('storage', onStorage)
 }
 
 // An atom kept in localStorage and followed across tabs. Unlike createAtom, it survives the session ending.

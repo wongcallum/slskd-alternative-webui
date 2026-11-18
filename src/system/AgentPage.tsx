@@ -1,9 +1,9 @@
 import { Box, Heading, Link, Text } from '@radix-ui/themes'
 import { Navigate, Outlet, Link as RouterLink } from '@tanstack/react-router'
 
+import { application } from '../lib/application'
 import { useResource } from '../lib/store'
 import { useIsActive } from '../ui/nav'
-import { application } from './application'
 
 // An agent has nothing but System to show, so the landing page is System's.
 export function AgentPage() {

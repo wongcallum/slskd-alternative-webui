@@ -2,24 +2,21 @@ import { parseFromWebStream } from '@discoveryjs/json-ext'
 import { isHTTPError } from 'ky'
 
 import { api, describeError, sleep } from '../lib/api'
-import { announce as announceChange, createRecordList, type Database, db, onAnnounce, removeUser } from '../lib/db'
+import {
+  announce as announceChange,
+  createRecordList,
+  type Database,
+  db,
+  onAnnounce,
+  removeUser,
+  type ShareRecord,
+} from '../lib/db'
+import { sessionSignal } from '../lib/session'
 import { createAtom, without } from '../lib/store'
 import { buildTree, type Folder, relativePath, type Tree, type TreeFile } from '../lib/tree'
-import { sessionSignal } from '../session/session'
 import { describePeerError } from '../soulseek/soulseek'
-import { createDownloads, enqueueDownloads } from '../transfers/enqueue'
+import { createDownloads, destinationOf, enqueueDownloads } from '../transfers/enqueue'
 import { packShare, type RawShare, unpackShare } from './pack'
-
-export type ShareRecord = {
-  username: string
-  fetchedAt: number
-  openedAt: number
-  folders: number
-  files: number
-  locked: number
-  size: number
-  bytes: number
-}
 
 // Parsing, building and the first render are separate tasks, so the page can paint between them.
 async function build(username: string, raw: RawShare) {
@@ -35,7 +32,7 @@ const { list: shareList, load: loadShareList, useList } = createRecordList('shar
 
 export const useShareList = useList
 
-export type Ready = { status: 'ready'; share: Tree; fetchedAt: number; notCached?: string }
+export type Ready = { status: 'ready'; share: Tree; fetchedAt: number; notCached?: unknown }
 
 export type Loaded = { status: 'loading' } | { status: 'missing' } | { status: 'failed'; error: unknown } | Ready
 
@@ -61,8 +58,19 @@ function setLoaded(username: string, loaded: Loaded | undefined) {
   })
 }
 
+const reads = new Map<string, Promise<unknown>>()
+
 // A browse or a newer read that lands first wins, and then this one returns undefined.
-async function readShare(username: string) {
+function readShare(username: string) {
+  const read = readStored(username)
+  reads.set(username, read)
+  void read.finally(() => {
+    if (reads.get(username) === read) reads.delete(username)
+  })
+  return read
+}
+
+async function readStored(username: string) {
   const signal = sessionSignal()
   const loading: Loaded = { status: 'loading' }
   setLoaded(username, loading)
@@ -106,14 +114,18 @@ export function viewShare(username: string) {
 
 export const reloadShare = (username: string) => void readShare(username)
 
-// The share in memory, or else the cached one. Undefined when neither is there.
-export async function cachedShare(username: string) {
+// The share in memory, or else the cached one, which it reads if no read is running and waits for if one is. A
+// failed read is a Failure, and undefined means neither has it. Using it counts as opening the share, for eviction.
+export async function cachedShare(username: string): Promise<Ready | Failure | undefined> {
+  if (loadedShares.get().get(username)?.status !== 'ready') {
+    if (!reads.has(username)) void readShare(username)
+    for (let read = reads.get(username); read !== undefined; read = reads.get(username)) await read
+  }
   const loaded = loadedShares.get().get(username)
-  const read = loaded?.status === 'ready' ? loaded : await readShare(username)
-  if (read?.status === 'failed') throw read.error
-  if (read?.status !== 'ready') return undefined
+  if (loaded?.status === 'failed') return { status: 'failed', message: describeError(loaded.error), at: Date.now() }
+  if (loaded?.status !== 'ready') return undefined
   void touch(username)
-  return read
+  return loaded
 }
 
 async function touch(username: string) {
@@ -155,7 +167,7 @@ async function store(record: ShareRecord, blob: Blob) {
 const announce = (username: string) => announceChange({ type: 'share', username })
 
 // Packing takes longer than building the tree, so a browsed share shows before it's stored.
-async function keep(username: string, raw: RawShare, ready: Ready) {
+async function packAndStore(username: string, raw: RawShare, ready: Ready) {
   const signal = sessionSignal()
   const { share, fetchedAt } = ready
   try {
@@ -176,7 +188,7 @@ async function keep(username: string, raw: RawShare, ready: Ready) {
     announce(username)
   } catch (error) {
     if (!signal.aborted && loadedShares.get().get(username) === ready) {
-      setLoaded(username, { ...ready, notCached: describeError(error) })
+      setLoaded(username, { ...ready, notCached: error })
     }
   }
   void loadShareList()
@@ -203,6 +215,7 @@ export async function deleteShare(username: string) {
   } catch {
     // The list below shows whether it's gone.
   }
+  shareDownloads.forget(username)
   setLoaded(username, viewing.has(username) ? { status: 'missing' } : undefined)
   await loadShareList()
   announce(username)
@@ -218,7 +231,7 @@ export type Browse = Phase & { startedAt: number }
 
 export const browses = createAtom<ReadonlyMap<string, Browse>>(new Map())
 
-export type Failure = { error: string; at: number }
+export type Failure = { status: 'failed'; message: string; at: number }
 
 export const failures = createAtom<ReadonlyMap<string, Failure>>(new Map())
 
@@ -303,12 +316,12 @@ async function fetchShare(username: string): Promise<Ready | Failure | undefined
     if (signal.aborted) return undefined
     const ready: Ready = { status: 'ready', share, fetchedAt: Date.now() }
     setLoaded(username, ready)
-    shareDownloadsOf(username).set((state) => ({ ...state, marks: new Map() }))
-    void keep(username, raw, ready)
+    shareDownloads.get(username).set((state) => ({ ...state, marks: new Map() }))
+    void packAndStore(username, raw, ready)
     return ready
   } catch (error) {
     if (signal.aborted) return undefined
-    const failure: Failure = { error: describePeerError(error), at: Date.now() }
+    const failure: Failure = { status: 'failed', message: describePeerError(error), at: Date.now() }
     failures.set((current) => new Map(current).set(username, failure))
     return failure
   } finally {
@@ -328,25 +341,15 @@ export async function browseIfMissing(username: string) {
   void browse(username)
 }
 
-export const shareDownloadsOf = createDownloads()
-
-// slskd puts every file of a batch in one folder, so each remote folder gets its own batch to keep the tree, rooted
-// at the folder the download started from.
-function destinationOf(share: Tree, base: Folder, folder: Folder) {
-  const path = relativePath(share, base.parent ?? base, folder)
-  return path
-    .split(share.separator)
-    .filter((segment) => segment !== '')
-    .join('/')
-}
+export const shareDownloads = createDownloads()
 
 export const downloadFiles = (username: string, share: Tree, base: Folder, files: TreeFile[]) =>
   enqueueDownloads(
-    shareDownloadsOf(username),
+    shareDownloads.get(username),
     [...Map.groupBy(files, (file) => file.folder)].map(([folder, batch]) => ({
       username,
       label: folder.name,
       files: batch,
-      destination: destinationOf(share, base, folder) || undefined,
+      destination: destinationOf(relativePath(share, base.parent ?? base, folder).split(share.separator)),
     })),
   )

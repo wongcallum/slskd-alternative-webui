@@ -48,7 +48,7 @@ type Judged = { quality: number; size: number; length?: number }
 
 export const hasAttributes = (file: Judged) => file.quality >= 0 || file.length !== undefined
 
-export const judging = (criteria: Criteria) =>
+export const isJudging = (criteria: Criteria) =>
   criteria.quality > 0 || criteria.lossy || criteria.size > 0 || criteria.length > 0
 
 // Criteria judge files with attributes. Files without them, such as cover art, pass here, and ride along while their

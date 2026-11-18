@@ -1,9 +1,14 @@
-import { api, describeError } from '../lib/api'
+import { api } from '../lib/api'
 import { applicationHub } from '../lib/hubs'
+import { sessionSignal } from '../lib/session'
 import { createAtom } from '../lib/store'
-import { sessionSignal } from '../session/session'
 
-type Lifecycle = { phase: 'running'; error?: string } | { phase: 'restarting'; since: number } | { phase: 'shutDown' }
+type Action = 'restart' | 'shutDown'
+
+type Lifecycle =
+  | { phase: 'running'; failed?: { action: Action; error: unknown } }
+  | { phase: 'restarting'; since: number }
+  | { phase: 'shutDown' }
 
 export const lifecycle = createAtom<Lifecycle>({ phase: 'running' })
 
@@ -21,13 +26,13 @@ function awaitReturn(signal: AbortSignal) {
   signal.addEventListener('abort', unwatch)
 }
 
-async function stop(request: () => Promise<unknown>, next: Lifecycle) {
+async function stop(action: Action, request: () => Promise<unknown>, next: Lifecycle) {
   const signal = sessionSignal()
   lifecycle.set({ phase: 'running' })
   try {
     await request()
   } catch (error) {
-    if (!signal.aborted) lifecycle.set({ phase: 'running', error: describeError(error) })
+    if (!signal.aborted) lifecycle.set({ phase: 'running', failed: { action, error } })
     return
   }
   if (signal.aborted) return
@@ -35,9 +40,9 @@ async function stop(request: () => Promise<unknown>, next: Lifecycle) {
   awaitReturn(signal)
 }
 
-export const restart = () => stop(() => api.put('application'), { phase: 'restarting', since: Date.now() })
+export const restart = () => stop('restart', () => api.put('application'), { phase: 'restarting', since: Date.now() })
 
-export const shutDown = () => stop(() => api.delete('application'), { phase: 'shutDown' })
+export const shutDown = () => stop('shutDown', () => api.delete('application'), { phase: 'shutDown' })
 
 // slskd shuts down gracefully for up to 30 s while requests are open, and the restarted process gives up if it
 // starts before then (see docs/facts.md).

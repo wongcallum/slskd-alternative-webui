@@ -2,10 +2,9 @@ import { Text } from '@radix-ui/themes'
 
 import { plural } from '../lib/format'
 import { type Color, Tip } from '../ui/controls'
-import type { Search } from './searches'
+import type { Search, SearchState as State } from './searches'
 
-const stateLabels: Record<string, [string, Color, string?]> = {
-  None: ['Requested', 'gray'],
+const stateLabels: Record<State, [string, Color, string?]> = {
   Requested: ['Requested', 'gray'],
   Queued: ['Queued', 'gray', 'Waiting for a slot: slskd runs 2 searches at once'],
   InProgress: ['Searching', 'blue'],

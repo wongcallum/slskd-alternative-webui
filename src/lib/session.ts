@@ -1,9 +1,9 @@
-import { isHTTPError } from 'ky'
+import ky, { isHTTPError } from 'ky'
 import { useSyncExternalStore } from 'react'
 
-import { http } from '../lib/api'
-import { createListeners } from '../lib/listeners'
-import { onStoredChange } from '../lib/stored'
+import { createListeners } from './listeners'
+import { onStoredChange } from './stored'
+import { apiPrefix } from './urlBase'
 
 type Session =
   | { status: 'checking' }
@@ -14,10 +14,12 @@ type Session =
 
 const tokenKey = 'slskd-alt-token'
 
+const unauthenticated = ky.create({ prefix: apiPrefix, retry: 0 })
+
 let session: Session = { status: 'checking' }
 const listeners = createListeners()
 const endListeners = createListeners()
-let run = 0
+let generation = 0
 let retryTimer: ReturnType<typeof setTimeout> | undefined
 
 const inApp = ({ status }: Session) => status === 'open' || status === 'authenticated'
@@ -30,7 +32,7 @@ function set(next: Session) {
 }
 
 function settle(next: Session) {
-  run++
+  generation++
   clearTimeout(retryTimer)
   set(next)
 }
@@ -55,7 +57,7 @@ function removeToken(token: string) {
 
 async function validate(token: string) {
   try {
-    await http.get('session', { headers: { Authorization: `Bearer ${token}` } })
+    await unauthenticated.get('session', { headers: { Authorization: `Bearer ${token}` } })
     return true
   } catch (error) {
     if (isHTTPError(error) && error.response.status === 401) return false
@@ -64,16 +66,16 @@ async function validate(token: string) {
 }
 
 async function check(ended: boolean, attempt = 0) {
-  const current = ++run
+  const current = ++generation
   clearTimeout(retryTimer)
   if (session.status !== 'unreachable') set({ status: 'checking' })
   const token = localStorage.getItem(tokenKey)
   try {
     const [enabled, valid] = await Promise.all([
-      http.get('session/enabled').json<boolean>(),
+      unauthenticated.get('session/enabled').json<boolean>(),
       token !== null && validate(token),
     ])
-    if (current !== run) return
+    if (current !== generation) return
     if (!enabled) set({ status: 'open' })
     else if (token !== null && valid) set({ status: 'authenticated', token })
     else {
@@ -81,7 +83,7 @@ async function check(ended: boolean, attempt = 0) {
       set({ status: 'anonymous', ended: ended || token !== null })
     }
   } catch (error) {
-    if (current !== run) return
+    if (current !== generation) return
     const retry = () => void check(ended, attempt + 1)
     retryTimer = setTimeout(retry, [1000, 2000][attempt] ?? 5000)
     set({ status: 'unreachable', error, retry })
@@ -89,13 +91,15 @@ async function check(ended: boolean, attempt = 0) {
 }
 
 export function endSession(sentToken: string | undefined) {
-  if (session.status === 'authenticated' ? sentToken !== session.token : session.status !== 'open') return
+  // With auth on, only a 401 to the current token counts. With it off, any 401 means it was turned on.
+  const current = session.status === 'authenticated' ? sentToken === session.token : session.status === 'open'
+  if (!current) return
   if (sentToken !== undefined) removeToken(sentToken)
   void check(true)
 }
 
 export async function login(username: string, password: string) {
-  const { token } = await http.post('session', { json: { username, password } }).json<{ token: string }>()
+  const { token } = await unauthenticated.post('session', { json: { username, password } }).json<{ token: string }>()
   localStorage.setItem(tokenKey, token)
   settle({ status: 'authenticated', token })
 }

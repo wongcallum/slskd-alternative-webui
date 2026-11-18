@@ -1,7 +1,9 @@
-import { api } from '../lib/api'
-import { plural, toTime } from '../lib/format'
-import { applicationHub, followHub, useLiveResource, type Via } from '../lib/hubs'
-import { createAtom, createResource, sameItems, useResource } from '../lib/store'
+import { api } from './api'
+import { plural, toTime } from './format'
+import { applicationHub, followHub, useLiveResource, type Via } from './hubs'
+import { createAtom, createResource, keepItems, shallowEqual, useResource } from './store'
+
+export type RelayMode = 'Controller' | 'Agent' | 'Debug'
 
 // GET /application omits nulls, while the hub keeps them.
 export type RawState = {
@@ -30,7 +32,7 @@ export type RawState = {
     forwardedPort?: number | null
   }
   relay: {
-    mode: string
+    mode: RelayMode
     controller: { address?: string | null; state: string }
     agents: { name: string; ipAddress: string }[]
   }
@@ -106,7 +108,7 @@ export type Application = {
   vpnAddress?: string
   vpnLocation?: string
   vpnPort?: number
-  relayMode: string
+  relayMode: RelayMode
   controllerAddress?: string
   controllerState: string
   agents: readonly Agent[]
@@ -114,19 +116,12 @@ export type Application = {
 
 export type Agent = { name: string; address: string }
 
-const sameAgents = (previous: readonly Agent[] | undefined, next: readonly Agent[]) =>
-  previous !== undefined &&
-  previous.length === next.length &&
-  previous.every((each, i) => each.name === next[i]?.name && each.address === next[i]?.address)
-    ? previous
-    : next
-
 export const applicationPollInterval = 2000
 
 // Release builds report a fourth version part of 0, which their tags don't have.
 const trimVersion = (version: string) => version.replace(/^(\d+\.\d+\.\d+)\.0$/, '$1')
 
-function fromState(via: Via, state: RawState): Application {
+function toApplication(via: Via, state: RawState): Application {
   const { version, server, user, distributedNetwork: network, shares, vpn, relay } = state
   const previous = application.getSnapshot().data
   const incoming = state.health.search.incoming
@@ -171,7 +166,7 @@ function fromState(via: Via, state: RawState): Application {
     children: network.children.length,
     childLimit: network.childLimit,
     acceptsChildren: network.canAcceptChildren,
-    rooms: sameItems(previous?.rooms, state.rooms),
+    rooms: keepItems(previous?.rooms, state.rooms),
     commit: /\+([0-9a-f]+)/.exec(version.full)?.[1],
     awaitingVpn: state.connectionWatchdog.isAwaitingVpn === true,
     vpnConnected: vpn?.isConnected === true,
@@ -181,18 +176,19 @@ function fromState(via: Via, state: RawState): Application {
     relayMode: relay.mode,
     controllerAddress: relay.controller.address ?? undefined,
     controllerState: relay.controller.state,
-    agents: sameAgents(
+    agents: keepItems(
       previous?.agents,
       relay.agents.map((agent) => ({ name: agent.name, address: agent.ipAddress })),
+      shallowEqual,
     ),
   }
 }
 
 const fetchState = async (via: Via, signal: AbortSignal) =>
-  fromState(via, await api.get('application', { signal }).json<RawState>())
+  toApplication(via, await api.get('application', { signal }).json<RawState>())
 
 export const application = createResource<Application>((sink) => {
-  const offState = applicationHub.on<RawState>('STATE', (state) => sink.set(fromState('hub', state)))
+  const offState = applicationHub.on<RawState>('STATE', (state) => sink.set(toApplication('hub', state)))
   const following = followHub(applicationHub, sink, {
     snapshot: (signal) => fetchState('hub', signal),
     request: (signal) => fetchState('poll', signal),
@@ -215,6 +211,9 @@ application.watch(() => {
 })
 
 export const stateGate = (known: boolean) => (known ? undefined : "slskd's state is out of date")
+
+// slskd's forced check ignores no_version_check, so it only runs from a click.
+export const checkForUpdate = () => api.get('application/version/latest', { searchParams: { forceCheck: true } })
 
 export const releaseNotes = (version: string) => `https://github.com/slskd/slskd/releases/tag/${version}`
 

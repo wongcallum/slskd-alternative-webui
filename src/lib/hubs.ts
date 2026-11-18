@@ -1,9 +1,9 @@
 import { type HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signalr'
 import { useSyncExternalStore } from 'react'
 
-import { getSession } from '../session/session'
 import { api } from './api'
 import { createListeners } from './listeners'
+import { getSession } from './session'
 import { type Measure, poll, type Resource, type Sink, type Source, useResource, useStale } from './store'
 import { urlBase } from './urlBase'
 
@@ -167,7 +167,9 @@ export function followHub<T>(
   const controller = new AbortController()
   if (hub.getStatus().state === 'connected') {
     snapshot(controller.signal).then(
-      (data) => sink.set(data),
+      (data) => {
+        if (!controller.signal.aborted) sink.set(data)
+      },
       (error: unknown) => {
         if (!controller.signal.aborted) sink.fail(error)
       },

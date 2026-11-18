@@ -1,12 +1,13 @@
 import { browse, cachedShare } from '../../browse/browse'
 import { api, describeError } from '../../lib/api'
-import { type Criteria, hasAttributes, judging, passes, unjudged } from '../../lib/criteria'
+import { type Criteria, hasAttributes, isJudging, passes, unjudged } from '../../lib/criteria'
 import { describeRange, lastSeparator, nameOf, qualityOf, type RawFile, widenRange } from '../../lib/files'
+import { sessionSignal } from '../../lib/session'
 import { createAtom } from '../../lib/store'
 import { byName, byUsername, comparePaths, queryMatcher } from '../../lib/text'
 import { filesUnder, type TreeFile } from '../../lib/tree'
-import { sessionSignal } from '../../session/session'
-import { type Batch, createDownloads, enqueueDownloads } from '../../transfers/enqueue'
+import { type Batch, destinationOf, enqueueDownloads } from '../../transfers/enqueue'
+import { searchDownloads } from '../searches'
 
 export type RawResponse = {
   username: string
@@ -66,6 +67,10 @@ export type Results = {
 
 const directoryOf = (filename: string) => filename.slice(0, Math.max(0, lastSeparator(filename)))
 
+// A folder's id ends in a newline, which no filename does, so it can't be a file's.
+const fileId = (username: string, filename: string) => `${username}\n${filename}`
+const folderId = (username: string, directory: string) => `${username}\n${directory}\n`
+
 // A folder is rated by its worst file, ignoring files without attributes such as cover art.
 function qualityRange(files: ResultFile[]): [number, string] {
   const range: { worst?: ResultFile; best?: ResultFile } = {}
@@ -77,7 +82,7 @@ function toFile(raw: RawFile, peer: Peer, locked: boolean, matched: boolean): Re
   const [quality, qualityLabel] = qualityOf(raw)
   return {
     kind: 'file',
-    id: `${peer.username}\n${raw.filename}`,
+    id: fileId(peer.username, raw.filename),
     peer,
     username: peer.username,
     directory: directoryOf(raw.filename),
@@ -154,7 +159,7 @@ function toResults(responses: RawResponse[]): Results {
     ] as const) {
       for (const raw of raws) {
         const file = toFile(raw, peer, isLocked, true)
-        const id = `${peer.username}\n${file.directory}\n`
+        const id = folderId(peer.username, file.directory)
         let folder = folders.get(id)
         if (folder === undefined) folders.set(id, (folder = { peer, directory: file.directory, files: new Map() }))
         if (folder.files.has(file.id)) continue
@@ -184,7 +189,7 @@ export type FolderFetch = {
   files?: ResultFile[]
   fetchedAt?: number
   missing?: boolean
-  error?: string
+  message?: string
   failedAt?: number
 }
 
@@ -205,7 +210,7 @@ const countAttributed = (files: ResultFile[]) => files.reduce((count, file) => c
 export function viewGroups(results: Results, folders: ReadonlyMap<string, FolderFetch>, filter: ResultFilter) {
   const base = filter.locked ? results.all : results.unlocked
   const matches = queryMatcher(filter.query)
-  const judged = judging(filter)
+  const judged = isJudging(filter)
   if (
     matches === undefined &&
     !judged &&
@@ -222,12 +227,11 @@ export function viewGroups(results: Results, folders: ReadonlyMap<string, Folder
     const fetched = folders.get(group.id)?.files ?? []
     const extras = filter.locked ? fetched : fetched.filter((file) => !file.locked)
     let files = matches === undefined ? group.files : group.files.filter((file) => matches(file.search))
-    if (judged) {
-      files = files.filter((file) => passes(filter, file))
-      if (countAttributed(files) + countAttributed(extras) === 0) files = []
-    }
-    if (files.length + extras.length === 0) continue
-    if (filter.files > 0 && countAttributed(files) + countAttributed(extras) < filter.files) continue
+    if (judged) files = files.filter((file) => passes(filter, file))
+    const attributed = countAttributed(files) + countAttributed(extras)
+    // Files without attributes, such as cover art, stay only beside one that passes.
+    if (judged && attributed === 0) files = []
+    if (files.length + extras.length === 0 || attributed < filter.files) continue
     if (extras.length === 0 && files.length === group.files.length) view.push(group)
     else {
       const merged = extras.length === 0 ? files : [...files, ...extras].sort(byName)
@@ -267,6 +271,7 @@ export function openResults(id: string) {
 
 // Responses never change once saved, so they're fetched once, without a timeout since they can be several MB.
 export async function loadResults(id: string) {
+  openResults(id)
   const entry = entries.get().get(id)
   if (entry === undefined || entry.loading || entry.results !== undefined) return
   const signal = sessionSignal()
@@ -291,16 +296,25 @@ const fetchedFile = (file: TreeFile, group: ResultGroup): ResultFile => ({
 
 // The folder comes from the user's whole share rather than a request for the folder, since slskd peers answer that
 // with files from other folders too, under paths that don't exist.
-export async function fetchFolder(searchId: string, group: ResultGroup, fresh: boolean) {
+export async function fetchFolder(searchId: string, group: ResultGroup, source: 'cache' | 'peer') {
   const signal = sessionSignal()
   const previous = entries.get().get(searchId)?.folders.get(group.id)
   const set = (fetch: FolderFetch) =>
     update(searchId, (entry) => ({ ...entry, folders: new Map(entry.folders).set(group.id, fetch) }))
+  const fail = (message: string) => set({ ...previous, pending: false, missing: false, message, failedAt: Date.now() })
   set({ ...previous, pending: true })
   try {
-    const outcome = (fresh ? undefined : await cachedShare(group.username)) ?? (await browse(group.username))
-    if (outcome === undefined) return
-    if (!('share' in outcome)) throw new Error(outcome.error)
+    const outcome = source === 'cache' ? await cachedShare(group.username) : await browse(group.username)
+    if (signal.aborted) return
+    if (outcome === undefined) {
+      // A browse only comes from a control gated on Soulseek, which the cached read's isn't.
+      if (source === 'cache') fail('The share is no longer cached')
+      return
+    }
+    if (outcome.status === 'failed') {
+      fail(outcome.message)
+      return
+    }
     const folder = outcome.share.byPath.get(group.directory)
     if (folder === undefined) {
       set({ pending: false, fetchedAt: outcome.fetchedAt, missing: true, failedAt: Date.now() })
@@ -319,13 +333,9 @@ export async function fetchFolder(searchId: string, group: ResultGroup, fresh: b
       .sort(byName)
     set({ pending: false, files, fetchedAt: outcome.fetchedAt })
   } catch (error) {
-    if (!signal.aborted) {
-      set({ ...previous, pending: false, missing: false, error: describeError(error), failedAt: Date.now() })
-    }
+    if (!signal.aborted) fail(describeError(error))
   }
 }
-
-export const downloadsOf = createDownloads()
 
 const within = (directory: string, root: string) =>
   directory === root || directory.startsWith(`${root}\\`) || directory.startsWith(`${root}/`)
@@ -350,12 +360,10 @@ export function download(searchId: string, files: ResultFile[]) {
     if (batch === undefined) {
       const destination =
         root &&
-        [nameOf(root.directory), ...file.directory.slice(root.directory.length + 1).split(/[\\/]/)]
-          .filter((segment) => segment !== '')
-          .join('/')
+        destinationOf([nameOf(root.directory), ...file.directory.slice(root.directory.length + 1).split(/[\\/]/)])
       batches.set(key, (batch = { username: file.username, label: file.username, files: [], searchId, destination }))
     }
     batch.files.push(file)
   }
-  return enqueueDownloads(downloadsOf(searchId), [...batches.values()])
+  return enqueueDownloads(searchDownloads.get(searchId), [...batches.values()])
 }

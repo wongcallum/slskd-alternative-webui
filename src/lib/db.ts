@@ -1,10 +1,36 @@
 import { type DBSchema, type IDBPDatabase, openDB, type StoreNames } from 'idb'
 import { useEffect } from 'react'
 
-import type { ShareRecord } from '../browse/browse'
-import { sessionSignal } from '../session/session'
-import type { UserRecord } from '../users/users'
+import { sessionSignal } from './session'
 import { createAtom, useAtom } from './store'
+
+export type ShareRecord = {
+  username: string
+  fetchedAt: number
+  openedAt: number
+  folders: number
+  files: number
+  locked: number
+  size: number
+  bytes: number
+}
+
+export type Presence = 'Online' | 'Away' | 'Offline'
+
+// From the server, along with the address.
+type UserStatus = { presence: Presence; privileged: boolean; address?: string; fetchedAt: number }
+
+// From the user's own client. The picture is stored apart, so the list stays small.
+type UserInfo = {
+  description: string
+  hasPicture: boolean
+  freeSlot: boolean
+  slots: number
+  queue: number
+  fetchedAt: number
+}
+
+export type UserRecord = { username: string; status?: UserStatus; info?: UserInfo }
 
 interface Schema extends DBSchema {
   shares: { key: string; value: ShareRecord }
@@ -54,16 +80,18 @@ export const db = () =>
 
 type Change = { type: 'share' | 'user'; username: string }
 
-const channel = typeof BroadcastChannel === 'undefined' ? undefined : new BroadcastChannel('slskd-alt')
+const channel = new BroadcastChannel('slskd-alt')
 
 // oxlint-disable-next-line unicorn/require-post-message-target-origin -- BroadcastChannel has no target origin
-export const announce = (change: Change) => channel?.postMessage(change)
+export const announce = (change: Change) => channel.postMessage(change)
 
 // Another tab stored or deleted something.
 export function onAnnounce(type: Change['type'], listener: (username: string) => void) {
-  channel?.addEventListener('message', (event: MessageEvent<Change>) => {
+  const onMessage = (event: MessageEvent<Change>) => {
     if (event.data.type === type) listener(event.data.username)
-  })
+  }
+  channel.addEventListener('message', onMessage)
+  return () => channel.removeEventListener('message', onMessage)
 }
 
 // A user's record and whatever is stored beside it, in one transaction.
@@ -96,12 +124,17 @@ export function createRecordList<S extends 'shares' | 'users'>(store: S) {
   return { list, load, useList }
 }
 
+export type UserEntry<Fields> = { username: string } & Partial<Fields>
+
 // A landing page's entries, one per user, from the stored records and whatever else knows of them.
-export function entriesByUser<E extends { username: string }>(fill: (entryOf: (username: string) => E) => void) {
-  const byUser = new Map<string, E>()
+export function entriesByUser<Fields>(fill: (entryOf: (username: string) => UserEntry<Fields>) => void) {
+  const byUser = new Map<string, UserEntry<Fields>>()
   fill((username) => {
-    let entry = byUser.get(username)
-    if (entry === undefined) byUser.set(username, (entry = { username } as E))
+    const existing = byUser.get(username)
+    if (existing !== undefined) return existing
+    const fields: Partial<Fields> = {}
+    const entry = Object.assign(fields, { username })
+    byUser.set(username, entry)
     return entry
   })
   return [...byUser.values()]

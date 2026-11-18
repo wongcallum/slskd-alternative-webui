@@ -5,7 +5,7 @@ import { type ReactNode, useRef } from 'react'
 
 import { useBrowseUser } from '../browse/useBrowseUser'
 import { useRowTabIndex } from '../ui/listNav'
-import { stop } from '../ui/table'
+import { stopPropagation } from '../ui/table'
 import { useLookUpUser } from './useLookUpUser'
 
 type Place = 'profile' | 'message' | 'browse'
@@ -19,7 +19,7 @@ export function UserMenu({ username, here, onReply, onHide, children }: Props) {
   const replying = useRef(false)
   return (
     <DropdownMenu.Root>
-      <DropdownMenu.Trigger onClick={stop}>
+      <DropdownMenu.Trigger onClick={stopPropagation}>
         {children ?? (
           <button type="button" className="user-name-button" tabIndex={tabIndex}>
             {username}
@@ -28,7 +28,7 @@ export function UserMenu({ username, here, onReply, onHide, children }: Props) {
       </DropdownMenu.Trigger>
       <DropdownMenu.Content
         size="1"
-        onClick={stop}
+        onClick={stopPropagation}
         onCloseAutoFocus={(event) => {
           if (!replying.current) return
           replying.current = false

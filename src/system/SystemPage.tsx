@@ -1,11 +1,11 @@
 import { Flex, VisuallyHidden } from '@radix-ui/themes'
 import type { ReactNode } from 'react'
 
+import { application, rescanNeeded } from '../lib/application'
 import { useResource } from '../lib/store'
 import { toolbarStyle } from '../ui/controls'
 import { NavTab, NavTabs } from '../ui/nav'
 import { StatusDot } from '../ui/status'
-import { application, rescanNeeded } from './application'
 
 export function SystemPage({ status, children }: { status?: ReactNode; children: ReactNode }) {
   const { data } = useResource(application)

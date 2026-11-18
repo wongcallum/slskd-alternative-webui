@@ -3,13 +3,13 @@ import * as v from 'valibot'
 import type { RawProgress } from '../../src/browse/browse'
 import type { RawShare as RawBrowse } from '../../src/browse/pack'
 import type { RawConversation, RawPrivateMessage } from '../../src/chat/conversations'
-import type { RawAvailableRoom } from '../../src/chat/JoinRoomDialog'
+import type { RawAvailableRoom } from '../../src/chat/rooms'
 import type { RawRoomMessage, RawRoomUser } from '../../src/chat/rooms'
 import type { RawFolder, RawHistogram, RawLeader, RawReason, RawSummary } from '../../src/dashboard/reports'
+import type { RawState } from '../../src/lib/application'
 import type { RawDirectory } from '../../src/lib/files'
 import type { RawResponse } from '../../src/search/results/results'
 import type { RawSearch } from '../../src/search/searches'
-import type { RawState } from '../../src/system/application'
 import type { RawEvent } from '../../src/system/events'
 import type { RawListing } from '../../src/system/files/files'
 import type { RawLog } from '../../src/system/logs'
@@ -254,7 +254,16 @@ export const search = shape<RawSearch>(
   v.object({
     id: v.pipe(v.string(), v.uuid()),
     searchText: v.string(),
-    state: v.string(),
+    state: v.picklist([
+      'Requested',
+      'Queued',
+      'InProgress',
+      'Completed, TimedOut',
+      'Completed, ResponseLimitReached',
+      'Completed, FileLimitReached',
+      'Completed, Cancelled',
+      'Completed, Errored',
+    ]),
     isComplete: v.boolean(),
     startedAt: utc,
     endedAt: v.nullish(utc),
@@ -292,7 +301,7 @@ export const reasons = shape<RawReason[]>(
 const history = v.object({
   summary: byState,
   statistics: v.object({ total: count, successful: count, cancelled: count }),
-  exceptions: v.array(v.object({ exception: v.string(), count })),
+  exceptions: v.array(v.object({ exception: v.optional(v.string()), count })),
 })
 
 export const userHistory = shape<{ Download: RawDirection; Upload: RawDirection }>(
@@ -373,7 +382,7 @@ export const roomUsers = shape<RawRoomUser[]>(
   v.array(
     v.object({
       username: v.string(),
-      countryCode: v.nullish(v.string()),
+      countryCode: v.optional(v.string()),
       fileCount: count,
       self: v.optional(v.boolean()),
     }),

@@ -33,7 +33,7 @@ import { type ListNav, RowScope, useRowTabIndex } from './listNav'
 import { type Columns, columnsVar, onResizeKey, ResizeHandles, type Track } from './widths'
 
 // Clicks on controls inside a row mustn't also select or expand it, and React bubbles clicks out of portals too.
-export const stop = (event: { stopPropagation: () => void }) => event.stopPropagation()
+export const stopPropagation = (event: { stopPropagation: () => void }) => event.stopPropagation()
 
 const preventShiftSelection = (event: MouseEvent) => {
   if (event.shiftKey) event.preventDefault()
@@ -166,7 +166,10 @@ export const rowHeight = 36
 // Stacked rows have a title line and a line or two of details below it, for screens too narrow for columns.
 export const stackedHeight = 56
 
-export const stackedHeight3 = 72
+export const stackedThreeLineHeight = 72
+
+export const stackedRowHeight = (row: { original: { kind: string } }) =>
+  row.original.kind === 'group' ? stackedThreeLineHeight : stackedHeight
 
 export const columnsHeight = 32
 
@@ -177,7 +180,8 @@ export type Templates = Record<Exclude<Layout, 'stacked'>, string>
 export type LayoutTracks = Record<Exclude<Layout, 'stacked'>, readonly Track[]>
 
 // Stacked rows have no columns, but the hook that sizes them still runs.
-export const tracksFor = (tracks: LayoutTracks, layout: Layout) => tracks[layout === 'stacked' ? 'medium' : layout]
+export const tracksFor = <T,>(tracks: Record<Exclude<Layout, 'stacked'>, T>, layout: Layout) =>
+  tracks[layout === 'stacked' ? 'medium' : layout]
 
 export function useLayout(): Layout {
   const md = useFrom('md')
@@ -273,7 +277,7 @@ export function StackedRow({
         </div>
       )}
       {actions !== undefined && (
-        <Flex className="table-stacked-actions" gap="3" align="center" justify="end" onClick={stop}>
+        <Flex className="table-stacked-actions" gap="3" align="center" justify="end" onClick={stopPropagation}>
           {actions}
         </Flex>
       )}
@@ -311,7 +315,7 @@ export function CheckCell({
     <div
       className="table-cell table-check"
       onClick={(event) => {
-        stop(event)
+        stopPropagation(event)
         if (!disabled) onToggle(event.shiftKey)
       }}
     >
@@ -368,7 +372,7 @@ export function GroupNameCell({ title, ...props }: GroupNameProps & { title: str
 
 export function ActionsCell({ gap = '3', children }: { gap?: FlexProps['gap']; children: ReactNode }) {
   return (
-    <Flex className="table-cell" gap={gap} align="center" justify="end" onClick={stop}>
+    <Flex className="table-cell" gap={gap} align="center" justify="end" onClick={stopPropagation}>
       {children}
     </Flex>
   )

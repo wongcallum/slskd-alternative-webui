@@ -21,13 +21,14 @@ import { chatSearch, chatSearchDefaults, roomsSearch, roomsSearchDefaults } from
 import { RoomView } from '../chat/RoomView'
 import { DashboardPage, loadChart } from '../dashboard/DashboardPage'
 import { dashboardSearch, dashboardSearchDefaults } from '../dashboard/params'
+import { useSearchProps } from '../lib/params'
+import { onSessionEnd } from '../lib/session'
 import { useResource } from '../lib/store'
 import { searchesSearch, searchesSearchDefaults } from '../search/params'
 import { resultsSearch, resultsSearchDefaults } from '../search/results/params'
 import { ResultsPage } from '../search/results/ResultsPage'
 import { searches } from '../search/searches'
 import { SearchesPage } from '../search/SearchesPage'
-import { onSessionEnd } from '../session/session'
 import { SessionGate } from '../session/SessionGate'
 import { FilesPage } from '../system/files/FilesPage'
 import { filesSearch, filesSearchDefaults } from '../system/files/params'
@@ -44,7 +45,6 @@ import { usersSearch, usersSearchDefaults } from '../users/params'
 import { ProfilePage } from '../users/ProfilePage'
 import { UsersPage } from '../users/UsersPage'
 import { NotFound, RouteError } from './pages'
-import { useSearchProps } from './search'
 import { Shell } from './Shell'
 
 const loadYamlPages = () => import('./yamlPages')
@@ -324,8 +324,9 @@ export const router = createRouter({
   stringifySearch: stringifySearchWith(String),
 })
 
-// Titles come from snapshots the session's end has just cleared, like a search's text.
-onSessionEnd(() => void router.invalidate())
+// Titles come from snapshots the session's end clears, like a search's text, so they're read again once every
+// listener has run.
+onSessionEnd(() => queueMicrotask(() => void router.invalidate()))
 
 trackHistory(router.history)
 

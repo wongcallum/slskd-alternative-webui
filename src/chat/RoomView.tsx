@@ -3,11 +3,11 @@ import { Button, Flex, Text } from '@radix-ui/themes'
 import { Navigate } from '@tanstack/react-router'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { ownUsername } from '../lib/application'
 import { useFrom } from '../lib/media'
 import { useAtom, useResource } from '../lib/store'
 import { useRun } from '../lib/useRun'
 import { useSoulseekGate } from '../soulseek/soulseek'
-import { ownUsername } from '../system/application'
 import { disabledProps } from '../ui/controls'
 import { ActionNote, Loading } from '../ui/status'
 import { renderUserMenu } from '../users/UserMenu'
@@ -51,7 +51,7 @@ function RoomsIndex({ rooms }: { rooms: readonly string[] }) {
 
 function NotJoined({ room }: { room: string }) {
   const gate = useSoulseekGate()
-  const { running, error, run } = useRun()
+  const { running, message, run } = useRun()
   return (
     <Flex direction="column" flexGrow="1">
       <ChatToolbar title={room} />
@@ -64,7 +64,7 @@ function NotJoined({ room }: { room: string }) {
         >
           Join {room}
         </Button>
-        <ActionNote error={error} gate={gate} size="2" />
+        <ActionNote message={message} gate={gate} size="2" />
       </Flex>
     </Flex>
   )

@@ -1,6 +1,6 @@
 import { type APIRequestContext, test as base, expect, type Page, request } from '@playwright/test'
 
-import type { RawState } from '../src/system/application'
+import type { RawState } from '../src/lib/application'
 import type { RawTransfer, RawUser } from '../src/transfers/transfers'
 import { type Config, credentials, type Instance, logIn, start, startAgent } from './slskd'
 import { type Network, type Peer, startLoggedIn, startNetwork, uploadsEnded } from './soulseek'

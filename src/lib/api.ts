@@ -1,16 +1,16 @@
-import ky, { isHTTPError } from 'ky'
+import ky, { isHTTPError, isNetworkError, isTimeoutError, type RetryOptions } from 'ky'
 import pLimit from 'p-limit'
 
-import { endSession, getSession } from '../session/session'
-import { urlBase } from './urlBase'
+import { endSession, getSession } from './session'
+import { apiPrefix } from './urlBase'
 
 class SessionEndedError extends Error {
   override name = 'SessionEndedError'
 }
 
-export const http = ky.create({ prefix: `${urlBase}/api/v0`, retry: 0 })
-
-export const api = http.extend({
+export const api = ky.create({
+  prefix: apiPrefix,
+  retry: 0,
   hooks: {
     beforeRequest: [
       ({ request }) => {
@@ -34,24 +34,22 @@ export const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve
 // A request that reads slskd's options makes it write and delete a file in the downloads and incomplete directories,
 // and a recursive listing that comes across one fails (see the facts). So the Files page's requests and the options
 // go one at a time.
-export const readsOptions = pLimit(1)
+export const optionsQueue = pLimit(1)
 
 // slskd answers 429 without doing anything when a concurrency limit is reached, so the request is resent as part
-// of the same gesture rather than reported as a failure.
-export async function resendOn429<T>(send: () => Promise<T>, signal?: AbortSignal) {
-  const deadline = Date.now() + 30_000
-  for (;;) {
-    try {
-      return await send()
-    } catch (error) {
-      if (!isHTTPError(error) || error.response.status !== 429 || Date.now() >= deadline) throw error
-      await sleep(1000)
-      signal?.throwIfAborted()
-    }
-  }
+// of the same gesture, for up to 30 s, rather than reported as a failure. Nothing else is resent, since a POST that
+// failed some other way may still have been carried out.
+export const resendOn429: RetryOptions = {
+  limit: 30,
+  methods: ['post'],
+  delay: () => 1000,
+  shouldRetry: ({ error }) => isHTTPError(error) && error.response.status === 429,
 }
 
+// ky's own messages for these carry the whole request URL.
 export function describeError(error: unknown) {
+  if (isNetworkError(error)) return "Couldn't connect to slskd"
+  if (isTimeoutError(error)) return "slskd didn't answer in time"
   if (isHTTPError(error)) {
     const detail = typeof error.data === 'string' ? error.data : JSON.stringify(error.data)
     return `HTTP ${error.response.status}${error.data ? `: ${detail}` : ''}`

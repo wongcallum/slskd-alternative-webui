@@ -1,6 +1,6 @@
-import { useMedia } from '../lib/media'
-import { useAtom } from '../lib/store'
-import { createStoredAtom } from '../lib/stored'
+import { useMedia } from './media'
+import { useAtom } from './store'
+import { createStoredAtom } from './stored'
 
 type Appearance = 'light' | 'dark'
 

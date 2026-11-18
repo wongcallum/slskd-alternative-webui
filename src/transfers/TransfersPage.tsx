@@ -25,7 +25,7 @@ import {
   type Group,
   isFinished,
   isRetryable,
-  pollInterval,
+  transfersPollInterval,
   type Transfer,
   type Transfers,
   transfers,
@@ -58,32 +58,34 @@ export function TransfersPage({ direction, search, onSearchChange }: Props) {
     setActiveSelection((current) => keepPresent(current, data?.active))
     setFinishedSelection((current) => keepPresent(current, data?.finished))
   }
-  const activeTable = useSectionTable(
-    'active',
-    active,
-    search.activeSort,
-    expansion.active,
-    activeSelection,
-    setActiveSelection,
-    (activeSort) => onSearchChange({ activeSort }),
-  )
-  const finishedTable = useSectionTable(
-    'finished',
-    finished,
-    search.finishedSort,
-    expansion.finished,
-    finishedSelection,
-    setFinishedSelection,
-    (finishedSort) => onSearchChange({ finishedSort }),
-  )
+  const tables = {
+    active: useSectionTable({
+      section: 'active',
+      data: active,
+      sort: search.activeSort,
+      onSortChange: (activeSort) => onSearchChange({ activeSort }),
+      expansion: expansion.active,
+      rowSelection: activeSelection,
+      onRowSelectionChange: setActiveSelection,
+    }),
+    finished: useSectionTable({
+      section: 'finished',
+      data: finished,
+      sort: search.finishedSort,
+      onSortChange: (finishedSort) => onSearchChange({ finishedSort }),
+      expansion: expansion.finished,
+      rowSelection: finishedSelection,
+      onRowSelectionChange: setFinishedSelection,
+    }),
+  }
 
-  const stale = useStale(resource, pollInterval)
+  const stale = useStale(resource, transfersPollInterval)
   const soulseekGate = useSoulseekGate()
   const listGate = stale ? 'The list is out of date' : undefined
   const gates = useMemo(() => ({ list: listGate, soulseek: listGate ?? soulseekGate }), [listGate, soulseekGate])
 
   const selected: Transfer[] = []
-  for (const table of [activeTable, finishedTable]) {
+  for (const table of [tables.active, tables.finished]) {
     for (const row of table.getSelectedRowModel().flatRows)
       if (row.original.kind === 'file') selected.push(row.original)
   }
@@ -98,10 +100,8 @@ export function TransfersPage({ direction, search, onSearchChange }: Props) {
       <TransferList
         direction={direction}
         data={data}
-        active={active}
-        finished={finished}
-        activeTable={activeTable}
-        finishedTable={finishedTable}
+        groups={{ active, finished }}
+        tables={tables}
         filtered={filter.query !== ''}
         selected={selected}
         show={search.show}
@@ -196,7 +196,7 @@ function TransfersToolbar({
       )}
       <ToolbarEnd>
         <OutcomeLine atom={actions[direction]} />
-        <Freshness resource={resource} interval={pollInterval} />
+        <Freshness resource={resource} interval={transfersPollInterval} />
       </ToolbarEnd>
     </Toolbar>
   )

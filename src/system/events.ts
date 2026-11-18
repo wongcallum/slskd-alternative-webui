@@ -1,8 +1,8 @@
 import { api } from '../lib/api'
 import { toTime } from '../lib/format'
-import { createAtom, createResource, type Measure, poll, type Sink } from '../lib/store'
+import { sessionSignal } from '../lib/session'
+import { createAtom, createResource, type Measure, poll } from '../lib/store'
 import { queryMatcher } from '../lib/text'
-import { sessionSignal } from '../session/session'
 
 export type RawEvent = { timestamp: string; type: string; data: string; id: string }
 
@@ -135,19 +135,7 @@ async function fetchNewest(signal: AbortSignal, measure: Measure): Promise<Event
   })
 }
 
-let active: Sink<Events> | undefined
-
-export const events = createResource<Events>((sink) => {
-  active = sink
-  const polling = poll(sink, fetchNewest, eventsPollInterval)
-  return {
-    stop() {
-      polling.stop()
-      if (active === sink) active = undefined
-    },
-    refresh: polling.refresh,
-  }
-})
+export const events = createResource<Events>((sink) => poll(sink, fetchNewest, eventsPollInterval))
 
 export const hasOlder = (data: Events) => data.bottom < data.total
 
@@ -164,15 +152,15 @@ export async function loadOlder() {
     const page = JSON.parse(text) as RawEvent[]
     const held = current()
     if (!signal.aborted) olderLoad.set({ loading: false })
-    if (held === undefined || held.generation !== start.generation || active === undefined) return
+    if (held === undefined || held.generation !== start.generation || !events.isRunning()) return
     const known = new Set(held.records.map((record) => record.id))
     const added = page.filter((raw) => !known.has(raw.id)).map((raw) => toRecord(raw, --oldest))
-    active.set({
+    events.amend(() => ({
       records: added.length === 0 ? held.records : [...held.records, ...added].sort(byNewest),
       total,
       bottom: Math.max(held.bottom, start.bottom + page.length),
       generation: held.generation,
-    })
+    }))
   } catch (error) {
     if (!signal.aborted) olderLoad.set({ loading: false, error })
   }

@@ -1,8 +1,8 @@
 import { isHTTPError } from 'ky'
 
-import { api, describeError } from '../../lib/api'
+import { api, describeError, optionsQueue } from '../../lib/api'
+import { sessionSignal } from '../../lib/session'
 import { createAtom, createResource, load } from '../../lib/store'
-import { sessionSignal } from '../../session/session'
 
 export type ConfigFile = {
   location?: string
@@ -10,23 +10,24 @@ export type ConfigFile = {
   base?: string
   readAt?: number
   reading: boolean
-  readError?: string
+  readError?: unknown
   // Only while it differs from base. It's never persisted, since it holds the Soulseek password.
   draft?: string
   // What's on disk, when that isn't base.
   conflict?: string
   saving: boolean
-  saveError?: string
+  saveMessage?: string
   saved: boolean
 }
 
 export const configFile = createAtom<ConfigFile>({ reading: false, saving: false, saved: false })
 
-const readText = (path: string, signal: AbortSignal) => api.get(path, { signal }).json<string>()
+const readText = (path: string, signal: AbortSignal) => optionsQueue(() => api.get(path, { signal }).json<string>())
 
-// A draft is never replaced by what's read. A file that changed under it is a conflict to resolve.
+// A draft is never replaced by what's read. A file that changed under it is a conflict to resolve. Nothing is read
+// during a save, which leaves the file as read.
 export async function readFile() {
-  if (configFile.get().reading) return
+  if (configFile.get().reading || configFile.get().saving) return
   const signal = sessionSignal()
   configFile.set((state) => ({ ...state, reading: true, readError: undefined }))
   try {
@@ -42,7 +43,7 @@ export async function readFile() {
       return { ...read, conflict: text === state.base ? undefined : text }
     })
   } catch (error) {
-    if (!signal.aborted) configFile.set((state) => ({ ...state, reading: false, readError: describeError(error) }))
+    if (!signal.aborted) configFile.set((state) => ({ ...state, reading: false, readError: error }))
   }
 }
 
@@ -51,7 +52,8 @@ export function edit(text: string) {
 }
 
 export function discard() {
-  configFile.set((state) => ({ ...state, draft: undefined, conflict: undefined, saveError: undefined }))
+  if (configFile.get().saving) return
+  configFile.set((state) => ({ ...state, draft: undefined, conflict: undefined, saveMessage: undefined }))
   void readFile()
 }
 
@@ -65,7 +67,7 @@ export async function save({ overwrite = false } = {}) {
   const { draft, base, saving } = configFile.get()
   if (draft === undefined || saving) return
   const signal = sessionSignal()
-  configFile.set((state) => ({ ...state, saving: true, saveError: undefined, saved: false }))
+  configFile.set((state) => ({ ...state, saving: true, saveMessage: undefined, saved: false }))
   try {
     if (!overwrite) {
       const disk = await readText('options/yaml', signal)
@@ -75,7 +77,7 @@ export async function save({ overwrite = false } = {}) {
         return
       }
     }
-    await api.put('options/yaml', { json: draft, signal })
+    await optionsQueue(() => api.put('options/yaml', { json: draft, signal }))
     if (signal.aborted) return
     configFile.set((state) => ({
       ...state,
@@ -87,7 +89,7 @@ export async function save({ overwrite = false } = {}) {
       saved: true,
     }))
   } catch (error) {
-    if (!signal.aborted) configFile.set((state) => ({ ...state, saving: false, saveError: describeSaveError(error) }))
+    if (!signal.aborted) configFile.set((state) => ({ ...state, saving: false, saveMessage: describeSaveError(error) }))
   }
 }
 
@@ -106,8 +108,7 @@ configFile.subscribe(() => {
 
 // Answers 200 either way: an empty body when valid, and the validator's message when not.
 export async function validate(text: string, signal: AbortSignal) {
-  const response = await api.post('options/yaml/validate', { json: text, signal })
-  const body = await response.text()
+  const body = await optionsQueue(async () => (await api.post('options/yaml/validate', { json: text, signal })).text())
   return body === '' ? undefined : (JSON.parse(body) as string)
 }
 

@@ -1,8 +1,8 @@
 import { functionalUpdate } from '@tanstack/react-table'
 import { useSyncExternalStore } from 'react'
 
-import { onSessionEnd } from '../session/session'
 import { createListeners } from './listeners'
+import { onSessionEnd } from './session'
 
 type Snapshot<T> = { data?: T; error?: unknown }
 
@@ -22,6 +22,8 @@ export type Resource<T> = {
   getInterval: () => number | undefined
   isRunning: () => boolean
   refresh: () => void
+  // Changes the data held while the resource runs, as a push would, such as with the result of an action.
+  amend(update: (data: T) => T): void
   // For one that will never be used again, which the session's end would otherwise keep until then.
   dispose: () => void
 }
@@ -32,8 +34,12 @@ export function shallowEqual<T extends object>(a: T, b: T) {
 }
 
 // The previous array while nothing in it changed, since every push and poll carries new ones.
-export const sameItems = <T>(previous: readonly T[] | undefined, next: readonly T[]) =>
-  previous !== undefined && previous.length === next.length && previous.every((each, i) => Object.is(each, next[i]))
+export const keepItems = <T>(
+  previous: readonly T[] | undefined,
+  next: readonly T[],
+  same: (a: T, b: T) => boolean = Object.is,
+) =>
+  previous !== undefined && previous.length === next.length && previous.every((each, i) => same(each, next[i] as T))
     ? previous
     : next
 
@@ -45,6 +51,7 @@ export function createResource<T extends object>(start: (sink: Sink<T>) => Sourc
   const listeners = createListeners()
   let subscribers = 0
   let source: Source | undefined
+  let live: Sink<T> | undefined
   let stopTimer: ReturnType<typeof setTimeout> | undefined
 
   function emit(next: Snapshot<T>) {
@@ -83,7 +90,10 @@ export function createResource<T extends object>(start: (sink: Sink<T>) => Sourc
     subscribe(listener) {
       const unwatch = listeners.add(listener)
       clearTimeout(stopTimer)
-      if (++subscribers === 1) source ??= start(createSink())
+      if (++subscribers === 1 && source === undefined) {
+        live = createSink()
+        source = start(live)
+      }
       return () => {
         unwatch()
         if (--subscribers > 0) return
@@ -91,6 +101,7 @@ export function createResource<T extends object>(start: (sink: Sink<T>) => Sourc
         stopTimer = setTimeout(() => {
           source?.stop()
           source = undefined
+          live = undefined
         })
       }
     },
@@ -100,22 +111,31 @@ export function createResource<T extends object>(start: (sink: Sink<T>) => Sourc
     getInterval: () => interval,
     isRunning: () => source !== undefined,
     refresh: () => source?.refresh?.(),
+    amend(update) {
+      if (live === undefined || snapshot.data === undefined) return
+      const next = update(snapshot.data)
+      if (next !== snapshot.data) live.set(next)
+    },
     dispose: unlisten,
   }
 }
 
-// One resource per key, such as a room, made when it's first asked for.
-export function createResourceMap<T>(create: (key: string) => Resource<T>) {
-  const resources = new Map<string, Resource<T>>()
+// One per key, such as a room's resource, made when it's first asked for and disposed of when forgotten. A key that
+// isn't a string needs an id.
+export function createKeyed<K, V extends { dispose: () => void }>(
+  create: (key: K) => V,
+  ...[id = String]: K extends string ? [id?: (key: K) => string] : [id: (key: K) => string]
+) {
+  const values = new Map<string, V>()
   return {
-    get: (key: string) => {
-      let resource = resources.get(key)
-      if (resource === undefined) resources.set(key, (resource = create(key)))
-      return resource
+    get: (key: K) => {
+      let value = values.get(id(key))
+      if (value === undefined) values.set(id(key), (value = create(key)))
+      return value
     },
-    forget(key: string) {
-      resources.get(key)?.dispose()
-      resources.delete(key)
+    forget(key: K) {
+      values.get(id(key))?.dispose()
+      values.delete(id(key))
     },
   }
 }
@@ -190,6 +210,10 @@ export function poll<T>(
 // Resolves true once the data passes, or false at the timeout. The resource keeps running meanwhile.
 export function waitFor<T>(resource: Resource<T>, passes: (data: T) => boolean, signal: AbortSignal, timeout: number) {
   return new Promise<boolean>((resolve, reject) => {
+    if (signal.aborted) {
+      reject(signal.reason)
+      return
+    }
     const timer = setTimeout(() => finish(() => resolve(false)), timeout)
     const check = () => {
       const { data } = resource.getSnapshot()
@@ -257,7 +281,8 @@ export type Atom<T> = {
   subscribe: (listener: () => void) => () => void
 }
 
-export function createAtom<T>(initial: T): Atom<T> {
+// Dispose of one that will never be used again, which the session's end would otherwise keep.
+export function createAtom<T>(initial: T): Atom<T> & { dispose: () => void } {
   let value = initial
   const listeners = createListeners()
   const atom: Atom<T> = {
@@ -268,14 +293,17 @@ export function createAtom<T>(initial: T): Atom<T> {
     },
     subscribe: listeners.add,
   }
-  onSessionEnd(() => atom.set(initial))
-  return atom
+  const dispose = onSessionEnd(() => atom.set(initial))
+  return { ...atom, dispose }
 }
 
 export const useAtom = <T>(atom: Atom<T>) => useSyncExternalStore(atom.subscribe, atom.get)
 
-export function without<V>(map: ReadonlyMap<string, V>, key: string) {
-  const next = new Map(map)
+export function without<V>(map: ReadonlyMap<string, V>, key: string): Map<string, V>
+export function without<V>(record: Readonly<Record<string, V>>, key: string): Record<string, V>
+export function without<V>(all: ReadonlyMap<string, V> | Readonly<Record<string, V>>, key: string) {
+  if (!(all instanceof Map)) return Object.fromEntries(Object.entries(all).filter(([each]) => each !== key))
+  const next = new Map(all)
   next.delete(key)
   return next
 }

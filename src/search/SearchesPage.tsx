@@ -4,6 +4,7 @@ import { type ReactNode, useMemo, useState } from 'react'
 
 import type { SearchProps } from '../lib/params'
 import { useAtom } from '../lib/store'
+import { queryMatcher } from '../lib/text'
 import {
   ActionButton,
   FilterField,
@@ -36,8 +37,8 @@ export function SearchesPage({ search, onSearchChange }: Props) {
   const filter = useFilterText(search.q, (q) => onSearchChange({ q }))
   const list = useMemo(() => {
     const all = data?.list ?? none
-    const needle = filter.query.toLowerCase()
-    return needle === '' ? all : all.filter((each) => each.search.includes(needle))
+    const matches = queryMatcher(filter.query)
+    return matches === undefined ? all : all.filter((each) => matches(each.search))
   }, [data?.list, filter.query])
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const table = useListTable(list, rowSelection, setRowSelection)

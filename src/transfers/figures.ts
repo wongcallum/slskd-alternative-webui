@@ -1,7 +1,7 @@
 import { metricsHub, useHub } from '../lib/hubs'
 import { useResource, useStale, useWatchedResource } from '../lib/store'
 import { metrics } from './metrics'
-import { type Direction, pollInterval, transfers } from './transfers'
+import { type Direction, transfersPollInterval, transfers } from './transfers'
 
 type Figures = {
   exact: boolean
@@ -15,7 +15,7 @@ export function useTransferFigures(direction: Direction): Figures {
   const hub = useHub(metricsHub)
   const estimate = useResource(metrics[direction]).data
   const list = useWatchedResource(transfers[direction]).data
-  const stale = useStale(transfers[direction], pollInterval)
+  const stale = useStale(transfers[direction], transfersPollInterval)
   const hubSpeed = hub.state === 'connected' ? estimate?.speed : undefined
   if (transfers[direction].isRunning() && list !== undefined && !stale) {
     return {

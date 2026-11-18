@@ -7,7 +7,7 @@ import { createSearch, hasSearchTerm } from './searches'
 // A new search opens its results, unless the page was left while slskd was creating it.
 export function useCreateSearch() {
   const navigate = useNavigate()
-  const [state, setState] = useState<{ busy: boolean; error?: string }>({ busy: false })
+  const [state, setState] = useState<{ busy: boolean; message?: string }>({ busy: false })
   const mounted = useRef(false)
   useEffect(() => {
     mounted.current = true
@@ -20,7 +20,7 @@ export function useCreateSearch() {
     if (!hasSearchTerm(text)) {
       setState({
         busy: false,
-        error: 'Add a word to search for. Words starting with - only exclude, and single characters are ignored.',
+        message: 'Add a word to search for. Words starting with - only exclude, and single characters are ignored.',
       })
       return
     }
@@ -29,7 +29,7 @@ export function useCreateSearch() {
       const id = await createSearch(text)
       if (mounted.current) void navigate({ to: '/searches/$id', params: { id } })
     } catch (thrown) {
-      if (mounted.current) setState({ busy: false, error: describeError(thrown) })
+      if (mounted.current) setState({ busy: false, message: describeError(thrown) })
     }
   }
 

@@ -6,16 +6,16 @@ import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react
 import { type Criteria, unjudged } from '../../lib/criteria'
 import { useFrom } from '../../lib/media'
 import { type SearchProps, useSortParam } from '../../lib/params'
-import { type Folder, matchTree, nearestFolder, type Tree as FolderTree } from '../../lib/tree'
+import { type Folder, matchTree, nearestFolder, type Tree } from '../../lib/tree'
 import { barHeight, FilterField, GatedIconButton, toolbarStyle, useFilterText } from '../controls'
 import { intendFocus } from '../focus'
 import { FolderPane, type TreeConfig } from './FolderPane'
-import { expandTo, Tree, updateExpansion } from './Tree'
+import { expandTo, FolderTree, updateExpansion } from './FolderTree'
 
 type TreeSearch<S extends string> = { path: string; q: string; sort?: S }
 
 type Props<S extends string> = SearchProps<TreeSearch<S>> & {
-  tree: FolderTree
+  tree: Tree
   fetchedAt: number
   config: TreeConfig
   criteria?: Criteria
@@ -69,7 +69,7 @@ export function TreeView<S extends string>({
   const treeWidth = lg ? '380px' : md ? '300px' : '260px'
 
   const toolbar = (
-    <Flex align="center" gap="2" px="4" py="2" flexShrink="0" minHeight={barHeight} style={toolbarStyle}>
+    <Flex align="center" gap="2" px="4" py="2" flexShrink="0" minHeight={`${barHeight}px`} style={toolbarStyle}>
       <FilterField
         placeholder="Filter, -word to exclude"
         value={filter.text}
@@ -120,7 +120,15 @@ export function TreeView<S extends string>({
     </Flex>
   )
   const treePane = (
-    <Tree tree={tree} selected={folder} matches={matches} onOpen={open} onUp={up} reveal={reveal} Keys={config.Keys} />
+    <FolderTree
+      tree={tree}
+      selected={folder}
+      matches={matches}
+      onOpen={open}
+      onUp={up}
+      reveal={reveal}
+      Keys={config.Keys}
+    />
   )
   const folderPane = (
     <FolderPane

@@ -3,7 +3,6 @@ import { useSoulseekGate } from '../soulseek/soulseek'
 import { UsernameBox } from '../ui/UsernameBox'
 import { browseIfMissing, browses, loadedShares } from './browse'
 
-// Asking for a user is the gesture that browses them, unless their share is cached.
 export function UserBox({ current }: { current?: string }) {
   const gate = useSoulseekGate()
   const loaded = useAtom(loadedShares).get(current ?? '')

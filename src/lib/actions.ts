@@ -1,8 +1,8 @@
 import pLimit from 'p-limit'
 
-import { sessionSignal } from '../session/session'
 import { describeError } from './api'
 import { plural } from './format'
+import { sessionSignal } from './session'
 import type { Atom } from './store'
 
 export type Progress = { done: number; total: number }
@@ -88,14 +88,9 @@ export function dismissOutcome<S extends Actions<string>>(atom: Atom<S>) {
   atom.set((state) => ({ ...state, outcome: undefined }))
 }
 
-export function summarise(
-  verb: string,
-  total: number,
-  failed: number,
-  details: string[],
-  noun: string,
-  nouns = `${noun}s`,
-): Outcome {
+type Tally = { verb: string; noun: string; nouns?: string; total: number; failed: number; details: string[] }
+
+export function summarise({ verb, noun, nouns = `${noun}s`, total, failed, details }: Tally): Outcome {
   const done = total - failed
   return {
     summary:
